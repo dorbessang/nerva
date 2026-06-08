@@ -6,7 +6,7 @@ import TaskDrawer from '../components/TaskDrawer'
 import './Tasks.css'
 
 export default function Tasks() {
-  const { user, role } = useAuth()
+  const { user, role, workspaceId } = useAuth()
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('active')

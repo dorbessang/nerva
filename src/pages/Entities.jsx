@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/AuthContext'
 import EntityModal from '../components/EntityModal'
 import { getFlagUrl, getCountryName } from '../components/CountrySelector'
 import './Entities.css'
@@ -21,6 +22,7 @@ function getAvatarColor(name) {
 }
 
 export default function Entities({ entityTypeId, entityTypeName, entityTypeSingular }) {
+  const { workspaceId } = useAuth()
   const [entities, setEntities] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')

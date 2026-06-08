@@ -23,7 +23,8 @@
   font-size: 12px;
   color: #9ca3af;
   margin: 0;
-  text-transform: capitalize;
+  text-align: center;
+  text-transform: none;
 }
 
 .db-metrics {
@@ -38,6 +39,7 @@
   border: 1px solid #e5e7eb;
   border-radius: 10px;
   padding: 16px 20px;
+  text-align: center;
 }
 
 .db-metric-label {
@@ -93,6 +95,7 @@
   text-transform: uppercase;
   letter-spacing: 0.8px;
   margin: 0 0 16px;
+  text-align: left;
 }
 
 .db-section-header .db-section-title {
@@ -170,10 +173,13 @@
   display: flex;
   align-items: center;
   gap: 20px;
+  height: 100%;
 }
 
 .db-donut-chart {
   position: relative;
+  width: 160px;
+  height: 160px;
   flex-shrink: 0;
 }
 
@@ -183,6 +189,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
+  pointer-events: none;
 }
 
 .db-donut-total {
@@ -310,20 +317,30 @@
 .db-recent-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 24px;
+  gap: 0;
 }
 
 .db-recent-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 6px;
+  padding: 10px 12px;
   border-bottom: 1px solid #f3f4f6;
   cursor: pointer;
   border-radius: 6px;
-  margin-left: -6px;
   transition: background 0.1s;
 }
+
+.db-recent-row:nth-child(odd) {
+  border-right: 1px solid #f0f2f5;
+  padding-right: 20px;
+}
+
+.db-recent-row:nth-child(even) {
+  padding-left: 20px;
+}
+
+.db-recent-row:hover { background: #f9fafb; }
 
 .db-recent-row:hover { background: #f9fafb; }
 

@@ -4,7 +4,7 @@ import { useAuth } from '../lib/AuthContext'
 import './TaskModal.css'
 
 export default function TaskModal({ onClose, onCreated }) {
-  const { user } = useAuth()
+  const { user, workspaceId } = useAuth()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('medium')
@@ -42,7 +42,7 @@ export default function TaskModal({ onClose, onCreated }) {
     if (!title.trim()) { setError('El título es obligatorio'); return }
     setLoading(true)
     const { error } = await supabase.from('tasks').insert({
-      workspace_id: 'aaaaaaaa-0000-0000-0000-000000000001',
+      workspace_id: workspaceId,
       title: title.trim(),
       description: description.trim() || null,
       priority,

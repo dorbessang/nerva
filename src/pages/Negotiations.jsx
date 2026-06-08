@@ -3,13 +3,12 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import './Negotiations.css'
 
-const WORKSPACE_ID = 'aaaaaaaa-0000-0000-0000-000000000001'
 const TERRITORIES = ['ARG','BOL','BRA','CEAM','CHI','COL','ECU','MEX','PAR','PER','URU','VEN']
-const COMPANIES = ['Ethical Nutrition','Millet','Roemmers','Siegfried','Sidus','Tuteur']
+const COMPANIES = ['Ethical Nutrition','Millet','Roemmers','Siegfried','Sidus','Tuteur', 'Ceoderma']
 const NDA_STATES = ['—','Enviado','En Revisión','Firmado']
 
 export default function Negotiations() {
-  const { user } = useAuth()
+  const { user, workspaceId } = useAuth()
   const [negotiations, setNegotiations] = useState([])
   const [entities, setEntities] = useState([])
   const [members, setMembers] = useState([])

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/AuthContext'
 import CountrySelector from './CountrySelector'
 import './EntityModal.css'
-
-const WORKSPACE_ID = 'aaaaaaaa-0000-0000-0000-000000000001'
 
 const emptyContact = () => ({
   tempId: Date.now() + Math.random(),
@@ -16,6 +15,7 @@ const emptyContact = () => ({
 })
 
 export default function EntityModal({ onClose, onCreated, initial = null, entityTypeSingular = 'proveedor' }) {
+  const { workspaceId } = useAuth()
   const [name, setName] = useState(initial?.name || '')
   const [countryCode, setCountryCode] = useState(initial?.country_code || '')
   const [companyType, setCompanyType] = useState(initial?.custom_fields?.company_type || '')
