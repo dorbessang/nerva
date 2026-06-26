@@ -32,7 +32,7 @@ function EntityRoute() {
   useEffect(() => {
     supabase
       .from("entity_types")
-      .select("id, name")
+      .select("id, name, plural")
       .eq("id", id)
       .single()
       .then(({ data }) => {
@@ -45,9 +45,8 @@ function EntityRoute() {
   if (!entityType) return <Navigate to="/dashboard" replace />;
 
   const singularName = entityType.name;
-  const pluralName = entityType.name.endsWith("r")
-    ? entityType.name + "es"
-    : entityType.name + "s";
+  const pluralName = entityType.plural ||
+    (entityType.name.endsWith("r") ? entityType.name + "es" : entityType.name + "s");
 
   return (
     <Entities

@@ -3,45 +3,65 @@
   width: 100%;
 }
 
-.country-trigger {
+/* Combobox — el input con bandera y flecha */
+.country-combobox {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 11px 14px;
+  position: relative;
   border: 1.5px solid #e5e7eb;
   border-radius: 7px;
-  background-color: #f9fafb;
-  cursor: pointer;
+  background: #f9fafb;
+  transition: border-color 0.15s;
+}
+
+.country-combobox:focus-within {
+  border-color: #0B1F3A;
+  background: #ffffff;
+}
+
+.country-flag--input {
+  position: absolute;
+  left: 10px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.country-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 11px 36px 11px 12px;
   font-size: 14px;
   color: #111827;
-  transition: all 0.15s;
+  outline: none;
+  width: 100%;
+  border-radius: 7px;
 }
 
-.country-trigger:hover {
-  border-color: #0B1F3A;
-}
-
-.country-trigger-value {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.country-placeholder {
+.country-input::placeholder {
   color: #c4c9d4;
 }
 
-.country-arrow {
-  font-size: 10px;
+.country-arrow-btn {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
   color: #9ca3af;
+  font-size: 10px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s;
 }
 
-.country-flag {
-  width: 20px;
-  height: auto;
-  border-radius: 2px;
+.country-arrow-btn:hover {
+  color: #374151;
 }
 
+/* Dropdown */
 .country-dropdown {
   position: absolute;
   top: calc(100% + 4px);
@@ -55,25 +75,16 @@
   overflow: hidden;
 }
 
-.country-search-wrapper {
-  padding: 8px 10px;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.country-search {
-  width: 100%;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 7px 10px;
-  font-size: 13px;
-  outline: none;
-  background: #f9fafb;
-  box-sizing: border-box;
-}
-
 .country-list {
   max-height: 210px;
   overflow-y: auto;
+}
+
+.country-flag {
+  width: 20px;
+  height: auto;
+  border-radius: 2px;
+  flex-shrink: 0;
 }
 
 .country-option {
@@ -87,8 +98,9 @@
   transition: background 0.1s;
 }
 
-.country-option:hover {
-  background: #f9fafb;
+.country-option:hover,
+.country-option.highlighted {
+  background: #f3f4f6;
 }
 
 .country-option.selected {
@@ -96,15 +108,15 @@
   color: #1D4ED8;
 }
 
+.country-check {
+  margin-left: auto;
+  color: #1D4ED8;
+  font-size: 12px;
+}
+
 .country-empty {
   padding: 13px;
   font-size: 13px;
   color: #9ca3af;
   text-align: center;
-}
-
-.country-check {
-  margin-left: auto;
-  color: #1D4ED8;
-  font-size: 12px;
 }

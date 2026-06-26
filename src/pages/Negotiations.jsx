@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import './Negotiations.css'
@@ -7,8 +8,54 @@ const TERRITORIES = ['ARG','BOL','BRA','CEAM','CHI','COL','ECU','MEX','PAR','PER
 const COMPANIES = ['Ethical Nutrition','Millet','Roemmers','Siegfried','Sidus','Tuteur', 'Ceoderma']
 const NDA_STATES = ['—','Enviado','En Revisión','Firmado']
 
+// Todas las columnas disponibles para la tabla
+const ALL_COLUMNS = [
+  { key: 'product',          label: 'Producto',         alwaysVisible: true  },
+  { key: 'entities',         label: 'Proveedor'                              },
+  { key: 'status',           label: 'Estado'                                 },
+  { key: 'nda',              label: 'NDA'                                    },
+  { key: 'territories',      label: 'Territorios'                            },
+  { key: 'companies',        label: 'Empresas'                               },
+  { key: 'target_date',      label: 'Fecha'                                  },
+  { key: 'participants',     label: 'Participantes'                          },
+  { key: 'notes',            label: 'Notas'                                  },
+  { key: 'observations',     label: 'Aclaraciones'                           },
+  { key: 'activity_status',  label: 'Actividad'                              },
+  { key: 'last_activity_at', label: 'Últ. actividad'                         },
+]
+
+const DEFAULT_VISIBLE = ['product','entities','status','nda','territories','companies','target_date']
+
+function useColumnPrefs(userId) {
+  const key = `nerva_col_prefs_${userId}`
+  const [cols, setCols] = useState(() => {
+    try {
+      const saved = localStorage.getItem(key)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // Mergeamos por si hay columnas nuevas que no estaban guardadas
+        const savedKeys = parsed.map(c => c.key)
+        const merged = [
+          ...parsed,
+          ...ALL_COLUMNS.filter(c => !savedKeys.includes(c.key)).map(c => ({ key: c.key, visible: false }))
+        ]
+        return merged
+      }
+    } catch {}
+    return ALL_COLUMNS.map(c => ({ key: c.key, visible: DEFAULT_VISIBLE.includes(c.key) }))
+  })
+
+  function saveCols(newCols) {
+    setCols(newCols)
+    localStorage.setItem(key, JSON.stringify(newCols))
+  }
+
+  return [cols, saveCols]
+}
+
 export default function Negotiations() {
   const { user, workspaceId } = useAuth()
+  const location = useLocation()
   const [negotiations, setNegotiations] = useState([])
   const [entities, setEntities] = useState([])
   const [members, setMembers] = useState([])
@@ -17,10 +64,19 @@ export default function Negotiations() {
   const [view, setView] = useState('table')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterEntity, setFilterEntity] = useState('')
+  const [filterActivity, setFilterActivity] = useState('active')
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [selectedNeg, setSelectedNeg] = useState(null)
   const [editingNeg, setEditingNeg] = useState(null)
+  const [showColEditor, setShowColEditor] = useState(false)
+  const [cols, saveCols] = useColumnPrefs(user?.id)
+
+  // Si viene del banner del dashboard, pre-filtra por baja actividad
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('filter') === 'low_activity') setFilterActivity('low_activity')
+  }, [location.search])
 
   useEffect(() => { fetchAll() }, [])
 
@@ -36,14 +92,22 @@ export default function Negotiations() {
     if (negsRes.error) { setLoading(false); return }
 
     const negIds = negsRes.data.map(n => n.id)
-    const { data: negEntities } = await supabase
-      .from('negotiation_entities')
-      .select('negotiation_id, entity_id, entity:entity_id(id, name, country_code)')
-      .in('negotiation_id', negIds)
+    const [{ data: negEntities }, { data: negNotes }] = await Promise.all([
+      supabase
+        .from('negotiation_entities')
+        .select('negotiation_id, entity_id, entity:entity_id(id, name, country_code)')
+        .in('negotiation_id', negIds),
+      supabase
+        .from('negotiation_notes')
+        .select('id, negotiation_id, content, note_date')
+        .in('negotiation_id', negIds)
+        .order('note_date', { ascending: true }),
+    ])
 
     const combined = negsRes.data.map(neg => ({
       ...neg,
-      negotiation_entities: (negEntities || []).filter(ne => ne.negotiation_id === neg.id)
+      negotiation_entities: (negEntities || []).filter(ne => ne.negotiation_id === neg.id),
+      notes_list: (negNotes || []).filter(n => n.negotiation_id === neg.id),
     }))
 
     setNegotiations(combined)
@@ -51,6 +115,16 @@ export default function Negotiations() {
     if (membersRes.data) setMembers(membersRes.data)
     if (statesRes.data) setCustomStates(statesRes.data)
     setLoading(false)
+  }
+
+  async function refetchSingleNeg(id) {
+    const [{ data: neg }, { data: ents }, { data: notesList }] = await Promise.all([
+      supabase.from('negotiations').select('*').eq('id', id).single(),
+      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code)').eq('negotiation_id', id),
+      supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', id).order('note_date'),
+    ])
+    if (!neg) return null
+    return { ...neg, negotiation_entities: ents || [], notes_list: notesList || [] }
   }
 
   function getStateConfig(status) {
@@ -69,17 +143,31 @@ export default function Negotiations() {
     return `https://flagcdn.com/w20/${ents[0].country_code.toLowerCase()}.png`
   }
 
-  const STATE_ORDER = ['Firmado', 'En Negociación', 'Derivado', 'Contactado', 'Descartado']
-  const stateCounts = STATE_ORDER.map(name => {
-    const found = customStates.find(s => s.name === name)
-    return { name, color: found?.color || '#64748B', bg_color: found?.bg_color || '#F1F5F9', count: negotiations.filter(n => n.status === name).length }
-  })
+  const activeNegs = negotiations.filter(n => n.activity_status === 'active' && n.status !== 'Completado')
+  const stateCounts = customStates
+    .filter(s => s.name !== 'Completado')
+    .map(s => ({
+      name: s.name,
+      color: s.color || '#64748B',
+      bg_color: s.bg_color || '#F1F5F9',
+      count: activeNegs.filter(n => n.status === s.name).length,
+    }))
+
+  const day90ago = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+  const day120ago = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString()
 
   const filtered = negotiations.filter(n => {
     if (filterStatus && n.status !== filterStatus) return false
     if (filterEntity) {
       const ids = n.negotiation_entities?.map(ne => ne.entity?.id) || []
       if (!ids.includes(filterEntity)) return false
+    }
+    if (filterActivity === 'active') { if (n.activity_status !== 'active') return false }
+    if (filterActivity === 'paused') { if (n.activity_status !== 'paused') return false }
+    if (filterActivity === 'inactive') { if (n.activity_status !== 'inactive') return false }
+    if (filterActivity === 'low_activity') {
+      if (!(n.activity_status === 'active' && n.status !== 'Completado' &&
+            n.last_activity_at < day90ago && n.last_activity_at >= day120ago)) return false
     }
     if (search && !n.title?.toLowerCase().includes(search.toLowerCase()) && !n.product?.toLowerCase().includes(search.toLowerCase())) return false
     return true
@@ -95,6 +183,11 @@ export default function Negotiations() {
             {stateCounts.filter(s => s.count > 0).map(s => (
               <span key={s.name} style={{ color: s.color, marginRight: 10 }}>{s.count} {s.name}</span>
             ))}
+            {negotiations.filter(n => n.status === 'Completado').length > 0 && (
+              <span style={{ color: '#059669', marginRight: 10 }}>
+                {negotiations.filter(n => n.status === 'Completado').length} Completado
+              </span>
+            )}
           </p>
         </div>
         <button className="neg-btn-primary" onClick={() => { setEditingNeg(null); setShowModal(true) }}>
@@ -113,7 +206,7 @@ export default function Negotiations() {
             <div className="neg-stat-label">{s.name}</div>
             <div className="neg-stat-count" style={{ color: s.color }}>{s.count}</div>
             <div className="neg-stat-bar">
-              <div className="neg-stat-bar-fill" style={{ width: negotiations.length ? `${(s.count / negotiations.length) * 100}%` : '0%', backgroundColor: s.color }} />
+              <div className="neg-stat-bar-fill" style={{ width: activeNegs.length ? `${(s.count / activeNegs.length) * 100}%` : '0%', backgroundColor: s.color }} />
             </div>
           </div>
         ))}
@@ -129,20 +222,38 @@ export default function Negotiations() {
           <option value="">Todos los estados</option>
           {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
         </select>
+        <select className="neg-select" value={filterActivity} onChange={e => setFilterActivity(e.target.value)}>
+          <option value="active">En curso</option>
+          <option value="paused">Pausados</option>
+          <option value="inactive">Inactivos</option>
+          <option value="low_activity">Baja actividad</option>
+          <option value="">Todos</option>
+        </select>
         <div className="neg-view-toggle">
           <button className={`neg-view-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')} title="Vista tabla">☰</button>
           <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Vista cards">⊞</button>
         </div>
+        <button
+          className={`neg-col-btn ${showColEditor ? 'active' : ''}`}
+          onClick={() => setShowColEditor(v => !v)}
+          title="Configurar columnas"
+        >
+          ⚙ Columnas
+        </button>
       </div>
+
+      {showColEditor && (
+        <ColumnEditor cols={cols} onChange={saveCols} onClose={() => setShowColEditor(false)} />
+      )}
 
       {loading ? (
         <div className="neg-loading">Cargando proyectos...</div>
       ) : filtered.length === 0 ? (
         <div className="neg-empty">No hay proyectos todavía.</div>
       ) : view === 'table' ? (
-        <TableView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} onEdit={neg => { setEditingNeg(neg); setShowModal(true) }} />
+        <TableView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} />
       ) : (
-        <CardsView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} />
+        <CardsView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} />
       )}
 
       {showModal && (
@@ -151,9 +262,20 @@ export default function Negotiations() {
           entities={entities}
           members={members}
           customStates={customStates}
-          onClose={() => setShowModal(false)}
-          onSaved={fetchAll}
-          workspaceId={WORKSPACE_ID}
+          onClose={() => { setShowModal(false); setSelectedNeg(null) }}
+          onCancel={() => {
+            if (editingNeg) setSelectedNeg(editingNeg)
+            setShowModal(false)
+          }}
+          onSaved={async () => {
+            if (editingNeg) {
+              const updated = await refetchSingleNeg(editingNeg.id)
+              setSelectedNeg(updated || editingNeg)
+            }
+            setShowModal(false)
+            fetchAll()
+          }}
+          workspaceId={workspaceId}
           userId={user?.id}
         />
       )}
@@ -162,60 +284,189 @@ export default function Negotiations() {
         <NegotiationDetail
           neg={selectedNeg}
           entities={entities}
+          customStates={customStates}
           getStateConfig={getStateConfig}
           getEntityFlag={getEntityFlag}
           onClose={() => setSelectedNeg(null)}
           onEdit={() => { setEditingNeg(selectedNeg); setSelectedNeg(null); setShowModal(true) }}
-          onDeleted={fetchAll}
+          onNotesChanged={fetchAll}
+          onDeleted={() => { fetchAll(); setSelectedNeg(null) }}
+          onActivityChanged={fetchAll}
         />
       )}
     </div>
   )
 }
 
-function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect }) {
+// Editor de columnas — drag & drop para reordenar, toggle para mostrar/ocultar
+function ColumnEditor({ cols, onChange, onClose }) {
+  const [dragSrc, setDragSrc] = useState(null)
+  const [dragOver, setDragOver] = useState(null)
+
+  function toggleVisible(key) {
+    const col = ALL_COLUMNS.find(c => c.key === key)
+    if (col?.alwaysVisible) return
+    onChange(cols.map(c => c.key === key ? { ...c, visible: !c.visible } : c))
+  }
+
+  function handleDragStart(e, idx) {
+    setDragSrc(idx)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  function handleDragOver(e, idx) {
+    e.preventDefault()
+    setDragOver(idx)
+  }
+
+  function handleDrop(idx) {
+    if (dragSrc === null || dragSrc === idx) { setDragSrc(null); setDragOver(null); return }
+    const next = [...cols]
+    const [moved] = next.splice(dragSrc, 1)
+    next.splice(idx, 0, moved)
+    onChange(next)
+    setDragSrc(null)
+    setDragOver(null)
+  }
+
+  return (
+    <div className="col-editor">
+      <div className="col-editor-header">
+        <span className="col-editor-title">Configurar columnas</span>
+        <span className="col-editor-hint">Arrastrá para reordenar · Clic para mostrar/ocultar</span>
+        <button className="col-editor-close" onClick={onClose}>✕</button>
+      </div>
+      <div className="col-editor-list">
+        {cols.map((c, idx) => {
+          const def = ALL_COLUMNS.find(x => x.key === c.key)
+          if (!def) return null
+          return (
+            <div
+              key={c.key}
+              className={`col-editor-item ${dragOver === idx ? 'drag-over' : ''} ${!c.visible ? 'hidden' : ''}`}
+              draggable
+              onDragStart={e => handleDragStart(e, idx)}
+              onDragOver={e => handleDragOver(e, idx)}
+              onDrop={() => handleDrop(idx)}
+              onDragEnd={() => { setDragSrc(null); setDragOver(null) }}
+            >
+              <span className="col-drag-handle">⠿</span>
+              <input
+                type="checkbox"
+                checked={c.visible}
+                onChange={() => toggleVisible(c.key)}
+                disabled={def.alwaysVisible}
+              />
+              <span className="col-editor-label">{def.label}</span>
+              {def.alwaysVisible && <span className="col-always">siempre</span>}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Render de una celda según el key de columna
+function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag) {
+  const cfg = getStateConfig(neg.status)
+  const flag = getEntityFlag(neg)
+
+  switch (key) {
+    case 'product': {
+      const actIcon = neg.activity_status === 'inactive' ? '💤' : neg.activity_status === 'paused' ? '⏸' : null
+      return (
+        <td key={key} className="neg-td-product">
+          {actIcon && <span className={`neg-paused-icon ${neg.activity_status === 'inactive' ? 'neg-icon-inactive' : 'neg-icon-paused'}`}>{actIcon}</span>}
+          {neg.product || neg.title}
+        </td>
+      )
+    }
+    case 'entities':
+      return (
+        <td key={key} className="neg-td-entity">
+          <span className="neg-entity-name">
+            {flag && <img src={flag} alt="" className="neg-flag" />}
+            {getEntityName(neg)}
+          </span>
+        </td>
+      )
+    case 'status':
+      return <td key={key}><span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span></td>
+    case 'nda':
+      return <td key={key}><span className="neg-nda-badge">{neg.nda || '—'}</span></td>
+    case 'territories':
+      return (
+        <td key={key}>
+          <div className="neg-chips">
+            {neg.territories?.slice(0, 4).map(t => <span key={t} className="neg-chip neg-chip-green">{t}</span>)}
+            {neg.territories?.length > 4 && <span className="neg-chip neg-chip-gray">+{neg.territories.length - 4}</span>}
+          </div>
+        </td>
+      )
+    case 'companies':
+      return (
+        <td key={key}>
+          <div className="neg-chips">
+            {neg.companies?.slice(0, 2).map(c => <span key={c} className="neg-chip neg-chip-purple">{c}</span>)}
+            {neg.companies?.length > 2 && <span className="neg-chip neg-chip-gray">+{neg.companies.length - 2}</span>}
+          </div>
+        </td>
+      )
+    case 'target_date':
+      return <td key={key} className="neg-td-date">{neg.target_date || '—'}</td>
+    case 'participants':
+      return (
+        <td key={key}>
+          <div className="neg-chips">
+            {neg.participants?.slice(0, 2).map(p => <span key={p} className="neg-chip neg-chip-blue">{p}</span>)}
+            {neg.participants?.length > 2 && <span className="neg-chip neg-chip-gray">+{neg.participants.length - 2}</span>}
+          </div>
+        </td>
+      )
+    case 'notes': {
+      const list = neg.notes_list || []
+      if (!list.length) return <td key={key} className="neg-td-text" style={{ color: '#d1d5db' }}>Sin notas</td>
+      const preview = list.map(n => `${new Date(n.note_date + 'T00:00:00').toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit' })}: ${n.content}`).join(' · ')
+      return <td key={key} className="neg-td-text">{preview}</td>
+    }
+    case 'observations':
+      return <td key={key} className="neg-td-text">{neg.observations ? neg.observations : '—'}</td>
+    case 'activity_status': {
+      const map = { active: 'En curso', paused: '⏸ Pausado', inactive: '💤 Inactivo' }
+      return <td key={key}><span className="neg-nda-badge">{map[neg.activity_status] || '—'}</span></td>
+    }
+    case 'last_activity_at': {
+      if (!neg.last_activity_at) return <td key={key}>—</td>
+      const days = Math.floor((Date.now() - new Date(neg.last_activity_at)) / 86400000)
+      const label = days === 0 ? 'hoy' : days === 1 ? 'ayer' : `hace ${days}d`
+      return <td key={key} className="neg-td-date">{label}</td>
+    }
+    default:
+      return <td key={key}>—</td>
+  }
+}
+
+function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols }) {
+  const visibleCols = cols.filter(c => c.visible)
+
   return (
     <div className="neg-table-wrapper">
       <table className="neg-table">
         <thead>
           <tr>
-            <th>Producto</th>
-            <th>Proveedor</th>
-            <th>Estado</th>
-            <th>NDA</th>
-            <th>Territorios</th>
-            <th>Empresas</th>
-            <th>Fecha</th>
+            {visibleCols.map(c => {
+              const def = ALL_COLUMNS.find(x => x.key === c.key)
+              return <th key={c.key}>{def?.label}</th>
+            })}
           </tr>
         </thead>
         <tbody>
           {negotiations.map(neg => {
-            const cfg = getStateConfig(neg.status)
-            const flag = getEntityFlag(neg)
+            const rowClass = neg.activity_status === 'paused' ? 'neg-row-paused' : neg.activity_status === 'inactive' ? 'neg-row-inactive' : ''
             return (
-              <tr key={neg.id} onClick={() => onSelect(neg)} className="neg-table-row">
-                <td className="neg-td-product">{neg.product || neg.title}</td>
-                <td className="neg-td-entity">
-                  <span className="neg-entity-name">
-                    {flag && <img src={flag} alt="" className="neg-flag" />}
-                    {getEntityName(neg)}
-                  </span>
-                </td>
-                <td><span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span></td>
-                <td><span className="neg-nda-badge">{neg.nda || '—'}</span></td>
-                <td>
-                  <div className="neg-chips">
-                    {neg.territories?.slice(0, 4).map(t => <span key={t} className="neg-chip neg-chip-green">{t}</span>)}
-                    {neg.territories?.length > 4 && <span className="neg-chip neg-chip-gray">+{neg.territories.length - 4}</span>}
-                  </div>
-                </td>
-                <td>
-                  <div className="neg-chips">
-                    {neg.companies?.slice(0, 2).map(c => <span key={c} className="neg-chip neg-chip-purple">{c}</span>)}
-                    {neg.companies?.length > 2 && <span className="neg-chip neg-chip-gray">+{neg.companies.length - 2}</span>}
-                  </div>
-                </td>
-                <td className="neg-td-date">{neg.target_date || '—'}</td>
+              <tr key={neg.id} onClick={() => onSelect(neg)} className={`neg-table-row ${rowClass}`}>
+                {visibleCols.map(c => renderCell(c.key, neg, getStateConfig, getEntityName, getEntityFlag))}
               </tr>
             )
           })}
@@ -225,29 +476,92 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
   )
 }
 
-function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect }) {
+function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag) {
+  const flag = getEntityFlag(neg)
+  switch (key) {
+    case 'entities': {
+      const name = getEntityName(neg)
+      if (!name || name === '—') return null
+      return (
+        <div key={key} className="neg-card-entity">
+          {flag && <img src={flag} alt="" className="neg-flag" />}
+          {name}
+        </div>
+      )
+    }
+    case 'territories':
+      if (!neg.territories?.length) return null
+      return (
+        <div key={key} className="neg-chips neg-card-field">
+          {neg.territories.slice(0, 4).map(t => <span key={t} className="neg-chip neg-chip-green">{t}</span>)}
+          {neg.territories.length > 4 && <span className="neg-chip neg-chip-gray">+{neg.territories.length - 4}</span>}
+        </div>
+      )
+    case 'companies':
+      if (!neg.companies?.length) return null
+      return (
+        <div key={key} className="neg-chips neg-card-field">
+          {neg.companies.slice(0, 2).map(c => <span key={c} className="neg-chip neg-chip-purple">{c}</span>)}
+          {neg.companies.length > 2 && <span className="neg-chip neg-chip-gray">+{neg.companies.length - 2}</span>}
+        </div>
+      )
+    case 'participants':
+      if (!neg.participants?.length) return null
+      return (
+        <div key={key} className="neg-chips neg-card-field">
+          {neg.participants.slice(0, 2).map(p => <span key={p} className="neg-chip neg-chip-blue">{p}</span>)}
+          {neg.participants.length > 2 && <span className="neg-chip neg-chip-gray">+{neg.participants.length - 2}</span>}
+        </div>
+      )
+    case 'nda':
+      if (!neg.nda || neg.nda === '—') return null
+      return <div key={key} className="neg-card-field"><span className="neg-nda-badge">{neg.nda}</span></div>
+    case 'target_date':
+      if (!neg.target_date) return null
+      return <div key={key} className="neg-card-date neg-card-field">{neg.target_date}</div>
+    case 'notes': {
+      const list = neg.notes_list || []
+      if (!list.length) return null
+      const preview = list.map(n => `${new Date(n.note_date + 'T00:00:00').toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit' })}: ${n.content}`).join(' · ')
+      return <div key={key} className="neg-card-text neg-card-field">{preview}</div>
+    }
+    case 'observations':
+      if (!neg.observations) return null
+      return <div key={key} className="neg-card-text neg-card-field">{neg.observations}</div>
+    case 'activity_status': {
+      const map = { active: 'En curso', paused: '⏸ Pausado', inactive: '💤 Inactivo' }
+      return <div key={key} className="neg-card-field"><span className="neg-nda-badge">{map[neg.activity_status] || '—'}</span></div>
+    }
+    case 'last_activity_at': {
+      if (!neg.last_activity_at) return null
+      const days = Math.floor((Date.now() - new Date(neg.last_activity_at)) / 86400000)
+      const label = days === 0 ? 'hoy' : days === 1 ? 'ayer' : `hace ${days}d`
+      return <div key={key} className="neg-card-date neg-card-field">{label}</div>
+    }
+    default: return null
+  }
+}
+
+function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols }) {
+  // Columnas visibles excluyendo product y status (que van hardcodeados en el header)
+  const visibleFields = cols.filter(c => c.visible && c.key !== 'product' && c.key !== 'status')
+
   return (
     <div className="neg-cards-grid">
       {negotiations.map(neg => {
         const cfg = getStateConfig(neg.status)
-        const flag = getEntityFlag(neg)
+        const actIcon = neg.activity_status === 'inactive' ? '💤' : neg.activity_status === 'paused' ? '⏸' : null
+        const cardClass = neg.activity_status === 'paused' ? 'neg-card-paused' : neg.activity_status === 'inactive' ? 'neg-card-inactive' : ''
         return (
-          <div key={neg.id} className="neg-card" onClick={() => onSelect(neg)}>
+          <div key={neg.id} className={`neg-card ${cardClass}`} onClick={() => onSelect(neg)}>
             <div className="neg-card-header">
-              <div className="neg-card-title">{neg.product || neg.title}</div>
+              <div className="neg-card-title">
+                {actIcon && <span className={`neg-paused-icon ${neg.activity_status === 'inactive' ? 'neg-icon-inactive' : 'neg-icon-paused'}`}>{actIcon}</span>}
+                {neg.product || neg.title}
+              </div>
               <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>
             </div>
-            <div className="neg-card-entity">
-              {flag && <img src={flag} alt="" className="neg-flag" />}
-              {getEntityName(neg)}
-            </div>
-            {neg.territories?.length > 0 && (
-              <div className="neg-chips" style={{ marginTop: 8 }}>
-                {neg.territories.slice(0, 4).map(t => <span key={t} className="neg-chip neg-chip-green">{t}</span>)}
-                {neg.territories.length > 4 && <span className="neg-chip neg-chip-gray">+{neg.territories.length - 4}</span>}
-              </div>
-            )}
-            {neg.target_date && <div className="neg-card-date">{neg.target_date}</div>}
+            {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag))}
           </div>
         )
       })}
@@ -255,17 +569,22 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
   )
 }
 
-function NegotiationModal({ initial, entities, members, customStates, onClose, onSaved, workspaceId, userId }) {
+function NegotiationModal({ initial, entities, members, customStates, onClose, onCancel, onSaved, workspaceId, userId }) {
   const empty = {
     title: '', product: '', status: customStates[0]?.name || 'Contactado',
     nda: '—', target_date: '', notes: '', observations: '',
-    territories: [], companies: [], participants: [], entity_ids: [], tasks: []
+    territories: [], companies: [], participants: [],
+    entity_ids: [], // [{ id, role }]
+    tasks: []
   }
   const [form, setForm] = useState(initial ? {
     ...empty, ...initial,
-    entity_ids: initial.negotiation_entities?.map(ne => ne.entity?.id).filter(Boolean) || [],
+    entity_ids: initial.negotiation_entities?.map(ne => ({ id: ne.entity?.id, role: ne.role || '' })).filter(e => e.id) || [],
     tasks: []
   } : empty)
+  const [entitySearch, setEntitySearch] = useState('')
+  const [entityDropdownOpen, setEntityDropdownOpen] = useState(false)
+  const entityRef = useRef(null)
   const [newTask, setNewTask] = useState('')
   const [newTaskAssignee, setNewTaskAssignee] = useState('')
   const [saving, setSaving] = useState(false)
@@ -297,7 +616,9 @@ function NegotiationModal({ initial, entities, members, customStates, onClose, o
     if (negId) {
       await supabase.from('negotiation_entities').delete().eq('negotiation_id', negId)
       if (form.entity_ids.length > 0) {
-        await supabase.from('negotiation_entities').insert(form.entity_ids.map(eid => ({ negotiation_id: negId, entity_id: eid })))
+        await supabase.from('negotiation_entities').insert(
+          form.entity_ids.map(e => ({ negotiation_id: negId, entity_id: e.id, role: e.role || null }))
+        )
       }
       if (form.tasks.length > 0) {
         await supabase.from('tasks').insert(form.tasks.map(t => ({
@@ -309,15 +630,21 @@ function NegotiationModal({ initial, entities, members, customStates, onClose, o
     }
     setSaving(false)
     onSaved()
-    onClose()
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="neg-modal-card" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
+        <div className="modal-header modal-header--sticky">
           <h2 className="modal-title">{initial ? 'Editar proyecto' : 'Nuevo proyecto'}</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <div className="modal-header-actions">
+            {error && <span className="form-error" style={{ marginRight: 8 }}>{error}</span>}
+            <button type="button" className="btn-secondary" onClick={onCancel || onClose}>Cancelar</button>
+            <button type="button" className="btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+            <button className="modal-close" onClick={onClose}>✕</button>
+          </div>
         </div>
         <div className="neg-modal-body">
           <div className="form-row">
@@ -325,13 +652,78 @@ function NegotiationModal({ initial, entities, members, customStates, onClose, o
               <label>PRODUCTO / LÍNEA *</label>
               <input type="text" value={form.product} onChange={e => set('product', e.target.value)} placeholder="Ej: Ibuprofeno 400mg" />
             </div>
-            <div className="form-group">
-              <label>PROVEEDOR</label>
-              <select value={form.entity_ids[0] || ''} onChange={e => set('entity_ids', e.target.value ? [e.target.value] : [])}>
-                <option value="">Sin proveedor</option>
-                {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-              </select>
+          </div>
+
+          {/* Selector de entidades — combobox + lista de seleccionadas */}
+          <div className="form-group" ref={entityRef}>
+            <label>ENTIDADES VINCULADAS</label>
+            <div className="entity-combobox">
+              <input
+                type="text"
+                className="entity-search-input"
+                placeholder="Buscar y agregar entidad..."
+                value={entitySearch}
+                autoComplete="off"
+                onChange={e => { setEntitySearch(e.target.value); setEntityDropdownOpen(true) }}
+                onFocus={() => setEntityDropdownOpen(true)}
+                onBlur={() => setTimeout(() => setEntityDropdownOpen(false), 150)}
+              />
+              {entityDropdownOpen && (
+                <div className="entity-dropdown">
+                  {entities
+                    .filter(e =>
+                      !form.entity_ids.find(x => x.id === e.id) &&
+                      e.name.toLowerCase().includes(entitySearch.toLowerCase())
+                    )
+                    .slice(0, 6)
+                    .map(e => (
+                      <div
+                        key={e.id}
+                        className="entity-dropdown-option"
+                        onMouseDown={() => {
+                          set('entity_ids', [...form.entity_ids, { id: e.id, role: '' }])
+                          setEntitySearch('')
+                        }}
+                      >
+                        {e.name}
+                      </div>
+                    ))
+                  }
+                  {entities.filter(e =>
+                    !form.entity_ids.find(x => x.id === e.id) &&
+                    e.name.toLowerCase().includes(entitySearch.toLowerCase())
+                  ).length === 0 && (
+                    <div className="entity-dropdown-empty">Sin resultados</div>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* Lista de entidades seleccionadas con campo de rol */}
+            {form.entity_ids.length > 0 && (
+              <div className="entity-selected-list">
+                {form.entity_ids.map(e => {
+                  const ent = entities.find(x => x.id === e.id)
+                  return (
+                    <div key={e.id} className="entity-selected-row">
+                      <span className="entity-selected-name">{ent?.name}</span>
+                      <input
+                        type="text"
+                        className="entity-role-input"
+                        placeholder="Rol (opcional)"
+                        value={e.role}
+                        onChange={ev => set('entity_ids', form.entity_ids.map(x => x.id === e.id ? { ...x, role: ev.target.value } : x))}
+                      />
+                      <button
+                        type="button"
+                        className="entity-remove-btn"
+                        onClick={() => set('entity_ids', form.entity_ids.filter(x => x.id !== e.id))}
+                      >×</button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
           <div className="form-row">
             <div className="form-group">
@@ -389,12 +781,8 @@ function NegotiationModal({ initial, entities, members, customStates, onClose, o
             </div>
           </div>
           <div className="form-group">
-            <label>NOTAS</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Detalles de la negociación..." />
-          </div>
-          <div className="form-group">
             <label>OBSERVACIONES INTERNAS</label>
-            <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={2} placeholder="Solo visible al abrir el detalle..." />
+            <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={3} placeholder="Notas internas del equipo..." />
           </div>
           <div className="form-group">
             <label>TAREAS INICIALES</label>
@@ -419,28 +807,31 @@ function NegotiationModal({ initial, entities, members, customStates, onClose, o
               </div>
             ))}
           </div>
-          {error && <p className="form-error">{error}</p>}
-          <div className="modal-actions">
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
-            <button type="button" className="btn-primary" onClick={handleSave} disabled={saving}>
-              {saving ? 'Guardando...' : 'Guardar proyecto'}
-            </button>
-          </div>
         </div>
       </div>
     </div>
   )
 }
 
-function NegotiationDetail({ neg, entities, getStateConfig, getEntityFlag, onClose, onEdit, onDeleted }) {
+function NegotiationDetail({ neg, entities, customStates, getStateConfig, getEntityFlag, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [tasks, setTasks] = useState([])
   const [showTaskModal, setShowTaskModal] = useState(false)
+  const [activityStatus, setActivityStatus] = useState(neg.activity_status || 'active')
+  const [inlineStatus, setInlineStatus] = useState(neg.status || '')
+  const [inlineNda, setInlineNda] = useState(neg.nda || '—')
+  const [inlineObs, setInlineObs] = useState(neg.observations || '')
+  const [notes, setNotes] = useState(neg.notes_list || [])
+  const [newNote, setNewNote] = useState('')
+  const [newNoteDate, setNewNoteDate] = useState(new Date().toISOString().split('T')[0])
+  const [savingNote, setSavingNote] = useState(false)
+  const [editingNoteId, setEditingNoteId] = useState(null)
+  const [editingNoteText, setEditingNoteText] = useState('')
   const cfg = getStateConfig(neg.status)
   const flag = getEntityFlag(neg)
   const entityNames = neg.negotiation_entities?.map(ne => ne.entity?.name).filter(Boolean).join(', ') || '—'
 
-  useEffect(() => { fetchTasks() }, [])
+  useEffect(() => { fetchTasks(); fetchNotes() }, [])
 
   async function fetchTasks() {
     const { data } = await supabase.from('tasks')
@@ -448,6 +839,59 @@ function NegotiationDetail({ neg, entities, getStateConfig, getEntityFlag, onClo
       .eq('negotiation_id', neg.id)
       .order('created_at', { ascending: false })
     if (data) setTasks(data)
+  }
+
+  async function fetchNotes() {
+    const { data, error } = await supabase.from('negotiation_notes')
+      .select('*')
+      .eq('negotiation_id', neg.id)
+      .order('note_date', { ascending: true })
+    if (error) console.error('fetchNotes error:', error.message)
+    if (data) setNotes(data)
+  }
+
+  async function handleAddNote() {
+    if (!newNote.trim()) return
+    setSavingNote(true)
+    const { error } = await supabase.from('negotiation_notes').insert({
+      negotiation_id: neg.id,
+      workspace_id: neg.workspace_id,
+      content: newNote.trim(),
+      note_date: newNoteDate,
+    })
+    if (error) { console.error('addNote error:', error.message); setSavingNote(false); return }
+    setNewNote('')
+    setNewNoteDate(new Date().toISOString().split('T')[0])
+    setSavingNote(false)
+    fetchNotes()
+    onNotesChanged?.()
+  }
+
+  async function handleDeleteNote(noteId) {
+    await supabase.from('negotiation_notes').delete().eq('id', noteId)
+    setNotes(prev => prev.filter(n => n.id !== noteId))
+    onNotesChanged?.()
+  }
+
+  async function handleSaveNoteEdit(noteId) {
+    const text = editingNoteText.trim()
+    if (!text) return
+    await supabase.from('negotiation_notes').update({ content: text }).eq('id', noteId)
+    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, content: text } : n))
+    setEditingNoteId(null)
+    onNotesChanged?.()
+  }
+
+  async function saveInlineField(field, value) {
+    await supabase.from('negotiations').update({ [field]: value }).eq('id', neg.id)
+    onActivityChanged?.()
+  }
+
+  async function handleToggleActivity() {
+    const next = activityStatus === 'paused' ? 'active' : 'paused'
+    await supabase.from('negotiations').update({ activity_status: next }).eq('id', neg.id)
+    setActivityStatus(next)
+    onActivityChanged?.()
   }
 
   async function handleDelete() {
@@ -470,9 +914,17 @@ function NegotiationDetail({ neg, entities, getStateConfig, getEntityFlag, onClo
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="neg-detail-card" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">{neg.product || neg.title}</h2>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="modal-header modal-header--sticky">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h2 className="modal-title">{neg.product || neg.title}</h2>
+            {activityStatus === 'paused' && (
+              <span className="neg-activity-badge paused">⏸ Pausado</span>
+            )}
+            {activityStatus === 'inactive' && (
+              <span className="neg-activity-badge inactive">💤 Inactivo</span>
+            )}
+          </div>
+          <div className="modal-header-actions">
             <button className="btn-edit" onClick={onEdit}>✏️ Editar</button>
             <button className="modal-close" onClick={onClose}>✕</button>
           </div>
@@ -483,7 +935,14 @@ function NegotiationDetail({ neg, entities, getStateConfig, getEntityFlag, onClo
               {flag && <img src={flag} alt="" className="neg-flag-large" />}
               <span className="neg-detail-entity-name">{entityNames}</span>
             </div>
-            <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>
+            <select
+              className="neg-inline-select"
+              value={inlineStatus}
+              style={{ backgroundColor: cfg.bg_color, color: cfg.color }}
+              onChange={e => { setInlineStatus(e.target.value); saveInlineField('status', e.target.value) }}
+            >
+              {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+            </select>
           </div>
           <div className="neg-detail-grid">
             <div className="neg-detail-field">
@@ -492,7 +951,13 @@ function NegotiationDetail({ neg, entities, getStateConfig, getEntityFlag, onClo
             </div>
             <div className="neg-detail-field">
               <div className="detail-section-title">NDA</div>
-              <div className="neg-detail-value">{neg.nda || '—'}</div>
+              <select
+                className="neg-inline-select neg-inline-select--small"
+                value={inlineNda}
+                onChange={e => { setInlineNda(e.target.value); saveInlineField('nda', e.target.value) }}
+              >
+                {NDA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
           </div>
           {neg.participants?.length > 0 && (
@@ -513,18 +978,92 @@ function NegotiationDetail({ neg, entities, getStateConfig, getEntityFlag, onClo
               <div className="neg-chips">{neg.territories.map(t => <span key={t} className="neg-chip neg-chip-green">{t}</span>)}</div>
             </div>
           )}
-          {neg.notes && (
-            <div className="neg-detail-section">
-              <div className="detail-section-title">NOTAS</div>
-              <div className="neg-detail-notes">{neg.notes}</div>
+          <div className="neg-detail-section">
+            <div className="detail-section-title">NOTAS</div>
+            <div className="neg-notes-list">
+              {notes.length === 0 && <p className="detail-empty">Sin notas todavía.</p>}
+              {notes.map((n, idx) => {
+                const NOTE_COLORS = [
+                  { bg: '#fef08a', border: '#fde047', date: '#854d0e' },
+                  { bg: '#bfdbfe', border: '#93c5fd', date: '#1e40af' },
+                  { bg: '#bbf7d0', border: '#86efac', date: '#166534' },
+                  { bg: '#fecdd3', border: '#fda4af', date: '#9f1239' },
+                ]
+                const hash = n.id ? n.id.charCodeAt(0) + n.id.charCodeAt(4) : idx
+                const col = NOTE_COLORS[hash % NOTE_COLORS.length]
+                const rotations = [-3, -1.5, 0, 1.5, 3]
+                const rot = rotations[(hash + idx) % rotations.length]
+                const isEditing = editingNoteId === n.id
+                return (
+                  <div key={n.id} className="neg-note-item" style={{
+                    background: col.bg,
+                    borderLeft: `3px solid ${col.border}`,
+                    transform: isEditing ? 'rotate(0deg) scale(1.03)' : `rotate(${rot}deg)`,
+                    marginLeft: idx % 2 === 0 ? 0 : 8,
+                    zIndex: isEditing ? 20 : idx,
+                  }}>
+                    <span className="neg-note-date" style={{ color: col.date }}>
+                      {new Date(n.note_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                    </span>
+                    {isEditing ? (
+                      <textarea
+                        className="neg-note-edit-input"
+                        value={editingNoteText}
+                        autoFocus
+                        onChange={e => setEditingNoteText(e.target.value)}
+                        onBlur={() => handleSaveNoteEdit(n.id)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveNoteEdit(n.id) }
+                          if (e.key === 'Escape') setEditingNoteId(null)
+                        }}
+                        style={{ background: 'transparent', border: 'none', outline: 'none', width: '100%', font: 'inherit', fontSize: 13, resize: 'none', lineHeight: 1.5, padding: 0, color: '#374151' }}
+                        rows={3}
+                      />
+                    ) : (
+                      <span
+                        className="neg-note-content"
+                        onDoubleClick={() => { setEditingNoteId(n.id); setEditingNoteText(n.content) }}
+                        title="Doble click para editar"
+                      >{n.content}</span>
+                    )}
+                    {!isEditing && (
+                      <button className="neg-note-delete" onClick={() => handleDeleteNote(n.id)} title="Eliminar nota">✕</button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
-          )}
-          {neg.observations && (
-            <div className="neg-detail-section">
-              <div className="detail-section-title">OBSERVACIONES INTERNAS</div>
-              <div className="neg-detail-notes">{neg.observations}</div>
+            <div className="neg-note-add">
+              <input
+                type="date"
+                className="neg-note-date-input"
+                value={newNoteDate}
+                onChange={e => setNewNoteDate(e.target.value)}
+              />
+              <input
+                type="text"
+                className="neg-note-input"
+                placeholder="Nueva nota..."
+                value={newNote}
+                onChange={e => setNewNote(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAddNote() }}
+              />
+              <button className="neg-add-task-btn" onClick={handleAddNote} disabled={savingNote || !newNote.trim()}>
+                + Agregar
+              </button>
             </div>
-          )}
+          </div>
+          <div className="neg-detail-section">
+            <div className="detail-section-title">OBSERVACIONES INTERNAS</div>
+            <textarea
+              className="neg-inline-obs"
+              value={inlineObs}
+              onChange={e => setInlineObs(e.target.value)}
+              onBlur={() => saveInlineField('observations', inlineObs)}
+              placeholder="Sin observaciones todavía."
+              rows={3}
+            />
+          </div>
           <div className="neg-detail-section">
             <div className="neg-tasks-header">
               <div className="detail-section-title">TAREAS ({tasks.length})</div>
@@ -554,6 +1093,14 @@ function NegotiationDetail({ neg, entities, getStateConfig, getEntityFlag, onClo
           </div>
         </div>
         <div className="detail-footer">
+          <button
+            className={`btn-activity ${activityStatus === 'paused' ? 'btn-activity--resume' : 'btn-activity--pause'}`}
+            onClick={handleToggleActivity}
+            disabled={activityStatus === 'inactive'}
+            title={activityStatus === 'inactive' ? 'Este proyecto fue marcado como inactivo automáticamente' : ''}
+          >
+            {activityStatus === 'paused' ? '▶ Reanudar' : '⏸ Pausar'}
+          </button>
           {!confirmDelete ? (
             <button className="btn-delete" onClick={() => setConfirmDelete(true)}>Eliminar proyecto</button>
           ) : (

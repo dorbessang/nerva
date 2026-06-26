@@ -1,9 +1,10 @@
 // Settings.jsx — Página de configuración del workspace
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import './Settings.css'
+import * as LucideIcons from 'lucide-react'
 
 export default function Settings() {
   const { workspaceId, role } = useAuth()
@@ -69,7 +70,7 @@ function TabUsuarios({ workspaceId }) {
   useEffect(() => {
     fetchMembers()
     fetchInvitations()
-  }, [])
+  }, [workspaceId])
 
   async function fetchMembers() {
     const { data } = await supabase
@@ -243,12 +244,26 @@ function TabUsuarios({ workspaceId }) {
 
 // ─── TAB ESTADOS ─────────────────────────────────────────────────────────────
 
+const PRESET_COLORS = [
+  { color: '#1D4ED8', bg: '#EFF6FF' }, // azul
+  { color: '#7C3AED', bg: '#F5F3FF' }, // violeta
+  { color: '#059669', bg: '#ECFDF5' }, // verde
+  { color: '#D97706', bg: '#FFFBEB' }, // amarillo
+  { color: '#DC2626', bg: '#FEF2F2' }, // rojo
+  { color: '#DB2777', bg: '#FDF2F8' }, // rosa
+  { color: '#0891B2', bg: '#ECFEFF' }, // cyan
+  { color: '#64748B', bg: '#F1F5F9' }, // gris
+  { color: '#0B1F3A', bg: '#F0F2F5' }, // marino
+]
+
 function TabEstados({ workspaceId }) {
   const [states, setStates] = useState([])
   const [loading, setLoading] = useState(true)
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState('#64748B')
   const [newBgColor, setNewBgColor] = useState('#F1F5F9')
+  const [bgManual, setBgManual] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [saving, setSaving] = useState(false)
   const [objectType, setObjectType] = useState('negotiation')
 
@@ -286,8 +301,11 @@ function TabEstados({ workspaceId }) {
     fetchStates()
   }
 
+  const [confirmDeleteState, setConfirmDeleteState] = useState(null)
+
   async function handleDelete(id) {
     await supabase.from('custom_states').delete().eq('id', id)
+    setConfirmDeleteState(null)
     fetchStates()
   }
 
@@ -326,9 +344,17 @@ function TabEstados({ workspaceId }) {
                     {s.name}
                   </span>
                 </div>
-                <button className="settings-btn-danger" onClick={() => handleDelete(s.id)}>
-                  Eliminar
-                </button>
+                {s.name === 'Completado' ? (
+                  <span className="settings-state-protected" title="Este estado es requerido por el sistema">🔒 Protegido</span>
+                ) : confirmDeleteState === s.id ? (
+                  <div className="delete-confirm-inline">
+                    <span>¿Seguro?</span>
+                    <button className="settings-btn-danger" onClick={() => handleDelete(s.id)}>Sí</button>
+                    <button className="settings-btn-secondary" onClick={() => setConfirmDeleteState(null)}>No</button>
+                  </div>
+                ) : (
+                  <button className="settings-btn-danger" onClick={() => setConfirmDeleteState(s.id)}>Eliminar</button>
+                )}
               </div>
             ))}
           </div>
@@ -343,14 +369,50 @@ function TabEstados({ workspaceId }) {
             placeholder="Nombre del estado..."
             className="state-name-input"
           />
-          <div className="color-picker-group">
-            <label>Color texto</label>
-            <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)} />
+
+          {/* Paleta de colores preestablecidos */}
+          <div className="state-color-palette">
+            {PRESET_COLORS.map(p => (
+              <button
+                key={p.color}
+                type="button"
+                className={`state-palette-swatch ${newColor === p.color ? 'selected' : ''}`}
+                style={{ backgroundColor: p.color }}
+                onClick={() => {
+                  setNewColor(p.color)
+                  if (!bgManual) setNewBgColor(p.bg)
+                }}
+                title={p.color}
+              />
+            ))}
+            <button
+              type="button"
+              className="state-palette-more"
+              onClick={() => setShowAdvanced(v => !v)}
+            >
+              {showAdvanced ? 'Menos' : '+ Colores'}
+            </button>
           </div>
-          <div className="color-picker-group">
-            <label>Color fondo</label>
-            <input type="color" value={newBgColor} onChange={e => setNewBgColor(e.target.value)} />
-          </div>
+
+          {showAdvanced && (
+            <div className="state-advanced-colors">
+              <div className="color-picker-group">
+                <label>Color texto</label>
+                <input type="color" value={newColor} onChange={e => {
+                  setNewColor(e.target.value)
+                  if (!bgManual) setNewBgColor(e.target.value + '1a')
+                }} />
+              </div>
+              <div className="color-picker-group">
+                <label>Color fondo</label>
+                <input type="color" value={newBgColor} onChange={e => {
+                  setNewBgColor(e.target.value)
+                  setBgManual(true)
+                }} />
+              </div>
+            </div>
+          )}
+
           <div className="state-preview" style={{ backgroundColor: newBgColor, color: newColor }}>
             {newName || 'Vista previa'}
           </div>
@@ -365,16 +427,43 @@ function TabEstados({ workspaceId }) {
 
 // ─── TAB TIPOS DE ENTIDAD ─────────────────────────────────────────────────────
 
+// Íconos disponibles para tipos de entidad
+const ENTITY_ICONS = [
+  'Building2','Factory','Store','Truck','FlaskConical','Pill','Stethoscope',
+  'ShoppingBag','Briefcase','Globe','Users','UserCheck','Landmark','Package',
+  'Layers','Network','CircleDot','Tag','Star','Shield',
+]
+
+function EntityIcon({ name, size = 16, ...props }) {
+  const Icon = LucideIcons[name]
+  return Icon ? <Icon size={size} {...props} /> : null
+}
+
 function TabEntidades({ workspaceId }) {
   const [entityTypes, setEntityTypes] = useState([])
   const [loading, setLoading] = useState(true)
   const [newName, setNewName] = useState('')
+  const [newPlural, setNewPlural] = useState('')
+  const [newIcon, setNewIcon] = useState('Building2')
+  const [showIconPicker, setShowIconPicker] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [editing, setEditing] = useState(null) // { id, name, plural, icon }
+  const iconPickerRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (iconPickerRef.current && !iconPickerRef.current.contains(e.target)) {
+        setShowIconPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     fetchEntityTypes()
-  }, [])
+  }, [workspaceId])
 
   async function fetchEntityTypes() {
     setLoading(true)
@@ -393,15 +482,29 @@ function TabEntidades({ workspaceId }) {
     await supabase.from('entity_types').insert({
       workspace_id: workspaceId,
       name: newName.trim(),
+      plural: newPlural.trim() || null,
+      icon: newIcon,
       sort_order: entityTypes.length,
     })
     setNewName('')
+    setNewPlural('')
+    setNewIcon('Building2')
     setSaving(false)
     fetchEntityTypes()
   }
 
+  async function handleSaveEdit() {
+    if (!editing?.name?.trim()) return
+    await supabase.from('entity_types').update({
+      name: editing.name.trim(),
+      plural: editing.plural?.trim() || null,
+      icon: editing.icon,
+    }).eq('id', editing.id)
+    setEditing(null)
+    fetchEntityTypes()
+  }
+
   async function handleDelete(id) {
-    // Triple confirmación para evitar borrado accidental
     await supabase.from('entity_types').delete().eq('id', id)
     setConfirmDelete(null)
     fetchEntityTypes()
@@ -421,33 +524,132 @@ function TabEntidades({ workspaceId }) {
         {loading ? <div className="settings-loading">Cargando...</div> : (
           <div className="settings-table">
             {entityTypes.map(et => (
-              <div key={et.id} className="settings-row">
-                <div className="settings-row-info">
-                  <span className="settings-row-name">{et.name}</span>
-                </div>
-                {confirmDelete === et.id ? (
-                  <div className="delete-confirm-inline">
-                    <span>¿Eliminar con todos sus datos?</span>
-                    <button className="settings-btn-danger" onClick={() => handleDelete(et.id)}>Sí, eliminar</button>
-                    <button className="settings-btn-secondary" onClick={() => setConfirmDelete(null)}>Cancelar</button>
-                  </div>
+              <div key={et.id} className="settings-row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                {editing?.id === et.id ? (
+                  // Modo edición inline
+                  <>
+                    <div className="settings-row-info" style={{ flex: 1, flexWrap: 'wrap', gap: 8 }}>
+                      {/* Icon picker en modo edición */}
+                      <div style={{ position: 'relative' }} ref={iconPickerRef}>
+                        <button
+                          type="button"
+                          className="icon-picker-trigger"
+                          onClick={() => setShowIconPicker(v => !v)}
+                          title="Cambiar ícono"
+                        >
+                          <EntityIcon name={editing.icon || 'Building2'} size={18} />
+                        </button>
+                        {showIconPicker && (
+                          <div className="icon-picker-dropdown">
+                            {ENTITY_ICONS.map(iconName => (
+                              <button
+                                key={iconName}
+                                type="button"
+                                className={`icon-picker-option ${editing.icon === iconName ? 'selected' : ''}`}
+                                onClick={() => { setEditing(ed => ({ ...ed, icon: iconName })); setShowIconPicker(false) }}
+                                title={iconName}
+                              >
+                                <EntityIcon name={iconName} size={18} />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        className="state-name-input"
+                        style={{ maxWidth: 160 }}
+                        value={editing.name}
+                        onChange={e => setEditing(ed => ({ ...ed, name: e.target.value }))}
+                        placeholder="Singular"
+                        autoFocus
+                      />
+                      <input
+                        className="state-name-input"
+                        style={{ maxWidth: 160 }}
+                        value={editing.plural || ''}
+                        onChange={e => setEditing(ed => ({ ...ed, plural: e.target.value }))}
+                        placeholder="Plural (opcional)"
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="settings-btn-primary" onClick={handleSaveEdit}>Guardar</button>
+                      <button className="settings-btn-secondary" onClick={() => setEditing(null)}>Cancelar</button>
+                    </div>
+                  </>
                 ) : (
-                  <button className="settings-btn-danger" onClick={() => setConfirmDelete(et.id)}>
-                    Eliminar
-                  </button>
+                  // Modo vista
+                  <>
+                    <div className="settings-row-info">
+                      {et.icon && <span className="entity-type-icon-preview"><EntityIcon name={et.icon} size={16} /></span>}
+                      <div>
+                        <div className="settings-row-name">{et.name}</div>
+                        {et.plural && <div className="settings-row-email">plural: {et.plural}</div>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="settings-btn-secondary" onClick={() => setEditing({ id: et.id, name: et.name, plural: et.plural || '', icon: et.icon })}>
+                        Editar
+                      </button>
+                      {confirmDelete === et.id ? (
+                        <div className="delete-confirm-inline">
+                          <span>¿Eliminar con todos sus datos?</span>
+                          <button className="settings-btn-danger" onClick={() => handleDelete(et.id)}>Sí, eliminar</button>
+                          <button className="settings-btn-secondary" onClick={() => setConfirmDelete(null)}>Cancelar</button>
+                        </div>
+                      ) : (
+                        <button className="settings-btn-danger" onClick={() => setConfirmDelete(et.id)}>Eliminar</button>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             ))}
           </div>
         )}
 
-        <div className="state-add-form">
+        <div className="state-add-form" style={{ flexWrap: 'wrap', gap: 10 }}>
+          {/* Selector de ícono */}
+          <div style={{ position: 'relative' }} ref={iconPickerRef}>
+            <button
+              type="button"
+              className="icon-picker-trigger"
+              onClick={() => setShowIconPicker(v => !v)}
+              title="Elegir ícono"
+            >
+              <EntityIcon name={newIcon} size={18} />
+            </button>
+            {showIconPicker && (
+              <div className="icon-picker-dropdown">
+                {ENTITY_ICONS.map(iconName => (
+                  <button
+                    key={iconName}
+                    type="button"
+                    className={`icon-picker-option ${newIcon === iconName ? 'selected' : ''}`}
+                    onClick={() => { setNewIcon(iconName); setShowIconPicker(false) }}
+                    title={iconName}
+                  >
+                    <EntityIcon name={iconName} size={18} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <input
             type="text"
             value={newName}
             onChange={e => setNewName(e.target.value)}
-            placeholder="Nombre del tipo (ej: Fabricantes)..."
+            placeholder="Singular (ej: Forwarder)"
             className="state-name-input"
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          />
+          <input
+            type="text"
+            value={newPlural}
+            onChange={e => setNewPlural(e.target.value)}
+            placeholder="Plural (ej: Forwarders)"
+            className="state-name-input"
+            style={{ maxWidth: 180 }}
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
           />
           <button className="settings-btn-primary" onClick={handleAdd} disabled={saving}>
             + Agregar
@@ -461,6 +663,7 @@ function TabEntidades({ workspaceId }) {
 // ─── TAB WORKSPACE ────────────────────────────────────────────────────────────
 
 function TabWorkspace({ workspaceId }) {
+  const { refreshWorkspaces } = useAuth()
   const [workspace, setWorkspace] = useState(null)
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -468,7 +671,7 @@ function TabWorkspace({ workspaceId }) {
 
   useEffect(() => {
     fetchWorkspace()
-  }, [])
+  }, [workspaceId])
 
   async function fetchWorkspace() {
     const { data } = await supabase
@@ -490,6 +693,7 @@ function TabWorkspace({ workspaceId }) {
       .eq('id', workspaceId)
     setSaving(false)
     setSaved(true)
+    await refreshWorkspaces()
     setTimeout(() => setSaved(false), 2000)
   }
 

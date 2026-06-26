@@ -14,12 +14,18 @@ export default function Dashboard() {
 
   // Métricas generales del workspace
   const [stats, setStats] = useState({
-    totalProjects: 0,
+    activeProjects: 0,
+    completedProjects: 0,
+    pausedProjects: 0,
+    inactiveProjects: 0,
     pendingTasks: 0,
     tasksDueThisWeek: 0,
     overdueTasks: 0,
     activeEntities: 0,
   });
+
+  // Proyectos en zona de alerta — se muestra en el banner global de Layout
+  const [alertProjects, setAlertProjects] = useState([]);
 
   // Conteo de proyectos por estado para el gráfico
   const [stateCounts, setStateCounts] = useState([]);
@@ -31,8 +37,8 @@ export default function Dashboard() {
   const [recentActivity, setRecentActivity] = useState([]);
 
   useEffect(() => {
-    fetchAll();
-  }, []);
+    if (workspaceId) fetchAll();
+  }, [workspaceId]);
 
   async function fetchAll() {
     setLoading(true);
@@ -44,7 +50,7 @@ export default function Dashboard() {
         // Todos los proyectos del workspace (para métricas)
         supabase
           .from("negotiations")
-          .select("id, status")
+          .select("id, status, activity_status, last_activity_at")
           .eq("workspace_id", workspaceId),
 
         // Todas las tareas (para contar pendientes y vencidas)
@@ -101,20 +107,30 @@ export default function Dashboard() {
     const negotiations = negsRes.data || [];
     const tasks = tasksRes.data || [];
 
-    // Calculamos las métricas de las 4 cards superiores
+    const now = new Date();
+    const day90ago = new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const day120ago = new Date(now - 120 * 24 * 60 * 60 * 1000).toISOString();
     const endOfWeek = new Date();
     endOfWeek.setDate(endOfWeek.getDate() + (7 - endOfWeek.getDay()));
     const endOfWeekStr = endOfWeek.toISOString().split("T")[0];
 
+    // Proyectos en zona de alerta: activos, no completados, sin actividad entre 90 y 120 días
+    const alert = negotiations.filter(n =>
+      n.activity_status === 'active' &&
+      n.status !== 'Completado' &&
+      n.last_activity_at < day90ago &&
+      n.last_activity_at >= day120ago
+    );
+    setAlertProjects(alert);
+
     setStats({
-      totalProjects: negotiations.length,
+      activeProjects: negotiations.filter(n => n.activity_status === 'active' && n.status !== 'Completado').length,
+      completedProjects: negotiations.filter(n => n.status === 'Completado').length,
+      pausedProjects: negotiations.filter(n => n.activity_status === 'paused').length,
+      inactiveProjects: negotiations.filter(n => n.activity_status === 'inactive').length,
       pendingTasks: tasks.filter((t) => t.status !== "done").length,
       tasksDueThisWeek: tasks.filter(
-        (t) =>
-          t.due_date &&
-          t.due_date <= endOfWeekStr &&
-          t.due_date >= today &&
-          t.status !== "done",
+        (t) => t.due_date && t.due_date <= endOfWeekStr && t.due_date >= today && t.status !== "done",
       ).length,
       overdueTasks: tasks.filter(
         (t) => t.due_date && t.due_date < today && t.status !== "done",
@@ -122,24 +138,17 @@ export default function Dashboard() {
       activeEntities: entitiesRes.data?.length || 0,
     });
 
-    // Ordenamos los estados según la prioridad de Roemmers
-    const STATE_ORDER = [
-      "Firmado",
-      "En Negociación",
-      "Derivado",
-      "Contactado",
-      "Descartado",
-    ];
+    // Usamos los custom_states del workspace, excluyendo "Completado" del gráfico principal
+    const activeNegs = negotiations.filter(n => n.activity_status === 'active' && n.status !== 'Completado');
     setStateCounts(
-      STATE_ORDER.map((name) => {
-        const found = statesRes.data?.find((s) => s.name === name);
-        return {
-          name,
-          color: found?.color || "#64748B",
-          count: negotiations.filter((n) => n.status === name).length,
-          total: negotiations.length,
-        };
-      }),
+      (statesRes.data || [])
+        .filter(s => s.name !== 'Completado')
+        .map(s => ({
+          name: s.name,
+          color: s.color,
+          count: activeNegs.filter(n => n.status === s.name).length,
+          total: activeNegs.length,
+        }))
     );
 
     setMyTasks(myTasksRes.data || []);
@@ -190,7 +199,7 @@ export default function Dashboard() {
 
   return (
     <div className="db-container">
-      {/* Fecha actual — reemplaza el título */}
+      {/* Fecha actual */}
       <div className="db-header">
         <p className="db-date">
           {new Date()
@@ -205,27 +214,21 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* 4 cards de métricas generales */}
+      {/* Cards de métricas */}
       <div className="db-metrics">
         <div className="db-metric-card">
-          <p className="db-metric-label">Proyectos activos</p>
-          <p className="db-metric-value">{stats.totalProjects}</p>
-          <p className="db-metric-detail">
-            {stateCounts.find((s) => s.name === "Firmado")?.count || 0} firmados
-          </p>
+          <p className="db-metric-label">Proyectos en curso</p>
+          <p className="db-metric-value">{stats.activeProjects}</p>
+          <p className="db-metric-detail">{stats.completedProjects} completados</p>
         </div>
         <div className="db-metric-card">
           <p className="db-metric-label">Tareas pendientes</p>
           <p className="db-metric-value">{stats.pendingTasks}</p>
-          <p className="db-metric-detail">
-            {stats.tasksDueThisWeek} con fecha esta semana
-          </p>{" "}
+          <p className="db-metric-detail">{stats.tasksDueThisWeek} con fecha esta semana</p>
         </div>
         <div className="db-metric-card">
           <p className="db-metric-label">Tareas vencidas</p>
-          <p
-            className={`db-metric-value ${stats.overdueTasks > 0 ? "danger" : ""}`}
-          >
+          <p className={`db-metric-value ${stats.overdueTasks > 0 ? "danger" : ""}`}>
             {stats.overdueTasks}
           </p>
           <p className="db-metric-detail">
@@ -233,9 +236,12 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="db-metric-card">
-          <p className="db-metric-label">Proveedores activos</p>
+          <p className="db-metric-label">Entidades activas</p>
           <p className="db-metric-value success">{stats.activeEntities}</p>
-          <p className="db-metric-detail">en el workspace</p>
+          <p className="db-metric-detail">
+            {stats.pausedProjects > 0 && `${stats.pausedProjects} proy. pausados`}
+            {stats.pausedProjects === 0 && 'en el workspace'}
+          </p>
         </div>
       </div>
 

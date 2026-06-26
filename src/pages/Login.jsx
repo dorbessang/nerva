@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { signIn } from '../lib/auth'
 
 export default function Login() {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => localStorage.getItem('nerva_remembered_email') || '')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('nerva_remembered_email'))
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -14,6 +15,11 @@ export default function Login() {
     setError(null)
     setLoading(true)
     try {
+      if (rememberMe) {
+        localStorage.setItem('nerva_remembered_email', email)
+      } else {
+        localStorage.removeItem('nerva_remembered_email')
+      }
       await signIn(email, password)
       navigate('/dashboard')
     } catch (err) {
@@ -46,6 +52,15 @@ export default function Login() {
             onChange={e => setPassword(e.target.value)}
             required
           />
+          <label style={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={e => setRememberMe(e.target.checked)}
+              style={styles.checkbox}
+            />
+            Recordar mi email
+          </label>
           {error && <p style={styles.error}>{error}</p>}
           <button style={styles.button} type="submit" disabled={loading}>
             {loading ? 'Ingresando...' : 'Ingresar'}
@@ -106,6 +121,21 @@ const styles = {
     fontWeight: '600',
     cursor: 'pointer',
     marginTop: '8px',
+  },
+  checkboxLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '13px',
+    color: '#6b7280',
+    cursor: 'pointer',
+    userSelect: 'none',
+  },
+  checkbox: {
+    width: '15px',
+    height: '15px',
+    cursor: 'pointer',
+    accentColor: '#0B1F3A',
   },
   error: {
     color: '#DC2626',

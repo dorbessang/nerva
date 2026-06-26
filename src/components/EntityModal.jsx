@@ -85,7 +85,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
       if (validContacts.length > 0) {
         await supabase.from('contacts').insert(
           validContacts.map((c, i) => ({
-            workspace_id: WORKSPACE_ID,
+            workspace_id: workspaceId,
             entity_id: initial.id,
             name: c.name.trim(),
             role: c.role.trim() || null,
@@ -100,7 +100,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
       const { data: entityData, error: entityError } = await supabase
         .from('entities')
         .insert({
-          workspace_id: WORKSPACE_ID,
+          workspace_id: workspaceId,
           entity_type_id: entityTypeId,
           name: name.trim(),
           country_code: countryCode || null,
@@ -125,7 +125,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
       if (validContacts.length > 0) {
         await supabase.from('contacts').insert(
           validContacts.map((c, i) => ({
-            workspace_id: WORKSPACE_ID,
+            workspace_id: workspaceId,
             entity_id: entityData.id,
             name: c.name.trim(),
             role: c.role.trim() || null,

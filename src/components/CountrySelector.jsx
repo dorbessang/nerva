@@ -43,65 +43,123 @@ export function getCountryName(code) {
 }
 
 export default function CountrySelector({ value, onChange }) {
-  const [search, setSearch] = useState('')
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
   const selected = COUNTRIES.find(c => c.code === value)
-  const filtered = COUNTRIES.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.code.toLowerCase().includes(search.toLowerCase())
-  )
 
+  // inputValue muestra el nombre del país seleccionado o lo que el usuario está escribiendo
+  const [inputValue, setInputValue] = useState(selected?.name || '')
+  const [mode, setMode] = useState('idle') // 'idle' | 'typing' | 'open'
+  const [highlighted, setHighlighted] = useState(0)
+  const ref = useRef(null)
+  const inputRef = useRef(null)
+
+  // Sincroniza el input cuando el valor externo cambia
   useEffect(() => {
-    const handle = e => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    if (mode === 'idle') {
+      setInputValue(selected?.name || '')
+    }
+  }, [value, mode])
+
+  // Opciones según el modo
+  const filtered = COUNTRIES.filter(c =>
+    c.name.toLowerCase().includes(inputValue.toLowerCase()) ||
+    c.code.toLowerCase().includes(inputValue.toLowerCase())
+  )
+  const suggestions = mode === 'typing' ? filtered.slice(0, 5) : filtered
+  const showDropdown = mode === 'typing' || mode === 'open'
+
+  // Cierra al hacer click afuera
+  useEffect(() => {
+    function handle(e) {
+      if (ref.current && !ref.current.contains(e.target)) close()
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [])
 
+  function close() {
+    // Al cerrar, restaura el nombre del país seleccionado
+    setInputValue(selected?.name || '')
+    setMode('idle')
+    setHighlighted(0)
+  }
+
+  function select(code) {
+    onChange(code)
+    setInputValue(COUNTRIES.find(c => c.code === code)?.name || '')
+    setMode('idle')
+    setHighlighted(0)
+    inputRef.current?.blur()
+  }
+
+  function handleInputChange(e) {
+    setInputValue(e.target.value)
+    setHighlighted(0)
+    setMode(e.target.value ? 'typing' : 'open')
+  }
+
+  function handleKeyDown(e) {
+    if (!showDropdown) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlighted(h => Math.min(h + 1, suggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlighted(h => Math.max(h - 1, 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (suggestions[highlighted]) select(suggestions[highlighted].code)
+    } else if (e.key === 'Escape') {
+      close()
+    } else if (e.key === 'Tab') {
+      // Al tabear, selecciona el primero si hay coincidencia única
+      if (suggestions.length === 1) select(suggestions[0].code)
+      else close()
+    }
+  }
+
   return (
     <div ref={ref} className="country-selector">
-      <div className="country-trigger" onClick={() => setOpen(o => !o)}>
-        <span className="country-trigger-value">
-          {selected ? (
-            <>
-              <img src={getFlagUrl(selected.code)} alt={selected.code} className="country-flag" />
-              {selected.name}
-            </>
-          ) : (
-            <span className="country-placeholder">— Seleccioná un país —</span>
-          )}
-        </span>
-        <span className="country-arrow">{open ? '▲' : '▼'}</span>
+      <div className="country-combobox">
+        {/* Muestra la bandera del país seleccionado si no está editando */}
+        {selected && mode === 'idle' && (
+          <img src={getFlagUrl(selected.code)} alt={selected.code} className="country-flag country-flag--input" />
+        )}
+        <input
+          ref={inputRef}
+          className="country-input"
+          value={inputValue}
+          onChange={handleInputChange}
+          onFocus={() => { if (mode === 'idle') setInputValue('') }}
+          onBlur={() => { setTimeout(close, 150) }}
+          onKeyDown={handleKeyDown}
+          autoComplete="new-password"
+          placeholder="— Seleccioná un país —"
+          style={{ paddingLeft: selected && mode === 'idle' ? 28 : 12 }}
+        />
+        {/* Flecha para abrir el dropdown completo */}
+        <button
+          type="button"
+          className="country-arrow-btn"
+          tabIndex={-1}
+          onMouseDown={e => {
+            e.preventDefault()
+            if (mode === 'open') close()
+            else { setInputValue(''); setMode('open'); inputRef.current?.focus() }
+          }}
+        >
+          {mode === 'open' ? '▲' : '▼'}
+        </button>
       </div>
 
-      {open && (
+      {showDropdown && suggestions.length > 0 && (
         <div className="country-dropdown">
-          <div className="country-search-wrapper">
-            <input
-              autoFocus
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="🔍 Buscar país..."
-              className="country-search"
-            />
-          </div>
           <div className="country-list">
-            <div
-              className="country-option"
-              onClick={() => { onChange(''); setSearch(''); setOpen(false) }}
-            >
-              — Sin país —
-            </div>
-            {filtered.length === 0 && (
-              <div className="country-empty">Sin resultados</div>
-            )}
-            {filtered.map(c => (
+            {suggestions.map((c, i) => (
               <div
                 key={c.code}
-                className={`country-option ${value === c.code ? 'selected' : ''}`}
-                onClick={() => { onChange(c.code); setSearch(''); setOpen(false) }}
+                className={`country-option ${value === c.code ? 'selected' : ''} ${i === highlighted ? 'highlighted' : ''}`}
+                onMouseDown={e => { e.preventDefault(); select(c.code) }}
+                onMouseEnter={() => setHighlighted(i)}
               >
                 <img src={getFlagUrl(c.code)} alt={c.code} className="country-flag" />
                 <span>{c.name}</span>

@@ -1,25 +1,69 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../lib/AuthContext";
 import { signOut } from "../lib/auth";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
+import * as LucideIcons from "lucide-react";
 import "./Layout.css";
 
+function EntityIcon({ name, size = 18 }) {
+  const Icon = LucideIcons[name]
+  return Icon ? <Icon size={size} /> : null
+}
+
 export default function Layout({ children }) {
-  const { user } = useAuth();
+  const { user, workspaces, workspaceId, setActiveWorkspace } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [entityTypes, setEntityTypes] = useState([]);
   const [collapsed, setCollapsed] = useState(false);
+  const [wsDropdownOpen, setWsDropdownOpen] = useState(false);
+  const wsDropdownRef = useRef(null);
+  const [alertProjects, setAlertProjects] = useState([]);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  const activeWorkspace = workspaces.find(w => w.id === workspaceId);
 
   useEffect(() => {
     fetchEntityTypes();
+  }, [workspaceId, location.pathname]);
+
+  useEffect(() => {
+    if (workspaceId) fetchAlertProjects();
+  }, [workspaceId]);
+
+  async function fetchAlertProjects() {
+    const day90ago = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const day120ago = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from('negotiations')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .eq('activity_status', 'active')
+      .neq('status', 'Completado')
+      .lt('last_activity_at', day90ago)
+      .gte('last_activity_at', day120ago);
+    setAlertProjects(data || []);
+    setBannerDismissed(false);
+  }
+
+  // Cerrar dropdown al hacer click afuera
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (wsDropdownRef.current && !wsDropdownRef.current.contains(e.target)) {
+        setWsDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   async function fetchEntityTypes() {
+    if (!workspaceId) return;
     const { data } = await supabase
       .from("entity_types")
-      .select("id, name, icon")
+      .select("id, name, icon, plural")
+      .eq("workspace_id", workspaceId)
       .order("sort_order");
     if (data) setEntityTypes(data);
   }
@@ -123,6 +167,40 @@ export default function Layout({ children }) {
           </svg>
           <span className="nerva-header-title">NERVA</span>
         </div>
+
+        {/* Workspace switcher — posición fija anclada al ancho de la sidebar abierta */}
+        {workspaces.length > 0 && (
+          <div
+            className="ws-switcher ws-switcher--header"
+            ref={wsDropdownRef}
+            style={{ position: 'absolute', left: 236 }}
+          >
+            <button
+              className="ws-switcher-btn"
+              onClick={() => setWsDropdownOpen(o => !o)}
+            >
+              <span className="ws-switcher-name">{activeWorkspace?.name ?? '—'}</span>
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 4l4 4 4-4" />
+              </svg>
+            </button>
+            {wsDropdownOpen && (
+              <div className="ws-dropdown">
+                {workspaces.map(ws => (
+                  <button
+                    key={ws.id}
+                    className={`ws-dropdown-item ${ws.id === workspaceId ? 'active' : ''}`}
+                    onClick={() => { setActiveWorkspace(ws.id); setWsDropdownOpen(false); navigate('/dashboard'); }}
+                  >
+                    <span className="ws-dropdown-name">{ws.name}</span>
+                    <span className="ws-dropdown-type">{ws.type}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="nerva-header-right">
           <div className="nerva-status-dot" />
           <span className="nerva-status-text">en línea</span>
@@ -133,6 +211,24 @@ export default function Layout({ children }) {
           </button>
         </div>
       </header>
+
+      {/* Banner global de alerta — proyectos con 90-120 días sin actividad */}
+      {alertProjects.length > 0 && !bannerDismissed && (
+        <div className="layout-alert-banner">
+          <span className="layout-alert-icon">⚠️</span>
+          <span className="layout-alert-text">
+            <strong>{alertProjects.length} {alertProjects.length === 1 ? 'proyecto lleva' : 'proyectos llevan'} más de 3 meses sin actividad.</strong>
+            {' '}¿Querés revisarlos?
+          </span>
+          <button
+            className="layout-alert-cta"
+            onClick={() => navigate('/negotiations?filter=low_activity')}
+          >
+            Ver proyectos
+          </button>
+          <button className="layout-alert-close" onClick={() => setBannerDismissed(true)}>✕</button>
+        </div>
+      )}
 
       <div className="layout-body">
         <aside
@@ -169,28 +265,22 @@ export default function Layout({ children }) {
                 key={et.id}
                 onClick={() => navigate(`/entities/${et.id}`)}
                 className={`nav-item ${location.pathname === `/entities/${et.id}` ? "active" : ""}`}
-                title={collapsed ? et.name + "es" : ""}
+                title={collapsed ? et.name : ""}
               >
                 <span className="nav-icon">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 18 18"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="6" cy="5" r="2.5" />
-                    <path d="M2 16v-2a3 3 0 013-3h2a3 3 0 013 3v2" />
-                    <circle cx="13" cy="5" r="2.5" />
-                    <path d="M10 16v-2a3 3 0 013-3h2a3 3 0 013 3v2" />
-                  </svg>
+                  {et.icon
+                    ? <EntityIcon name={et.icon} size={18} />
+                    : <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="6" cy="5" r="2.5" />
+                        <path d="M2 16v-2a3 3 0 013-3h2a3 3 0 013 3v2" />
+                        <circle cx="13" cy="5" r="2.5" />
+                        <path d="M10 16v-2a3 3 0 013-3h2a3 3 0 013 3v2" />
+                      </svg>
+                  }
                 </span>
                 {!collapsed && (
                   <span className="nav-label">
-                    {et.name.endsWith("r") ? et.name + "es" : et.name + "s"}
+                    {et.plural || (et.name.endsWith('s') ? et.name : et.name.endsWith('r') ? et.name + 'es' : et.name + 's')}
                   </span>
                 )}
               </button>
