@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import './Negotiations.css'
 
 const TERRITORIES = ['ARG','BOL','BRA','CEAM','CHI','COL','ECU','MEX','PAR','PER','URU','VEN']
@@ -54,7 +55,8 @@ function useColumnPrefs(userId) {
 }
 
 export default function Negotiations() {
-  const { user, workspaceId } = useAuth()
+  const { user, workspaceId, effectiveRole } = useAuth()
+  const canCreateProject = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
   const location = useLocation()
   const [negotiations, setNegotiations] = useState([])
   const [entities, setEntities] = useState([])
@@ -85,7 +87,7 @@ export default function Negotiations() {
     const [negsRes, entitiesRes, membersRes, statesRes] = await Promise.all([
       supabase.from('negotiations').select('*').order('created_at', { ascending: false }),
       supabase.from('entities').select('id, name, country_code').order('name'),
-      supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`),
+      supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`).eq('workspace_id', workspaceId),
       supabase.from('custom_states').select('*').eq('object_type', 'negotiation').order('sort_order'),
     ])
 
@@ -144,14 +146,26 @@ export default function Negotiations() {
   }
 
   const activeNegs = negotiations.filter(n => n.activity_status === 'active' && n.status !== 'Completado')
-  const stateCounts = customStates
-    .filter(s => s.name !== 'Completado')
-    .map(s => ({
-      name: s.name,
-      color: s.color || '#64748B',
-      bg_color: s.bg_color || '#F1F5F9',
-      count: activeNegs.filter(n => n.status === s.name).length,
-    }))
+  const completedState = customStates.find(s => s.name === 'Completado')
+  const completedCount = negotiations.filter(n => n.status === 'Completado').length
+  const stateCounts = [
+    ...customStates
+      .filter(s => s.name !== 'Completado')
+      .map(s => ({
+        name: s.name,
+        color: s.color || '#64748B',
+        bg_color: s.bg_color || '#F1F5F9',
+        count: activeNegs.filter(n => n.status === s.name).length,
+        total: activeNegs.length,
+      })),
+    {
+      name: 'Completado',
+      color: completedState?.color || '#059669',
+      bg_color: completedState?.bg_color || '#ECFDF5',
+      count: completedCount,
+      total: negotiations.length,
+    },
+  ]
 
   const day90ago = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
   const day120ago = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString()
@@ -178,21 +192,12 @@ export default function Negotiations() {
       <div className="neg-header">
         <div>
           <h1 className="neg-title">Proyectos</h1>
-          <p className="neg-subtitle">
-            {negotiations.length} proyectos ·{' '}
-            {stateCounts.filter(s => s.count > 0).map(s => (
-              <span key={s.name} style={{ color: s.color, marginRight: 10 }}>{s.count} {s.name}</span>
-            ))}
-            {negotiations.filter(n => n.status === 'Completado').length > 0 && (
-              <span style={{ color: '#059669', marginRight: 10 }}>
-                {negotiations.filter(n => n.status === 'Completado').length} Completado
-              </span>
-            )}
-          </p>
         </div>
-        <button className="neg-btn-primary" onClick={() => { setEditingNeg(null); setShowModal(true) }}>
-          + Nuevo proyecto
-        </button>
+        {canCreateProject && (
+          <button className="neg-btn-primary" onClick={() => { setEditingNeg(null); setShowModal(true) }}>
+            + Nuevo proyecto
+          </button>
+        )}
       </div>
 
       <div className="neg-stats">
@@ -206,7 +211,7 @@ export default function Negotiations() {
             <div className="neg-stat-label">{s.name}</div>
             <div className="neg-stat-count" style={{ color: s.color }}>{s.count}</div>
             <div className="neg-stat-bar">
-              <div className="neg-stat-bar-fill" style={{ width: activeNegs.length ? `${(s.count / activeNegs.length) * 100}%` : '0%', backgroundColor: s.color }} />
+              <div className="neg-stat-bar-fill" style={{ width: s.total ? `${(s.count / s.total) * 100}%` : '0%', backgroundColor: s.color }} />
             </div>
           </div>
         ))}
@@ -569,7 +574,7 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
   )
 }
 
-function NegotiationModal({ initial, entities, members, customStates, onClose, onCancel, onSaved, workspaceId, userId }) {
+export function NegotiationModal({ initial, entities, members, customStates, onClose, onCancel, onSaved, workspaceId, userId }) {
   const empty = {
     title: '', product: '', status: customStates[0]?.name || 'Contactado',
     nda: '—', target_date: '', notes: '', observations: '',
@@ -750,7 +755,7 @@ function NegotiationModal({ initial, entities, members, customStates, onClose, o
                 <button key={m.user_id} type="button"
                   className={`neg-chip-btn ${form.participants.includes(m.profile?.full_name) ? 'selected' : ''}`}
                   onClick={() => toggleArr('participants', m.profile?.full_name)}>
-                  {m.profile?.full_name || 'Usuario'}
+                  {m.profile?.full_name || m.profile?.email || 'Usuario'}
                 </button>
               ))}
             </div>
@@ -792,7 +797,7 @@ function NegotiationModal({ initial, entities, members, customStates, onClose, o
                 placeholder="Describí la tarea y presioná Enter..." style={{ flex: 1 }} />
               <select value={newTaskAssignee} onChange={e => setNewTaskAssignee(e.target.value)} style={{ width: 140 }}>
                 <option value="">Sin asignar</option>
-                {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || 'Usuario'}</option>)}
+                {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email || 'Usuario'}</option>)}
               </select>
               <button type="button" className="btn-secondary"
                 onClick={() => { if (!newTask.trim()) return; set('tasks', [...form.tasks, { id: Date.now(), text: newTask.trim(), assignee: newTaskAssignee }]); setNewTask(''); setNewTaskAssignee('') }}>
@@ -813,7 +818,24 @@ function NegotiationModal({ initial, entities, members, customStates, onClose, o
   )
 }
 
-function NegotiationDetail({ neg, entities, customStates, getStateConfig, getEntityFlag, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
+export function NegotiationDetail({ neg, entities, customStates, getStateConfig, getEntityFlag, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
+  const { effectiveRole, role, user, isStaff } = useAuth()
+  const canDelete = effectiveRole === 'owner'
+  const canPause = effectiveRole === 'owner' || effectiveRole === 'admin'
+  const canEdit = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
+  const canEditInline = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
+  const canNote = effectiveRole !== 'viewer'
+  const canTask = effectiveRole !== 'viewer'
+  const isPrivileged = effectiveRole === 'owner' || effectiveRole === 'admin'
+  // Al impersonar un rol inferior, simulamos ser un usuario sin ID conocido
+  const myUserId = user?.id
+
+  function canCompleteTask(task) {
+    if (task.status === 'done') return false
+    if (isPrivileged) return true
+    if (!task.assigned_to) return effectiveRole !== 'viewer'
+    return task.assigned_to === myUserId && effectiveRole !== 'viewer'
+  }
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [tasks, setTasks] = useState([])
   const [showTaskModal, setShowTaskModal] = useState(false)
@@ -925,7 +947,7 @@ function NegotiationDetail({ neg, entities, customStates, getStateConfig, getEnt
             )}
           </div>
           <div className="modal-header-actions">
-            <button className="btn-edit" onClick={onEdit}>✏️ Editar</button>
+            {canEdit && <button className="btn-edit" onClick={onEdit}>✏️ Editar</button>}
             <button className="modal-close" onClick={onClose}>✕</button>
           </div>
         </div>
@@ -935,14 +957,18 @@ function NegotiationDetail({ neg, entities, customStates, getStateConfig, getEnt
               {flag && <img src={flag} alt="" className="neg-flag-large" />}
               <span className="neg-detail-entity-name">{entityNames}</span>
             </div>
-            <select
-              className="neg-inline-select"
-              value={inlineStatus}
-              style={{ backgroundColor: cfg.bg_color, color: cfg.color }}
-              onChange={e => { setInlineStatus(e.target.value); saveInlineField('status', e.target.value) }}
-            >
-              {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-            </select>
+            {canEditInline ? (
+              <select
+                className="neg-inline-select"
+                value={inlineStatus}
+                style={{ backgroundColor: cfg.bg_color, color: cfg.color }}
+                onChange={e => { setInlineStatus(e.target.value); saveInlineField('status', e.target.value) }}
+              >
+                {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+              </select>
+            ) : (
+              <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{inlineStatus}</span>
+            )}
           </div>
           <div className="neg-detail-grid">
             <div className="neg-detail-field">
@@ -951,13 +977,17 @@ function NegotiationDetail({ neg, entities, customStates, getStateConfig, getEnt
             </div>
             <div className="neg-detail-field">
               <div className="detail-section-title">NDA</div>
-              <select
-                className="neg-inline-select neg-inline-select--small"
-                value={inlineNda}
-                onChange={e => { setInlineNda(e.target.value); saveInlineField('nda', e.target.value) }}
-              >
-                {NDA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+              {canEditInline ? (
+                <select
+                  className="neg-inline-select neg-inline-select--small"
+                  value={inlineNda}
+                  onChange={e => { setInlineNda(e.target.value); saveInlineField('nda', e.target.value) }}
+                >
+                  {NDA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              ) : (
+                <div className="neg-detail-value">{inlineNda}</div>
+              )}
             </div>
           </div>
           {neg.participants?.length > 0 && (
@@ -1022,96 +1052,134 @@ function NegotiationDetail({ neg, entities, customStates, getStateConfig, getEnt
                     ) : (
                       <span
                         className="neg-note-content"
-                        onDoubleClick={() => { setEditingNoteId(n.id); setEditingNoteText(n.content) }}
-                        title="Doble click para editar"
+                        onDoubleClick={canNote ? () => { setEditingNoteId(n.id); setEditingNoteText(n.content) } : undefined}
+                        title={canNote ? 'Doble click para editar' : undefined}
                       >{n.content}</span>
                     )}
-                    {!isEditing && (
+                    {!isEditing && canNote && (
                       <button className="neg-note-delete" onClick={() => handleDeleteNote(n.id)} title="Eliminar nota">✕</button>
                     )}
                   </div>
                 )
               })}
             </div>
-            <div className="neg-note-add">
-              <input
-                type="date"
-                className="neg-note-date-input"
-                value={newNoteDate}
-                onChange={e => setNewNoteDate(e.target.value)}
-              />
-              <input
-                type="text"
-                className="neg-note-input"
-                placeholder="Nueva nota..."
-                value={newNote}
-                onChange={e => setNewNote(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleAddNote() }}
-              />
-              <button className="neg-add-task-btn" onClick={handleAddNote} disabled={savingNote || !newNote.trim()}>
-                + Agregar
-              </button>
-            </div>
+            {canNote && (
+              <div className="neg-note-add">
+                <input
+                  type="date"
+                  className="neg-note-date-input"
+                  value={newNoteDate}
+                  onChange={e => setNewNoteDate(e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="neg-note-input"
+                  placeholder="Nueva nota..."
+                  value={newNote}
+                  onChange={e => setNewNote(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleAddNote() }}
+                />
+                <button className="neg-add-task-btn" onClick={handleAddNote} disabled={savingNote || !newNote.trim()}>
+                  + Agregar
+                </button>
+              </div>
+            )}
           </div>
           <div className="neg-detail-section">
             <div className="detail-section-title">OBSERVACIONES INTERNAS</div>
-            <textarea
-              className="neg-inline-obs"
-              value={inlineObs}
-              onChange={e => setInlineObs(e.target.value)}
-              onBlur={() => saveInlineField('observations', inlineObs)}
-              placeholder="Sin observaciones todavía."
-              rows={3}
-            />
+            {canEditInline ? (
+              <textarea
+                className="neg-inline-obs"
+                value={inlineObs}
+                onChange={e => setInlineObs(e.target.value)}
+                onBlur={() => saveInlineField('observations', inlineObs)}
+                placeholder="Sin observaciones todavía."
+                rows={3}
+              />
+            ) : (
+              <p className="detail-empty" style={{ whiteSpace: 'pre-wrap' }}>{inlineObs || 'Sin observaciones todavía.'}</p>
+            )}
           </div>
           <div className="neg-detail-section">
             <div className="neg-tasks-header">
               <div className="detail-section-title">TAREAS ({tasks.length})</div>
-              <button className="neg-add-task-btn" onClick={() => setShowTaskModal(true)}>+ Nueva tarea</button>
+              {canTask && <button className="neg-add-task-btn" onClick={() => setShowTaskModal(true)}>+ Nueva tarea</button>}
             </div>
             {tasks.length === 0 ? (
               <p className="detail-empty">Sin tareas todavía.</p>
-            ) : (
-              <div className="neg-tasks-list">
-                {tasks.map(task => (
-                  <div key={task.id} className={`neg-task-row ${task.status === 'done' ? 'done' : ''}`}>
-                    <button className={`neg-task-check ${task.status === 'done' ? 'checked' : ''}`} onClick={() => handleToggleTask(task.id, task.status)}>
-                      {task.status === 'done' ? '✓' : ''}
-                    </button>
-                    <div className="neg-task-body">
-                      <span className="neg-task-title">
-                        {task.profile && <span style={{ color: '#1D4ED8', fontWeight: 600 }}>@{task.profile.full_name.charAt(0).toUpperCase() + task.profile.full_name.slice(1)}: </span>}
-                        {task.title}
+            ) : (() => {
+              const myTasks = tasks.filter(t => !t.assigned_to || t.assigned_to === myUserId)
+              const otherTasks = tasks.filter(t => t.assigned_to && t.assigned_to !== myUserId)
+              const visibleTasks = effectiveRole === 'viewer' ? myTasks : tasks
+
+              return (
+                <div className="neg-tasks-list">
+                  {visibleTasks.map(task => {
+                    const isOther = task.assigned_to && task.assigned_to !== myUserId
+                    const showAssignee = isPrivileged || !isOther
+                    return (
+                      <div key={task.id} className={`neg-task-row ${task.status === 'done' ? 'done' : ''} ${isOther && !isPrivileged ? 'neg-task-row--other' : ''}`}>
+                        <button
+                          className={`neg-task-check ${task.status === 'done' ? 'checked' : ''}`}
+                          onClick={() => canCompleteTask(task) && handleToggleTask(task.id, task.status)}
+                          disabled={!canCompleteTask(task)}
+                          title={!canCompleteTask(task) && isOther ? 'Solo el asignado puede completar esta tarea' : undefined}
+                        >
+                          {task.status === 'done' ? '✓' : ''}
+                        </button>
+                        <div className="neg-task-body">
+                          <span className="neg-task-title">
+                            {showAssignee && task.profile
+                              ? <span style={{ color: '#1D4ED8', fontWeight: 600 }}>@{task.profile.full_name.charAt(0).toUpperCase() + task.profile.full_name.slice(1)}: </span>
+                              : isOther ? <span style={{ color: '#9ca3af', fontWeight: 500 }}>Asignado a otro miembro: </span>
+                              : null
+                            }
+                            {task.title}
+                          </span>
+                        </div>
+                        <span className={`neg-task-status badge-${task.status}`}>{statusLabel(task.status)}</span>
+                        {task.due_date && <span className="neg-task-date">{new Date(task.due_date).toLocaleDateString('es-AR')}</span>}
+                      </div>
+                    )
+                  })}
+                  {effectiveRole === 'viewer' && otherTasks.length > 0 && (
+                    <div className="neg-task-row neg-task-row--hidden-hint">
+                      <span style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
+                        + {otherTasks.length} tarea{otherTasks.length !== 1 ? 's' : ''} asignada{otherTasks.length !== 1 ? 's' : ''} a otros miembros
                       </span>
                     </div>
-                    <span className={`neg-task-status badge-${task.status}`}>{statusLabel(task.status)}</span>
-                    {task.due_date && <span className="neg-task-date">{new Date(task.due_date).toLocaleDateString('es-AR')}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
+                  )}
+                </div>
+              )
+            })()}
           </div>
         </div>
         <div className="detail-footer">
-          <button
-            className={`btn-activity ${activityStatus === 'paused' ? 'btn-activity--resume' : 'btn-activity--pause'}`}
-            onClick={handleToggleActivity}
-            disabled={activityStatus === 'inactive'}
-            title={activityStatus === 'inactive' ? 'Este proyecto fue marcado como inactivo automáticamente' : ''}
-          >
-            {activityStatus === 'paused' ? '▶ Reanudar' : '⏸ Pausar'}
-          </button>
-          {!confirmDelete ? (
-            <button className="btn-delete" onClick={() => setConfirmDelete(true)}>Eliminar proyecto</button>
-          ) : (
-            <div className="delete-confirm">
-              <span>¿Seguro?</span>
-              <button className="btn-delete-confirm" onClick={handleDelete}>Sí, eliminar</button>
-              <button className="btn-secondary" onClick={() => setConfirmDelete(false)}>Cancelar</button>
-            </div>
+          {canPause && (
+            <button
+              className={`btn-activity ${activityStatus === 'paused' ? 'btn-activity--resume' : 'btn-activity--pause'}`}
+              onClick={handleToggleActivity}
+              disabled={activityStatus === 'inactive'}
+              title={activityStatus === 'inactive' ? 'Este proyecto fue marcado como inactivo automáticamente' : ''}
+            >
+              {activityStatus === 'paused' ? '▶ Reanudar' : '⏸ Pausar'}
+            </button>
+          )}
+          {canDelete && (
+            <button className="btn-delete" onClick={() => setConfirmDelete(true)}>
+              Eliminar proyecto
+            </button>
           )}
         </div>
       </div>
+      {confirmDelete && (
+        <DeleteConfirmModal
+          itemName={neg.product || neg.title}
+          itemType="proyecto"
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
       {showTaskModal && (
         <TaskModalInline negotiationId={neg.id} onClose={() => setShowTaskModal(false)} onCreated={fetchTasks} />
       )}
@@ -1128,7 +1196,9 @@ function TaskModalInline({ negotiationId, onClose, onCreated }) {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`)
+    supabase.from('workspace_members')
+      .select(`user_id, profile:user_id ( full_name, email )`)
+      .eq('workspace_id', 'aaaaaaaa-0000-0000-0000-000000000001')
       .then(({ data }) => { if (data) setMembers(data) })
   }, [])
 
@@ -1177,7 +1247,7 @@ function TaskModalInline({ negotiationId, onClose, onCreated }) {
             <label>ASIGNAR A</label>
             <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)}>
               <option value="">Sin asignar</option>
-              {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || 'Usuario'}</option>)}
+              {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email || 'Usuario'}</option>)}
             </select>
           </div>
           <div className="modal-actions">

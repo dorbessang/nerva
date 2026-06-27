@@ -7,6 +7,8 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [session, setSession] = useState(null)
   const [role, setRole] = useState(null)
+  const [isStaff, setIsStaff] = useState(false)
+  const [effectiveRole, setEffectiveRole] = useState(null)
   const [workspaceId, setWorkspaceId] = useState(null)
   const [workspaces, setWorkspaces] = useState([])
   const [loading, setLoading] = useState(true)
@@ -25,6 +27,8 @@ export function AuthProvider({ children }) {
       if (session?.user) fetchWorkspaces(session.user.id)
       else {
         setRole(null)
+        setIsStaff(false)
+        setEffectiveRole(null)
         setWorkspaceId(null)
         setWorkspaces([])
         setLoading(false)
@@ -35,12 +39,23 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function fetchWorkspaces(userId) {
-    const { data } = await supabase
-      .from('workspace_members')
-      .select('role, workspace_id, workspace:workspace_id(id, name, type)')
-      .eq('user_id', userId)
-      .eq('status', 'active')
+    const [membersRes, profileRes] = await Promise.all([
+      supabase
+        .from('workspace_members')
+        .select('role, workspace_id, workspace:workspace_id(id, name, type)')
+        .eq('user_id', userId)
+        .eq('status', 'active'),
+      supabase
+        .from('profiles')
+        .select('is_staff')
+        .eq('id', userId)
+        .single(),
+    ])
 
+    const staff = profileRes.data?.is_staff === true
+    setIsStaff(staff)
+
+    const data = membersRes.data
     if (!data || data.length === 0) {
       setLoading(false)
       return
@@ -49,33 +64,38 @@ export function AuthProvider({ children }) {
     const memberWorkspaces = data.map(m => ({ ...m.workspace, role: m.role }))
     setWorkspaces(memberWorkspaces)
 
-    // Usar el último workspace activo guardado, o el testing si existe, o el primero disponible
     const savedId = localStorage.getItem('nerva_active_workspace')
     const savedExists = memberWorkspaces.find(w => w.id === savedId)
     const testingWs = memberWorkspaces.find(w => w.type === 'testing')
     const active = savedExists || testingWs || memberWorkspaces[0]
 
+    const realRole = data.find(m => m.workspace_id === active.id)?.role ?? null
     setWorkspaceId(active.id)
-    setRole(data.find(m => m.workspace_id === active.id)?.role ?? null)
+    setRole(realRole)
+    setEffectiveRole(realRole)
     setLoading(false)
   }
 
-  // Llamado desde el workspace switcher en el header
   function setActiveWorkspace(wsId) {
     const member = workspaces.find(w => w.id === wsId)
     if (!member) return
     setWorkspaceId(wsId)
     setRole(member.role)
+    setEffectiveRole(member.role)
     localStorage.setItem('nerva_active_workspace', wsId)
   }
 
-  // Llamado desde Settings cuando se edita el nombre del workspace
+  function impersonateRole(newRole) {
+    if (!isStaff) return
+    setEffectiveRole(newRole)
+  }
+
   async function refreshWorkspaces() {
     if (user) await fetchWorkspaces(user.id)
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, role, workspaceId, workspaces, setActiveWorkspace, refreshWorkspaces, loading }}>
+    <AuthContext.Provider value={{ user, session, role, effectiveRole, isStaff, impersonateRole, workspaceId, workspaces, setActiveWorkspace, refreshWorkspaces, loading }}>
       {children}
     </AuthContext.Provider>
   )

@@ -30,6 +30,14 @@
 - [ ] Validación de seats al crear usuario (preparar función, activar en Etapa 2)
 - [ ] Click en proyecto desde entidad navega a /negotiations con ese proyecto abierto
 - [ ] Spinner de carga personalizado con animación del logo
+- [ ] Staff role (`is_staff` en `profiles`) + selector "ver como rol" visible solo para equipo Nerva — base para Super Admin backoffice de Etapa 2
+- [ ] Cascade tasks (tareas encadenadas):
+  - Una tarea puede tener una "predecesora" (campo `predecessor_task_id` en tabla `tasks`)
+  - La tarea sucesora aparece como "bloqueada" hasta que la predecesora esté completada
+  - Owner/Admin: ven la cadena completa con todos los asignados y el estado de cada eslabón
+  - Editor: ve su tarea como bloqueada con texto genérico "Pendiente de aprobación previa" sin saber quién la tiene
+  - Viewer: igual que editor, solo ve sus tareas y si están bloqueadas
+  - Al completar una tarea, el sistema verifica si desbloquea alguna sucesora y notifica al asignado (notificaciones in-app, Resend para email en Fase 2)
 
 ---
 

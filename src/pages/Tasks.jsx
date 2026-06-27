@@ -6,10 +6,12 @@ import TaskDrawer from '../components/TaskDrawer'
 import './Tasks.css'
 
 export default function Tasks() {
-  const { user, role, workspaceId } = useAuth()
+  const { user, role, workspaceId, effectiveRole } = useAuth()
+  const isPrivileged = effectiveRole === 'owner' || effectiveRole === 'admin'
+  const canCreateTask = effectiveRole !== 'viewer'
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('active')
+  const [filter, setFilter] = useState('mine')
   const [filterEntity, setFilterEntity] = useState('')
   const [filterNegotiation, setFilterNegotiation] = useState('')
   const [filterAssignee, setFilterAssignee] = useState('')
@@ -28,7 +30,7 @@ export default function Tasks() {
 
   useEffect(() => {
     fetchTasks()
-  }, [filter, filterEntity, filterNegotiation, filterAssignee])
+  }, [filter, filterEntity, filterNegotiation, filterAssignee, effectiveRole])
 
   async function fetchEntities() {
     const { data } = await supabase.from('entities').select('id, name').order('name')
@@ -61,8 +63,11 @@ export default function Tasks() {
       `)
       .order('created_at', { ascending: false })
 
+    // Viewer solo ve sus propias tareas
+    if (effectiveRole === 'viewer') query = query.eq('assigned_to', user?.id)
     if (filter === 'active') query = query.in('status', ['pending', 'in_progress'])
-    if (filter === 'mine') query = query.in('status', ['pending', 'in_progress']).eq('assigned_to', user.id)
+    if (filter === 'mine') query = query.in('status', ['pending', 'in_progress']).eq('assigned_to', user?.id)
+    if (filter === 'others') query = query.in('status', ['pending', 'in_progress']).neq('assigned_to', user?.id)
     if (filter === 'done') query = query.eq('status', 'done')
     if (filterAssignee) query = query.eq('assigned_to', filterAssignee)
     if (filterNegotiation) query = query.eq('negotiation_id', filterNegotiation)
@@ -136,17 +141,19 @@ export default function Tasks() {
     <div className="tasks-container">
       <div className="tasks-header">
         <h1 className="tasks-title">Tareas</h1>
-        <button className="tasks-new-btn" onClick={() => setShowModal(true)}>
-          + Nueva tarea
-        </button>
+        {canCreateTask && (
+          <button className="tasks-new-btn" onClick={() => setShowModal(true)}>
+            + Nueva tarea
+          </button>
+        )}
       </div>
 
       <div className="tasks-toolbar">
         <div className="tasks-filters">
           {[
-            { key: 'active', label: 'Activas' },
             { key: 'mine', label: 'Mis tareas' },
-            { key: 'all', label: 'Todas' },
+            ...(effectiveRole !== 'viewer' ? [{ key: 'others', label: 'Terceros' }] : []),
+            ...(isPrivileged ? [{ key: 'active', label: 'Todas activas' }] : [{ key: 'active', label: 'Activas' }]),
             { key: 'done', label: 'Hechas' },
           ].map(f => (
             <button
@@ -174,7 +181,7 @@ export default function Tasks() {
             ))}
           </select>
 
-          {(role === 'owner' || role === 'admin') && (
+          {isPrivileged && (
             <select className="dropdown-filter" value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}>
               <option value="">Todos los responsables</option>
               {members.map(m => (
@@ -218,11 +225,13 @@ export default function Tasks() {
 
               <div className="task-card-body">
                 <p className="task-title">
-                  {task.profile && (
-                    <span className="task-assignee">
-                      @{task.profile.full_name.charAt(0).toUpperCase() + task.profile.full_name.slice(1)}:{' '}
-                    </span>
-                  )}
+                  {task.profile && (() => {
+                    const isOther = task.assigned_to && task.assigned_to !== user?.id
+                    if (isPrivileged || !isOther) {
+                      return <span className="task-assignee">@{task.profile.full_name.charAt(0).toUpperCase() + task.profile.full_name.slice(1)}: </span>
+                    }
+                    return <span style={{ color: '#9ca3af', fontWeight: 500 }}>Asignado a otro miembro: </span>
+                  })()}
                   {task.title}
                 </p>
                 {task.negotiation && (

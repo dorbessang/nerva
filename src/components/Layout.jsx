@@ -4,6 +4,7 @@ import { signOut } from "../lib/auth";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import * as LucideIcons from "lucide-react";
+import RoleImpersonator from "./RoleImpersonator";
 import "./Layout.css";
 
 function EntityIcon({ name, size = 18 }) {
@@ -343,6 +344,7 @@ export default function Layout({ children }) {
           {children}
         </main>
       </div>
+      <RoleImpersonator />
     </div>
   );
 }

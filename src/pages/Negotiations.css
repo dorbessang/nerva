@@ -670,6 +670,8 @@
 .neg-task-row:only-child { border-radius: 8px; border: 1px solid #e5e7eb; }
 .neg-task-row.done { opacity: 0.5; }
 .neg-task-row.done .neg-task-title { text-decoration: line-through; color: #9ca3af; }
+.neg-task-row--other { background: #fafafa; opacity: 0.75; }
+.neg-task-row--hidden-hint { background: transparent; border: none !important; padding: 6px 12px; }
 
 .neg-task-check {
   width: 16px;

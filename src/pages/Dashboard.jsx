@@ -138,18 +138,25 @@ export default function Dashboard() {
       activeEntities: entitiesRes.data?.length || 0,
     });
 
-    // Usamos los custom_states del workspace, excluyendo "Completado" del gráfico principal
     const activeNegs = negotiations.filter(n => n.activity_status === 'active' && n.status !== 'Completado');
-    setStateCounts(
-      (statesRes.data || [])
+    const completedStateData = (statesRes.data || []).find(s => s.name === 'Completado');
+    const completedNegCount = negotiations.filter(n => n.status === 'Completado').length;
+    setStateCounts([
+      ...(statesRes.data || [])
         .filter(s => s.name !== 'Completado')
         .map(s => ({
           name: s.name,
           color: s.color,
           count: activeNegs.filter(n => n.status === s.name).length,
           total: activeNegs.length,
-        }))
-    );
+        })),
+      {
+        name: 'Completado',
+        color: completedStateData?.color || '#059669',
+        count: completedNegCount,
+        total: negotiations.length,
+      },
+    ]);
 
     setMyTasks(myTasksRes.data || []);
 

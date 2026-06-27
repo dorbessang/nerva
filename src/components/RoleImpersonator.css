@@ -1,0 +1,83 @@
+.role-imp {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.role-imp--active {
+  border-color: #f59e0b;
+  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.2);
+}
+
+.role-imp-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.role-imp--active .role-imp-label {
+  color: #d97706;
+}
+
+.role-imp-pills {
+  display: flex;
+  gap: 4px;
+}
+
+.role-imp-pill {
+  position: relative;
+  padding: 4px 10px;
+  border-radius: 99px;
+  border: 1.5px solid #e5e7eb;
+  background: #f9fafb;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.role-imp-pill:hover:not(.role-imp-pill--selected) {
+  border-color: #9ca3af;
+  background: #f3f4f6;
+}
+
+.role-imp-real-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 1px solid #fff;
+}
+
+.role-imp-reset {
+  background: none;
+  border: none;
+  color: #d97706;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  transition: color 0.15s;
+}
+
+.role-imp-reset:hover {
+  color: #b45309;
+}
