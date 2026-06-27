@@ -25,12 +25,13 @@
 
 ## ETAPA 1 — Prioridad 2
 
+- [x] Sistema de permisos por rol — owner/admin/editor/viewer con gates en proyectos, entidades, tareas y notas. DeleteConfirmModal estilo GitHub para borrados destructivos
 - [ ] Panel Owner: invitar usuarios, activar/desactivar, ver seats usados vs disponibles
 - [ ] Flujo de invitación por email vía Supabase Auth
 - [ ] Validación de seats al crear usuario (preparar función, activar en Etapa 2)
 - [ ] Click en proyecto desde entidad navega a /negotiations con ese proyecto abierto
 - [ ] Spinner de carga personalizado con animación del logo
-- [ ] Staff role (`is_staff` en `profiles`) + selector "ver como rol" visible solo para equipo Nerva — base para Super Admin backoffice de Etapa 2
+- [x] Staff role (`is_staff` en `profiles`) + selector "ver como rol" visible solo para equipo Nerva — base para Super Admin backoffice de Etapa 2
 - [ ] Cascade tasks (tareas encadenadas):
   - Una tarea puede tener una "predecesora" (campo `predecessor_task_id` en tabla `tasks`)
   - La tarea sucesora aparece como "bloqueada" hasta que la predecesora esté completada
