@@ -26,7 +26,7 @@
 ## ETAPA 1 — Prioridad 2
 
 - [x] Sistema de permisos por rol — owner/admin/editor/viewer con gates en proyectos, entidades, tareas y notas. DeleteConfirmModal estilo GitHub para borrados destructivos
-- [ ] Panel Owner: invitar usuarios, activar/desactivar, ver seats usados vs disponibles
+- [ ] Panel Owner: invitar usuarios, activar/desactivar, eliminar participantes del WS, ver seats usados vs disponibles
 - [ ] Flujo de invitación por email vía Supabase Auth
 - [ ] Validación de seats al crear usuario (preparar función, activar en Etapa 2)
 - [ ] Click en proyecto desde entidad navega a /negotiations con ese proyecto abierto
