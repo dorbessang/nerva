@@ -151,21 +151,7 @@ export default function Layout({ children }) {
     <div className="layout-container">
       <header className="nerva-header">
         <div className="nerva-header-logo">
-          <svg width="20" height="20" viewBox="0 0 14 14" fill="none">
-            <path
-              d="M2 12L7 2L12 12"
-              stroke="white"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M4 8.5H10"
-              stroke="white"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-          </svg>
+          <img src="/favicon.png" width="20" height="20" alt="" />
           <span className="nerva-header-title">NERVA</span>
         </div>
 
