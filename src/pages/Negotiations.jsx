@@ -574,6 +574,68 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
   )
 }
 
+// Combobox con buscador + chips para campos de selección múltiple (participantes, empresas, territorios).
+// Evita mostrar la lista completa siempre abierta cuando hay muchas opciones.
+function ChipsCombobox({ options, selected, onChange, placeholder, allowSelectAll }) {
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+
+  const available = options.filter(o => !selected.includes(o))
+  const filtered = available.filter(o => o.toLowerCase().includes(search.toLowerCase())).slice(0, 6)
+  const allSelected = options.length > 0 && selected.length === options.length
+
+  function add(o) {
+    onChange([...selected, o])
+    setSearch('')
+  }
+  function remove(o) {
+    onChange(selected.filter(x => x !== o))
+  }
+  function toggleAll() {
+    onChange(allSelected ? [] : [...options])
+  }
+
+  return (
+    <div className="entity-combobox">
+      <input
+        type="text"
+        className="entity-search-input"
+        placeholder={placeholder}
+        value={search}
+        autoComplete="off"
+        onChange={e => { setSearch(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && (
+        <div className="entity-dropdown">
+          {allowSelectAll && options.length > 0 && (
+            <div className="entity-dropdown-option entity-dropdown-option--all" onMouseDown={toggleAll}>
+              {allSelected ? '✕ Quitar todos' : '✓ Seleccionar todos'}
+            </div>
+          )}
+          {filtered.map(o => (
+            <div key={o} className="entity-dropdown-option" onMouseDown={() => add(o)}>{o}</div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="entity-dropdown-empty">{available.length === 0 ? 'No hay más opciones' : 'Sin resultados'}</div>
+          )}
+        </div>
+      )}
+      {selected.length > 0 && (
+        <div className="chips-selected-list">
+          {selected.map(o => (
+            <span key={o} className="chips-selected-pill">
+              {o}
+              <button type="button" className="chips-selected-remove" onClick={() => remove(o)}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function NegotiationModal({ initial, entities, members, customStates, onClose, onCancel, onSaved, workspaceId, userId }) {
   const empty = {
     title: '', product: '', status: customStates[0]?.name || 'Contactado',
@@ -596,7 +658,6 @@ export function NegotiationModal({ initial, entities, members, customStates, onC
   const [error, setError] = useState(null)
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
-  function toggleArr(k, val) { setForm(f => ({ ...f, [k]: f[k].includes(val) ? f[k].filter(x => x !== val) : [...f[k], val] })) }
 
   async function handleSave() {
     if (!form.product?.trim() && !form.title?.trim()) { setError('El producto es obligatorio'); return }
@@ -750,40 +811,33 @@ export function NegotiationModal({ initial, entities, members, customStates, onC
           </div>
           <div className="form-group">
             <label>PARTICIPANTES</label>
-            <div className="neg-chips-select">
-              {members.map(m => (
-                <button key={m.user_id} type="button"
-                  className={`neg-chip-btn ${form.participants.includes(m.profile?.full_name) ? 'selected' : ''}`}
-                  onClick={() => toggleArr('participants', m.profile?.full_name)}>
-                  {m.profile?.full_name || m.profile?.email || 'Usuario'}
-                </button>
-              ))}
-            </div>
+            <ChipsCombobox
+              options={members.map(m => m.profile?.full_name || m.profile?.email || 'Usuario')}
+              selected={form.participants}
+              onChange={v => set('participants', v)}
+              placeholder="Buscar y agregar participante..."
+              allowSelectAll
+            />
           </div>
           <div className="form-group">
             <label>EMPRESAS INTERESADAS</label>
-            <div className="neg-chips-select">
-              {COMPANIES.map(c => (
-                <button key={c} type="button"
-                  className={`neg-chip-btn ${form.companies.includes(c) ? 'selected' : ''}`}
-                  onClick={() => toggleArr('companies', c)}>{c}</button>
-              ))}
-            </div>
+            <ChipsCombobox
+              options={COMPANIES}
+              selected={form.companies}
+              onChange={v => set('companies', v)}
+              placeholder="Buscar y agregar empresa..."
+              allowSelectAll
+            />
           </div>
           <div className="form-group">
             <label>TERRITORIOS</label>
-            <div className="neg-chips-select">
-              <button type="button"
-                className={`neg-chip-btn ${form.territories.length === TERRITORIES.length ? 'selected' : ''}`}
-                onClick={() => set('territories', form.territories.length === TERRITORIES.length ? [] : [...TERRITORIES])}>
-                Todos
-              </button>
-              {TERRITORIES.map(t => (
-                <button key={t} type="button"
-                  className={`neg-chip-btn ${form.territories.includes(t) ? 'selected' : ''}`}
-                  onClick={() => toggleArr('territories', t)}>{t}</button>
-              ))}
-            </div>
+            <ChipsCombobox
+              options={TERRITORIES}
+              selected={form.territories}
+              onChange={v => set('territories', v)}
+              placeholder="Buscar y agregar territorio..."
+              allowSelectAll
+            />
           </div>
           <div className="form-group">
             <label>OBSERVACIONES INTERNAS</label>

@@ -446,23 +446,6 @@
   flex: 1;
 }
 
-.neg-chips-select { display: flex; flex-wrap: wrap; gap: 7px; }
-
-.neg-chip-btn {
-  border: 1px solid #e5e7eb;
-  border-radius: 99px;
-  padding: 5px 13px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  background: #ffffff;
-  color: #6b7280;
-  transition: all 0.15s;
-}
-
-.neg-chip-btn.selected { background: #EFF6FF; border-color: #1D4ED8; color: #1D4ED8; }
-.neg-chip-btn:hover { border-color: #0B1F3A; color: #0B1F3A; }
-
 .neg-detail-card {
   background: #ffffff;
   border-radius: 10px;
@@ -891,6 +874,46 @@
   font-size: 13px;
   color: #9ca3af;
 }
+
+.entity-dropdown-option--all {
+  font-weight: 600;
+  color: #1D4ED8;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+/* Chips de opciones seleccionadas (participantes, empresas, territorios) */
+.chips-selected-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chips-selected-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 99px;
+  padding: 4px 6px 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.chips-selected-remove {
+  background: none;
+  border: none;
+  color: #93c5fd;
+  font-size: 15px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+  transition: color 0.15s;
+}
+
+.chips-selected-remove:hover { color: #1e40af; }
 
 /* Lista de entidades seleccionadas */
 .entity-selected-list {
