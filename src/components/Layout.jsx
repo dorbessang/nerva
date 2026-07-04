@@ -12,12 +12,27 @@ function EntityIcon({ name, size = 18 }) {
   return Icon ? <Icon size={size} /> : null
 }
 
+function useIsMobile(breakpoint = 860) {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= breakpoint
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const handler = (e) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 export default function Layout({ children }) {
   const { user, workspaces, workspaceId, setActiveWorkspace } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobile();
   const [entityTypes, setEntityTypes] = useState([]);
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [wsDropdownOpen, setWsDropdownOpen] = useState(false);
   const wsDropdownRef = useRef(null);
   const [alertProjects, setAlertProjects] = useState([]);
@@ -28,6 +43,10 @@ export default function Layout({ children }) {
   useEffect(() => {
     fetchEntityTypes();
   }, [workspaceId, location.pathname]);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (workspaceId) fetchAlertProjects();
@@ -145,22 +164,35 @@ export default function Layout({ children }) {
     },
   ];
 
-  const sidebarWidth = collapsed ? 64 : 220;
+  const sidebarWidth = isMobile ? 0 : collapsed ? 64 : 220;
+  const asideWidth = isMobile ? 220 : sidebarWidth;
+  const showLabels = isMobile || !collapsed;
 
   return (
     <div className="layout-container">
       <header className="nerva-header">
+        <button
+          className="mobile-nav-toggle"
+          onClick={() => setMobileNavOpen((o) => !o)}
+          aria-label="Abrir menú"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+            <line x1="2.5" y1="5" x2="17.5" y2="5" />
+            <line x1="2.5" y1="10" x2="17.5" y2="10" />
+            <line x1="2.5" y1="15" x2="17.5" y2="15" />
+          </svg>
+        </button>
+
         <div className="nerva-header-logo">
           <img src="/favicon.png" width="20" height="20" alt="" />
           <span className="nerva-header-title">NERVA</span>
         </div>
 
-        {/* Workspace switcher — posición fija anclada al ancho de la sidebar abierta */}
+        {/* Workspace switcher — en el flujo normal del header, al lado del logo */}
         {workspaces.length > 0 && (
           <div
             className="ws-switcher ws-switcher--header"
             ref={wsDropdownRef}
-            style={{ position: 'absolute', left: 236 }}
           >
             <button
               className="ws-switcher-btn"
@@ -218,18 +250,35 @@ export default function Layout({ children }) {
       )}
 
       <div className="layout-body">
+        {isMobile && mobileNavOpen && (
+          <div
+            className="sidebar-backdrop"
+            onClick={() => setMobileNavOpen(false)}
+          />
+        )}
+
         <aside
-          className={`sidebar ${collapsed ? "collapsed" : ""}`}
-          style={{ width: sidebarWidth }}
+          className={`sidebar ${collapsed && !isMobile ? "collapsed" : ""} ${isMobile ? "sidebar--mobile" : ""} ${isMobile && mobileNavOpen ? "sidebar--mobile-open" : ""}`}
+          style={{ width: asideWidth }}
         >
           <div className="sidebar-logo">
-            <button
-              className="collapse-btn"
-              onClick={() => setCollapsed((c) => !c)}
-              title={collapsed ? "Expandir" : "Colapsar"}
-            >
-              {collapsed ? "→" : "←"}
-            </button>
+            {isMobile ? (
+              <button
+                className="collapse-btn"
+                onClick={() => setMobileNavOpen(false)}
+                title="Cerrar"
+              >
+                ✕
+              </button>
+            ) : (
+              <button
+                className="collapse-btn"
+                onClick={() => setCollapsed((c) => !c)}
+                title={collapsed ? "Expandir" : "Colapsar"}
+              >
+                {collapsed ? "→" : "←"}
+              </button>
+            )}
           </div>
 
           <nav className="sidebar-nav">
@@ -238,10 +287,10 @@ export default function Layout({ children }) {
                 key={item.path}
                 onClick={() => navigate(item.path)}
                 className={`nav-item ${location.pathname === item.path ? "active" : ""}`}
-                title={collapsed ? item.label : ""}
+                title={showLabels ? "" : item.label}
               >
                 <span className="nav-icon">{item.icon}</span>
-                {!collapsed && <span className="nav-label">{item.label}</span>}
+                {showLabels && <span className="nav-label">{item.label}</span>}
               </button>
             ))}
 
@@ -252,7 +301,7 @@ export default function Layout({ children }) {
                 key={et.id}
                 onClick={() => navigate(`/entities/${et.id}`)}
                 className={`nav-item ${location.pathname === `/entities/${et.id}` ? "active" : ""}`}
-                title={collapsed ? et.name : ""}
+                title={showLabels ? "" : et.name}
               >
                 <span className="nav-icon">
                   {et.icon
@@ -265,7 +314,7 @@ export default function Layout({ children }) {
                       </svg>
                   }
                 </span>
-                {!collapsed && (
+                {showLabels && (
                   <span className="nav-label">
                     {et.plural || (et.name.endsWith('s') ? et.name : et.name.endsWith('r') ? et.name + 'es' : et.name + 's')}
                   </span>
@@ -278,7 +327,7 @@ export default function Layout({ children }) {
             <button
               onClick={() => navigate("/settings")}
               className={`nav-item ${location.pathname === "/settings" ? "active" : ""}`}
-              title={collapsed ? "Configuración" : ""}
+              title={showLabels ? "" : "Configuración"}
             >
               <span className="nav-icon">
                 <svg
@@ -315,17 +364,18 @@ export default function Layout({ children }) {
                   />
                 </svg>
               </span>
-              {!collapsed && <span className="nav-label">Configuración</span>}
+              {showLabels && <span className="nav-label">Configuración</span>}
             </button>
           </div>
         </aside>
 
         <main
           className="layout-main"
-          style={{
-            marginLeft: sidebarWidth,
-            width: `calc(100% - ${sidebarWidth}px)`,
-          }}
+          style={
+            isMobile
+              ? { marginLeft: 0, width: "100%" }
+              : { marginLeft: sidebarWidth, width: `calc(100% - ${sidebarWidth}px)` }
+          }
         >
           {children}
         </main>

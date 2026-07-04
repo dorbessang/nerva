@@ -26,6 +26,17 @@ body {
   top: 0;
   z-index: 100;
   width: 100%;
+  gap: 16px;
+}
+
+.mobile-nav-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 4px;
+  flex-shrink: 0;
 }
 
 /* Banner de alerta global — fixed, flota sobre el contenido debajo del header */
@@ -278,6 +289,25 @@ body {
   z-index: 50;
 }
 
+.sidebar--mobile {
+  transform: translateX(-100%);
+  transition: transform 0.2s ease;
+  box-shadow: 4px 0 24px rgba(0,0,0,0.35);
+  z-index: 210;
+}
+
+.sidebar--mobile.sidebar--mobile-open {
+  transform: translateX(0);
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  top: 52px;
+  background: rgba(0,0,0,0.45);
+  z-index: 200;
+}
+
 .sidebar-logo {
   display: flex;
   align-items: center;
@@ -384,4 +414,62 @@ body {
   min-height: calc(100vh - 52px);
   background-color: #f0f2f5;
   transition: margin-left 0.2s ease, width 0.2s ease;
+  overflow-x: hidden;
+}
+
+/* ==================== Mobile (<=860px) ==================== */
+@media (max-width: 860px) {
+  .mobile-nav-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .nerva-header {
+    padding: 0 12px;
+    gap: 10px;
+  }
+
+  .nerva-header-title {
+    letter-spacing: 1.5px;
+  }
+
+  .ws-switcher-name {
+    max-width: 110px;
+  }
+
+  .nerva-status-text,
+  .nerva-header-divider,
+  .nerva-header-user {
+    display: none;
+  }
+
+  .nerva-header-right {
+    gap: 8px;
+  }
+
+  .nerva-header-signout {
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+
+  .layout-alert-banner {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .layout-alert-text {
+    font-size: 12.5px;
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .nerva-header-logo .nerva-header-title {
+    display: none;
+  }
+
+  .ws-switcher-name {
+    max-width: 80px;
+  }
 }
