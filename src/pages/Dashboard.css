@@ -440,3 +440,70 @@
   color: #9ca3af;
   flex-shrink: 0;
 }
+
+/* ==================== Mobile (<=860px) ==================== */
+@media (max-width: 860px) {
+  .db-container {
+    padding: 16px;
+  }
+
+  .db-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .db-metric-card {
+    padding: 12px 14px;
+  }
+
+  .db-metric-value {
+    font-size: 22px;
+  }
+
+  .db-grid2 {
+    grid-template-columns: 1fr;
+  }
+
+  .db-section-card {
+    padding: 16px;
+  }
+
+  .db-donut-wrap {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .db-recent-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .db-recent-row:nth-child(odd) {
+    border-right: none;
+    padding-right: 12px;
+  }
+
+  .db-recent-row:nth-child(even) {
+    padding-left: 12px;
+  }
+
+  .db-recent-row {
+    border-bottom: 1px solid #f3f4f6;
+  }
+}
+
+@media (max-width: 400px) {
+  .db-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .db-donut-chart {
+    width: 130px;
+    height: 130px;
+  }
+
+  .db-state-label {
+    width: 90px;
+    font-size: 12px;
+  }
+}

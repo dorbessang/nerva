@@ -116,3 +116,10 @@
 .dcm-btn-confirm:not(:disabled):hover {
   background: #b91c1c;
 }
+
+/* ==================== Mobile (<=860px) ==================== */
+@media (max-width: 860px) {
+  .dcm-card {
+    padding: 22px 20px;
+  }
+}

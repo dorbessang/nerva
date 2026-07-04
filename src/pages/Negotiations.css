@@ -916,3 +916,83 @@
 }
 
 .entity-remove-btn:hover { color: #1e40af; }
+
+/* ==================== Mobile (<=860px) ==================== */
+@media (max-width: 860px) {
+  .neg-container {
+    padding: 16px;
+  }
+
+  .neg-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .neg-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .neg-search,
+  .neg-select {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .neg-view-toggle {
+    margin-left: 0;
+    align-self: flex-end;
+  }
+
+  .neg-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .neg-table {
+    min-width: 640px;
+  }
+
+  .neg-modal-card,
+  .neg-detail-card {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .neg-modal-body,
+  .neg-detail-body {
+    padding: 16px;
+  }
+
+  .neg-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .neg-detail-hero {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .neg-tasks-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .entity-selected-row {
+    flex-wrap: wrap;
+  }
+
+  .entity-role-input {
+    width: 100%;
+  }
+
+  .neg-note-add {
+    flex-wrap: wrap;
+  }
+
+  .neg-note-date-input {
+    width: 100%;
+  }
+}

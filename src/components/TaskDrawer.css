@@ -202,3 +202,27 @@
   border-color: #d1d5db;
   color: #374151;
 }
+
+/* ==================== Mobile (<=860px) ==================== */
+@media (max-width: 860px) {
+  .drawer {
+    width: 100vw;
+  }
+
+  .drawer-header {
+    padding: 18px;
+  }
+
+  .drawer-body {
+    padding: 18px;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .drawer-footer {
+    flex-wrap: wrap;
+  }
+}

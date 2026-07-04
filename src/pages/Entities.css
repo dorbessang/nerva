@@ -742,3 +742,74 @@
   border-color: #d1d5db;
   color: #374151;
 }
+
+/* ==================== Mobile (<=860px) ==================== */
+@media (max-width: 860px) {
+  .entities-container {
+    padding: 16px;
+  }
+
+  .entities-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .entities-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .entities-search {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .entities-view-toggle {
+    align-self: flex-end;
+  }
+
+  .entities-list {
+    overflow-x: auto;
+  }
+
+  .entities-list-row {
+    min-width: 560px;
+  }
+
+  .entity-detail-card {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .entity-detail-body,
+  .entity-detail-body--cols {
+    padding: 16px;
+  }
+
+  .entity-detail-body--cols {
+    grid-template-columns: 1fr;
+  }
+
+  .entity-detail-col {
+    padding: 0 0 16px;
+  }
+
+  .entity-detail-col--left {
+    border-right: none;
+    border-bottom: 1px solid #f0f2f5;
+    padding-bottom: 16px;
+    margin-bottom: 4px;
+  }
+
+  .entity-detail-hero {
+    flex-wrap: wrap;
+  }
+
+  .contact-card-header {
+    flex-wrap: wrap;
+  }
+}

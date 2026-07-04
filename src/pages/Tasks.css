@@ -350,3 +350,47 @@
   border-color: #d1d5db;
   color: #374151;
 }
+
+/* ==================== Mobile (<=860px) ==================== */
+@media (max-width: 860px) {
+  .tasks-container {
+    padding: 16px;
+  }
+
+  .tasks-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .task-card {
+    flex-wrap: wrap;
+    padding: 12px 14px;
+  }
+
+  .task-card-right {
+    margin-left: 0;
+    width: 100%;
+    padding-left: 32px;
+    box-sizing: border-box;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .task-priority-slot {
+    width: auto;
+  }
+
+  .task-status-badge {
+    width: auto;
+  }
+
+  .task-due {
+    width: auto;
+    text-align: left;
+  }
+
+  .task-card.status-done::after {
+    left: 44px;
+    right: 14px;
+  }
+}

@@ -81,3 +81,18 @@
 .role-imp-reset:hover {
   color: #b45309;
 }
+
+/* ==================== Mobile (<=860px) ==================== */
+@media (max-width: 860px) {
+  .role-imp {
+    bottom: 12px;
+    right: 12px;
+    min-width: 160px;
+    padding: 8px 10px;
+  }
+
+  .role-imp-pill {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+}

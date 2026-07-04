@@ -63,7 +63,7 @@ export default function Negotiations() {
   const [members, setMembers] = useState([])
   const [customStates, setCustomStates] = useState([])
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState('table')
+  const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 860) ? 'cards' : 'table')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterEntity, setFilterEntity] = useState('')
   const [filterActivity, setFilterActivity] = useState('active')
