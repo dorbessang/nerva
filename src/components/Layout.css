@@ -41,7 +41,7 @@ body {
 
 /* Banner de alerta global — fixed, flota sobre el contenido debajo del header */
 .layout-alert-banner {
-  position: fixed;
+  position: sticky;
   top: 52px;
   left: 0;
   right: 0;
