@@ -234,6 +234,12 @@
   font-weight: 500;
   padding: 2px 9px;
   border-radius: 99px;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 .entity-no-projects {
@@ -548,6 +554,11 @@
   padding: 2px 9px;
   border-radius: 99px;
   white-space: nowrap;
+  display: inline-block;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 .entity-neg-arrow {

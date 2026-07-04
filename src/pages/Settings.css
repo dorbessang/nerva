@@ -112,6 +112,13 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-row-text {
+  min-width: 0;
+  flex: 1;
 }
 
 .settings-avatar {
@@ -137,11 +144,17 @@
   font-size: 14px;
   font-weight: 600;
   color: #0B1F3A;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-row-email {
   font-size: 12px;
   color: #9ca3af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Role select */
@@ -531,6 +544,15 @@
   .settings-row {
     flex-wrap: wrap;
     gap: 10px;
+  }
+
+  .settings-block-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .settings-type-toggle {
+    flex-wrap: wrap;
   }
 
   .invite-form .form-row,

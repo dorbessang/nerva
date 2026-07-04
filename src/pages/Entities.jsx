@@ -328,14 +328,14 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
     <div className="modal-overlay" onClick={onClose}>
       <div className="entity-detail-card entity-detail-card--wide" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
             <div className="entity-avatar" style={{ width: 38, height: 38, fontSize: 13, backgroundColor: bgColor, color: textColor, flexShrink: 0 }}>
               {getInitials(entity.name)}
             </div>
-            <div>
-              <h2 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {entity.country_code && <img src={getFlagUrl(entity.country_code)} alt="" style={{ width: 18, borderRadius: 2 }} />}
-                {entity.name}
+            <div style={{ minWidth: 0 }}>
+              <h2 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                {entity.country_code && <img src={getFlagUrl(entity.country_code)} alt="" style={{ width: 18, borderRadius: 2, flexShrink: 0 }} />}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{entity.name}</span>
               </h2>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>
                 {entity.country_code && getCountryName(entity.country_code)}
@@ -343,7 +343,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
             <button className="btn-edit" onClick={() => setShowEditModal(true)}>✏️ Editar</button>
             <button className="modal-close" onClick={onClose}>✕</button>
           </div>

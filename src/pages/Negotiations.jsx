@@ -791,11 +791,11 @@ export function NegotiationModal({ initial, entities, members, customStates, onC
           </div>
           <div className="form-group">
             <label>TAREAS INICIALES</label>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <div className="neg-newtask-row">
               <input type="text" value={newTask} onChange={e => setNewTask(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && newTask.trim()) { set('tasks', [...form.tasks, { id: Date.now(), text: newTask.trim(), assignee: newTaskAssignee }]); setNewTask(''); setNewTaskAssignee('') }}}
-                placeholder="Describí la tarea y presioná Enter..." style={{ flex: 1 }} />
-              <select value={newTaskAssignee} onChange={e => setNewTaskAssignee(e.target.value)} style={{ width: 140 }}>
+                placeholder="Describí la tarea y presioná Enter..." style={{ flex: 1, minWidth: 0 }} />
+              <select className="neg-newtask-select" value={newTaskAssignee} onChange={e => setNewTaskAssignee(e.target.value)}>
                 <option value="">Sin asignar</option>
                 {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email || 'Usuario'}</option>)}
               </select>

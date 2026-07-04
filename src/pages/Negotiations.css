@@ -346,6 +346,12 @@
   padding: 3px 10px;
   border-radius: 99px;
   white-space: nowrap;
+  display: inline-block;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  flex-shrink: 0;
 }
 
 .neg-nda-badge { font-size: 11px; color: #6b7280; }
@@ -396,7 +402,16 @@
   margin-bottom: 10px;
 }
 
-.neg-card-title { font-size: 15px; font-weight: 700; color: #0B1F3A; }
+.neg-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0B1F3A;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .neg-card-entity { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #6b7280; margin-bottom: 8px; }
 .neg-card-date { font-size: 11px; color: #9ca3af; }
 .neg-card-field { margin-top: 8px; }
@@ -479,8 +494,17 @@
   border: 1px solid #f0f2f5;
 }
 
-.neg-detail-entity { display: flex; align-items: center; gap: 8px; }
-.neg-detail-entity-name { font-size: 15px; font-weight: 600; color: #0B1F3A; }
+.neg-detail-entity { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.neg-detail-entity-name {
+  display: block;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0B1F3A;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .neg-detail-grid {
   display: grid;
@@ -507,6 +531,10 @@
   outline: none;
   transition: border-color 0.15s;
   appearance: auto;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
 .neg-inline-select:hover { border-color: rgba(0,0,0,0.15); }
@@ -693,7 +721,7 @@
 .neg-task-check.checked { background: #059669; border-color: #059669; color: #ffffff; }
 
 .neg-task-body { flex: 1; min-width: 0; }
-.neg-task-title { font-size: 13px; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.neg-task-title { display: block; font-size: 13px; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .neg-task-status {
   font-size: 11px;
@@ -917,6 +945,17 @@
 
 .entity-remove-btn:hover { color: #1e40af; }
 
+.neg-newtask-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.neg-newtask-select {
+  width: 140px;
+  flex-shrink: 0;
+}
+
 /* ==================== Mobile (<=860px) ==================== */
 @media (max-width: 860px) {
   .neg-container {
@@ -946,6 +985,17 @@
 
   .neg-table-wrapper {
     overflow-x: auto;
+  }
+
+  .modal-header {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .modal-header-actions {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .neg-table {
@@ -993,6 +1043,16 @@
   }
 
   .neg-note-date-input {
+    width: 100%;
+  }
+
+  .neg-newtask-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .neg-newtask-row select,
+  .neg-newtask-row button {
     width: 100%;
   }
 }

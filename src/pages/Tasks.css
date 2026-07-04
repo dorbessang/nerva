@@ -362,6 +362,16 @@
     gap: 10px;
   }
 
+  .tasks-dropdowns {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dropdown-filter {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
   .task-card {
     flex-wrap: wrap;
     padding: 12px 14px;

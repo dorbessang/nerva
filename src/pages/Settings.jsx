@@ -195,7 +195,7 @@ function TabUsuarios({ workspaceId }) {
                 <div className="settings-avatar">
                   {(m.profile?.full_name || m.profile?.email || '?')[0].toUpperCase()}
                 </div>
-                <div>
+                <div className="settings-row-text">
                   <div className="settings-row-name">{m.profile?.full_name || 'Sin nombre'}</div>
                   <div className="settings-row-email">{m.profile?.email}</div>
                 </div>
@@ -225,7 +225,7 @@ function TabUsuarios({ workspaceId }) {
               <div key={inv.id} className="settings-row">
                 <div className="settings-row-info">
                   <div className="settings-avatar inv">✉</div>
-                  <div>
+                  <div className="settings-row-text">
                     <div className="settings-row-name">{inv.email}</div>
                     <div className="settings-row-email">Rol: {roleLabel(inv.role)} · Expira: {new Date(inv.expires_at).toLocaleDateString('es-AR')}</div>
                   </div>
