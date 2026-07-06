@@ -59,3 +59,10 @@ export async function notifyTaskAssigned(supabase, { workspaceId, task, assigned
     task_id: task.id,
   })
 }
+
+// Si la tarea ya se resolvió (se completó, sin importar si fue desde la
+// notificación o navegando directo), las notificaciones sobre ella quedan
+// obsoletas — las borramos.
+export async function dismissNotificationsForTask(supabase, taskId) {
+  await supabase.from('notifications').delete().eq('task_id', taskId)
+}

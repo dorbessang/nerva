@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
-import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned } from '../lib/tasks'
+import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
 import './Negotiations.css'
 
 const TERRITORIES = ['ARG','BOL','BRA','CEAM','CHI','COL','ECU','MEX','PAR','PER','URU','VEN']
@@ -1037,6 +1037,7 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
     if (task.status === 'done' || isTaskBlocked(task)) return
     await supabase.from('tasks').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', task.id)
     await notifySuccessors(supabase, task, neg.workspace_id || workspaceId)
+    await dismissNotificationsForTask(supabase, task.id)
     fetchTasks()
   }
 

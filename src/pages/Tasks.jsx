@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import TaskModal from '../components/TaskModal'
 import TaskDrawer from '../components/TaskDrawer'
-import { isTaskBlocked, notifySuccessors } from '../lib/tasks'
+import { isTaskBlocked, notifySuccessors, dismissNotificationsForTask } from '../lib/tasks'
 import './Tasks.css'
 
 export default function Tasks() {
@@ -133,6 +133,7 @@ export default function Tasks() {
       .eq('id', confirmTask.id)
     if (!error) {
       await notifySuccessors(supabase, confirmTask, workspaceId)
+      await dismissNotificationsForTask(supabase, confirmTask.id)
       setConfirmTask(null)
       fetchTasks()
     }
