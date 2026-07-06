@@ -85,7 +85,7 @@ export default function Negotiations() {
   async function fetchAll() {
     setLoading(true)
     const [negsRes, entitiesRes, membersRes, statesRes] = await Promise.all([
-      supabase.from('negotiations').select('*').order('created_at', { ascending: false }),
+      supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code)').order('created_at', { ascending: false }),
       supabase.from('entities').select('id, name, country_code').order('name'),
       supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`).eq('workspace_id', workspaceId),
       supabase.from('custom_states').select('*').eq('object_type', 'negotiation').order('sort_order'),
@@ -97,7 +97,7 @@ export default function Negotiations() {
     const [{ data: negEntities }, { data: negNotes }] = await Promise.all([
       supabase
         .from('negotiation_entities')
-        .select('negotiation_id, entity_id, entity:entity_id(id, name, country_code)')
+        .select('negotiation_id, entity_id, role, entity:entity_id(id, name, country_code)')
         .in('negotiation_id', negIds),
       supabase
         .from('negotiation_notes')
@@ -121,7 +121,7 @@ export default function Negotiations() {
 
   async function refetchSingleNeg(id) {
     const [{ data: neg }, { data: ents }, { data: notesList }] = await Promise.all([
-      supabase.from('negotiations').select('*').eq('id', id).single(),
+      supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code)').eq('id', id).single(),
       supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code)').eq('negotiation_id', id),
       supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', id).order('note_date'),
     ])
@@ -134,15 +134,21 @@ export default function Negotiations() {
     return found || { color: '#64748B', bg_color: '#F1F5F9' }
   }
 
+  // Muestra solo la entidad principal en tabla/mosaico. Si el proyecto es viejo
+  // y no tiene primary_entity_id asignado todavía, usa la primera vinculada.
+  function getPrimaryEntity(neg) {
+    if (neg.primary_entity) return neg.primary_entity
+    return neg.negotiation_entities?.map(ne => ne.entity).filter(Boolean)[0] || null
+  }
+
   function getEntityName(neg) {
-    const ents = neg.negotiation_entities?.map(ne => ne.entity).filter(Boolean) || []
-    return ents.map(e => e.name).join(', ') || '—'
+    return getPrimaryEntity(neg)?.name || '—'
   }
 
   function getEntityFlag(neg) {
-    const ents = neg.negotiation_entities?.map(ne => ne.entity).filter(Boolean) || []
-    if (ents.length === 0 || !ents[0].country_code) return null
-    return `https://flagcdn.com/w20/${ents[0].country_code.toLowerCase()}.png`
+    const primary = getPrimaryEntity(neg)
+    if (!primary?.country_code) return null
+    return `https://flagcdn.com/w20/${primary.country_code.toLowerCase()}.png`
   }
 
   const activeNegs = negotiations.filter(n => n.activity_status === 'active' && n.status !== 'Completado')
@@ -646,7 +652,11 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
   }
   const [form, setForm] = useState(initial ? {
     ...empty, ...initial,
-    entity_ids: initial.negotiation_entities?.map(ne => ({ id: ne.entity?.id, role: ne.role || '' })).filter(e => e.id) || [],
+    entity_ids: (() => {
+      const ids = initial.negotiation_entities?.map(ne => ({ id: ne.entity?.id, role: ne.role || '' })).filter(e => e.id) || []
+      const primaryIdx = ids.findIndex(e => e.id === initial.primary_entity_id)
+      return primaryIdx > 0 ? [ids[primaryIdx], ...ids.filter((_, i) => i !== primaryIdx)] : ids
+    })(),
     tasks: []
   } : empty)
   const [entitySearch, setEntitySearch] = useState('')
@@ -671,6 +681,7 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
       notes: form.notes, observations: form.observations,
       territories: form.territories, companies: form.companies,
       participants: form.participants, created_by: userId,
+      primary_entity_id: form.entity_ids[0]?.id || null,
     }
     let negId = initial?.id
     if (initial?.id) {
@@ -765,13 +776,24 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
               )}
             </div>
 
-            {/* Lista de entidades seleccionadas con campo de rol */}
+            {/* Lista de entidades seleccionadas con campo de rol — la primera es la principal */}
             {form.entity_ids.length > 0 && (
               <div className="entity-selected-list">
-                {form.entity_ids.map(e => {
+                {form.entity_ids.map((e, idx) => {
                   const ent = entities.find(x => x.id === e.id)
+                  const isPrimary = idx === 0
                   return (
-                    <div key={e.id} className="entity-selected-row">
+                    <div key={e.id} className={`entity-selected-row ${isPrimary ? 'entity-selected-row--primary' : ''}`}>
+                      {isPrimary ? (
+                        <span className="entity-primary-badge" title="Se muestra en tabla y mosaico">★ Principal</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="entity-make-primary-btn"
+                          title="Marcar como principal"
+                          onClick={() => set('entity_ids', [e, ...form.entity_ids.filter(x => x.id !== e.id)])}
+                        >☆</button>
+                      )}
                       <span className="entity-selected-name">{ent?.name}</span>
                       <input
                         type="text"
@@ -905,7 +927,9 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
   const [editingNoteText, setEditingNoteText] = useState('')
   const cfg = getStateConfig(neg.status)
   const flag = getEntityFlag(neg)
-  const entityNames = neg.negotiation_entities?.map(ne => ne.entity?.name).filter(Boolean).join(', ') || '—'
+  const primaryEntity = neg.primary_entity || neg.negotiation_entities?.map(ne => ne.entity).filter(Boolean)[0] || null
+  const entityNames = primaryEntity?.name || '—'
+  const secondaryEntities = (neg.negotiation_entities || []).filter(ne => ne.entity?.id && ne.entity.id !== primaryEntity?.id)
 
   useEffect(() => { fetchTasks(); fetchNotes() }, [])
 
@@ -1024,6 +1048,22 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
               <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{inlineStatus}</span>
             )}
           </div>
+          {secondaryEntities.length > 0 && (
+            <div className="neg-detail-section">
+              <div className="detail-section-title">ENTIDADES VINCULADAS</div>
+              <div className="neg-secondary-entities">
+                {secondaryEntities.map(ne => (
+                  <div key={ne.entity.id} className="neg-secondary-entity-row">
+                    {ne.entity.country_code && (
+                      <img src={`https://flagcdn.com/w20/${ne.entity.country_code.toLowerCase()}.png`} alt="" className="neg-flag" />
+                    )}
+                    <span className="neg-secondary-entity-name">{ne.entity.name}</span>
+                    {ne.role && <span className="neg-secondary-entity-role">{ne.role}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="neg-detail-grid">
             <div className="neg-detail-field">
               <div className="detail-section-title">FECHA</div>
