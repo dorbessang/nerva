@@ -116,6 +116,15 @@ Deno.serve(async (req) => {
     })
     if (memberError) return json({ error: memberError.message }, 400)
 
+    const { data: ws } = await admin.from('workspaces').select('name').eq('id', workspaceId).maybeSingle()
+    await admin.from('notifications').insert({
+      workspace_id: workspaceId,
+      user_id: existingUser.id,
+      type: 'added_to_workspace',
+      title: 'Te sumaron a un workspace',
+      body: `Ahora sos parte de "${ws?.name || 'un workspace'}" como ${role}.`,
+    })
+
     return json({ ok: true, direct: true })
   }
 

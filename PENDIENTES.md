@@ -41,11 +41,12 @@
   - Editor/Viewer: ven "🔒 Pendiente de aprobación previa" sin identidad, mismo patrón que ya ocultaba tareas de terceros
   - Al completar una tarea se notifica in-app (tabla `notifications`, nueva — primera pieza de un sistema de notificaciones) al asignado de cada sucesora que se desbloquea. Campanita con contador en el header, click navega directo al proyecto/tarea correspondiente (o a `/tasks` si es una tarea suelta). Email vía Resend queda para Fase 2
   - De paso se corrigió un bug real en `TaskModalInline` (Negotiations.jsx): tenía el workspace_id hardcodeado al de Testing en vez de usar el workspace activo
+- [x] Notificaciones in-app — se borran solas al leerlas (click en la notificación, o al resolverse la tarea/situación por otro camino), no se acumulan marcadas como leídas
 - [x] Notificaciones in-app — evento 1/5: **asignación de tarea** (te avisa si te asignan una tarea que no creaste vos mismo; no notifica autoasignación). Cubre los 4 puntos de asignación: TaskModal, TaskModalInline, TaskDrawer (reasignar), alta por lote de "Tareas iniciales"
-- [ ] Notificaciones in-app — eventos pendientes (decidido explícitamente: **no** notificar bajas/remociones de WS ni de proyecto, eso queda en silencio):
-  - Tarea por vencer / vencida (requiere chequeo periódico, ver si conviene sumarlo al pg_cron que ya corre para inactividad)
-  - Te invitaron a un workspace / te cambiaron el rol
-  - Cambio de estado de un proyecto donde participás (tenés alguna tarea asignada ahí)
+- [x] Notificaciones in-app — evento 2/5: **cambio de rol** (Settings > Usuarios) y **te sumaron directo a un workspace** (cuando invitás a alguien que ya tenía cuenta)
+- [x] Notificaciones in-app — evento 3/5: **cambio de estado de un proyecto** donde tenés alguna tarea asignada (edición inline y modal de edición completo). Notification con `negotiation_id` para poder navegar directo al proyecto
+- [ ] Notificaciones in-app — eventos pendientes, requieren un chequeo periódico (cron), no solo código de cliente (decidido explícitamente: **no** notificar bajas/remociones de WS ni de proyecto, eso queda en silencio):
+  - Tarea por vencer / vencida (ver si conviene sumarlo al pg_cron que ya corre para inactividad)
   - Proyecto marcado inactivo (90-120 días) — hoy es un banner global, sumar aviso puntual a los asignados de ese proyecto
 
 ---

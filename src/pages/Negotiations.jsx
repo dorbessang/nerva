@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
+import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import './Negotiations.css'
 
 const TERRITORIES = ['ARG','BOL','BRA','CEAM','CHI','COL','ECU','MEX','PAR','PER','URU','VEN']
@@ -715,6 +716,17 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
     let negId = initial?.id
     if (initial?.id) {
       await supabase.from('negotiations').update(row).eq('id', initial.id)
+      if (initial.status !== form.status) {
+        const { data: existingTasks } = await supabase.from('tasks').select('assigned_to').eq('negotiation_id', initial.id)
+        await notifyNegotiationStatusChanged(supabase, {
+          workspaceId,
+          negotiationId: initial.id,
+          negotiationTitle: row.product || row.title,
+          newStatus: form.status,
+          recipients: (existingTasks || []).map(t => t.assigned_to),
+          actingUserId: userId,
+        })
+      }
     } else {
       const { data } = await supabase.from('negotiations').insert(row).select().single()
       negId = data?.id
@@ -1017,6 +1029,16 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
 
   async function saveInlineField(field, value) {
     await supabase.from('negotiations').update({ [field]: value }).eq('id', neg.id)
+    if (field === 'status') {
+      await notifyNegotiationStatusChanged(supabase, {
+        workspaceId: neg.workspace_id || workspaceId,
+        negotiationId: neg.id,
+        negotiationTitle: neg.product || neg.title,
+        newStatus: value,
+        recipients: tasks.map(t => t.assigned_to),
+        actingUserId: user?.id,
+      })
+    }
     onActivityChanged?.()
   }
 

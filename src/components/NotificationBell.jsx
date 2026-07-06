@@ -55,18 +55,24 @@ export default function NotificationBell() {
   async function handleNotifClick(n) {
     dismiss(n.id)
     setOpen(false)
-    if (!n.task_id) return
 
-    const { data: task } = await supabase
-      .from('tasks')
-      .select('negotiation_id')
-      .eq('id', n.task_id)
-      .maybeSingle()
+    if (n.task_id) {
+      const { data: task } = await supabase
+        .from('tasks')
+        .select('negotiation_id')
+        .eq('id', n.task_id)
+        .maybeSingle()
 
-    if (task?.negotiation_id) {
-      navigate(`/negotiations?openNeg=${task.negotiation_id}&openTask=${n.task_id}`)
-    } else {
-      navigate(`/tasks?openTask=${n.task_id}`)
+      if (task?.negotiation_id) {
+        navigate(`/negotiations?openNeg=${task.negotiation_id}&openTask=${n.task_id}`)
+      } else {
+        navigate(`/tasks?openTask=${n.task_id}`)
+      }
+      return
+    }
+
+    if (n.negotiation_id) {
+      navigate(`/negotiations?openNeg=${n.negotiation_id}`)
     }
   }
 

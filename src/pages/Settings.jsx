@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import { notifyRoleChanged } from '../lib/notifications'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 
@@ -118,6 +119,7 @@ function TabUsuarios({ workspaceId }) {
       .update({ role: newRole })
       .eq('workspace_id', workspaceId)
       .eq('user_id', userId)
+    await notifyRoleChanged(supabase, { workspaceId, userId, newRoleLabel: roleLabel(newRole), actingUserId: currentUser?.id })
     fetchMembers()
   }
 
