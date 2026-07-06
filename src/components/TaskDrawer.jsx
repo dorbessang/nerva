@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { wouldCreateCycle, isTaskBlocked } from '../lib/tasks'
+import { useAuth } from '../lib/AuthContext'
+import { wouldCreateCycle, isTaskBlocked, notifyTaskAssigned } from '../lib/tasks'
 import './TaskDrawer.css'
 
 export default function TaskDrawer({ task, onClose, onUpdated }) {
+  const { user } = useAuth()
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description || '')
   const [status, setStatus] = useState(task.status)
@@ -62,6 +64,9 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
       .eq('id', task.id)
     setSaving(false)
     if (!error) {
+      if (assignedTo && assignedTo !== task.assigned_to) {
+        await notifyTaskAssigned(supabase, { workspaceId: task.workspace_id, task, assignedTo, actingUserId: user?.id })
+      }
       onUpdated()
       onClose()
     }

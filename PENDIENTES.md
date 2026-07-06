@@ -39,8 +39,14 @@
   - La tarea sucesora aparece "bloqueada" (🔒, no se puede completar) hasta que la predecesora esté "done"
   - Owner/Admin: ven de qué tarea depende, quién la tiene y su estado
   - Editor/Viewer: ven "🔒 Pendiente de aprobación previa" sin identidad, mismo patrón que ya ocultaba tareas de terceros
-  - Al completar una tarea se notifica in-app (tabla `notifications`, nueva — primera pieza de un sistema de notificaciones) al asignado de cada sucesora que se desbloquea. Campanita con contador en el header. Email vía Resend queda para Fase 2
+  - Al completar una tarea se notifica in-app (tabla `notifications`, nueva — primera pieza de un sistema de notificaciones) al asignado de cada sucesora que se desbloquea. Campanita con contador en el header, click navega directo al proyecto/tarea correspondiente (o a `/tasks` si es una tarea suelta). Email vía Resend queda para Fase 2
   - De paso se corrigió un bug real en `TaskModalInline` (Negotiations.jsx): tenía el workspace_id hardcodeado al de Testing en vez de usar el workspace activo
+- [x] Notificaciones in-app — evento 1/5: **asignación de tarea** (te avisa si te asignan una tarea que no creaste vos mismo; no notifica autoasignación). Cubre los 4 puntos de asignación: TaskModal, TaskModalInline, TaskDrawer (reasignar), alta por lote de "Tareas iniciales"
+- [ ] Notificaciones in-app — eventos pendientes (decidido explícitamente: **no** notificar bajas/remociones de WS ni de proyecto, eso queda en silencio):
+  - Tarea por vencer / vencida (requiere chequeo periódico, ver si conviene sumarlo al pg_cron que ya corre para inactividad)
+  - Te invitaron a un workspace / te cambiaron el rol
+  - Cambio de estado de un proyecto donde participás (tenés alguna tarea asignada ahí)
+  - Proyecto marcado inactivo (90-120 días) — hoy es un banner global, sumar aviso puntual a los asignados de ese proyecto
 
 ---
 

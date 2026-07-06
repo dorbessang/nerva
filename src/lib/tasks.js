@@ -45,3 +45,17 @@ export async function notifySuccessors(supabase, completedTask, workspaceId) {
     }))
   )
 }
+
+// Avisa in-app cuando se le asigna una tarea a alguien (no notifica si uno
+// se autoasigna). `task` necesita al menos { id, title }.
+export async function notifyTaskAssigned(supabase, { workspaceId, task, assignedTo, actingUserId }) {
+  if (!assignedTo || assignedTo === actingUserId) return
+  await supabase.from('notifications').insert({
+    workspace_id: workspaceId,
+    user_id: assignedTo,
+    type: 'task_assigned',
+    title: 'Nueva tarea asignada',
+    body: `Te asignaron "${task.title}".`,
+    task_id: task.id,
+  })
+}

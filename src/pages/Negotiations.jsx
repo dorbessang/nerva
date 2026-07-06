@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
-import { isTaskBlocked, wouldCreateCycle, notifySuccessors } from '../lib/tasks'
+import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned } from '../lib/tasks'
 import './Negotiations.css'
 
 const TERRITORIES = ['ARG','BOL','BRA','CEAM','CHI','COL','ECU','MEX','PAR','PER','URU','VEN']
@@ -727,11 +727,14 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
         )
       }
       if (form.tasks.length > 0) {
-        await supabase.from('tasks').insert(form.tasks.map(t => ({
+        const { data: insertedTasks } = await supabase.from('tasks').insert(form.tasks.map(t => ({
           workspace_id: workspaceId, negotiation_id: negId,
           title: t.text, assigned_to: t.assignee || null,
           status: 'pending', priority: 'medium', created_by: userId,
-        })))
+        }))).select('id, title, assigned_to')
+        for (const t of insertedTasks || []) {
+          await notifyTaskAssigned(supabase, { workspaceId, task: t, assignedTo: t.assigned_to, actingUserId: userId })
+        }
       }
     }
     setSaving(false)
@@ -1330,7 +1333,7 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
 }
 
 function TaskModalInline({ negotiationId, existingTasks, onClose, onCreated }) {
-  const { workspaceId } = useAuth()
+  const { workspaceId, user } = useAuth()
   const [title, setTitle] = useState('')
   const [priority, setPriority] = useState('medium')
   const [dueDate, setDueDate] = useState('')
@@ -1349,14 +1352,15 @@ function TaskModalInline({ negotiationId, existingTasks, onClose, onCreated }) {
   async function handleSave() {
     if (!title.trim()) return
     setSaving(true)
-    await supabase.from('tasks').insert({
+    const { data } = await supabase.from('tasks').insert({
       workspace_id: workspaceId,
       title: title.trim(), priority,
       due_date: dueDate || null, assigned_to: assignedTo || null,
       negotiation_id: negotiationId, predecessor_task_id: predecessorId || null,
       status: 'pending',
-    })
+    }).select('id, title').single()
     setSaving(false)
+    if (data) await notifyTaskAssigned(supabase, { workspaceId, task: data, assignedTo, actingUserId: user?.id })
     onCreated()
     onClose()
   }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { notifyTaskAssigned } from '../lib/tasks'
 import './TaskModal.css'
 
 export default function TaskModal({ onClose, onCreated }) {
@@ -52,7 +53,7 @@ export default function TaskModal({ onClose, onCreated }) {
     setError(null)
     if (!title.trim()) { setError('El título es obligatorio'); return }
     setLoading(true)
-    const { error } = await supabase.from('tasks').insert({
+    const { data, error } = await supabase.from('tasks').insert({
       workspace_id: workspaceId,
       title: title.trim(),
       description: description.trim() || null,
@@ -63,9 +64,10 @@ export default function TaskModal({ onClose, onCreated }) {
       predecessor_task_id: predecessorId || null,
       status: 'pending',
       created_by: user.id,
-    })
+    }).select('id, title').single()
     setLoading(false)
     if (error) { setError('Error al crear la tarea. Intentá de nuevo.'); return }
+    if (data) await notifyTaskAssigned(supabase, { workspaceId, task: data, assignedTo, actingUserId: user.id })
     onCreated()
     onClose()
   }
