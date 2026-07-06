@@ -31,8 +31,15 @@ export default function SetPassword() {
     }
     setLoading(true)
     try {
-      const { error } = await supabase.auth.updateUser({ password })
+      const { data, error } = await supabase.auth.updateUser({ password })
       if (error) throw error
+
+      // Limpiamos la invitación pendiente ahora que ya aceptó y tiene sesión propia
+      const email = data?.user?.email
+      if (email) {
+        await supabase.from('invitations').delete().eq('email', email.toLowerCase())
+      }
+
       navigate('/dashboard')
     } catch (err) {
       setError('Hubo un error al guardar la contraseña. Intentá de nuevo.')
