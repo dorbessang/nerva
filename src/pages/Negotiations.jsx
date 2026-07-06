@@ -80,16 +80,6 @@ export default function Negotiations() {
     if (params.get('filter') === 'low_activity') setFilterActivity('low_activity')
   }, [location.search])
 
-  // Si viene de "ver proyecto" desde una entidad, abre ese proyecto directamente
-  useEffect(() => {
-    const params = new URLSearchParams(location.search)
-    const openId = params.get('open')
-    if (openId && negotiations.length > 0) {
-      const found = negotiations.find(n => n.id === openId)
-      if (found) setSelectedNeg(found)
-    }
-  }, [location.search, negotiations])
-
   useEffect(() => { fetchAll() }, [])
 
   async function fetchAll() {
