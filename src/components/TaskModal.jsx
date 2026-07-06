@@ -11,8 +11,10 @@ export default function TaskModal({ onClose, onCreated }) {
   const [dueDate, setDueDate] = useState('')
   const [assignedTo, setAssignedTo] = useState('')
   const [negotiationId, setNegotiationId] = useState('')
+  const [predecessorId, setPredecessorId] = useState('')
   const [members, setMembers] = useState([])
   const [negotiations, setNegotiations] = useState([])
+  const [negotiationTasks, setNegotiationTasks] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -20,6 +22,15 @@ export default function TaskModal({ onClose, onCreated }) {
     fetchMembers()
     fetchNegotiations()
   }, [])
+
+  useEffect(() => {
+    setPredecessorId('')
+    if (!negotiationId) { setNegotiationTasks([]); return }
+    supabase.from('tasks')
+      .select('id, title, status')
+      .eq('negotiation_id', negotiationId)
+      .then(({ data }) => setNegotiationTasks(data || []))
+  }, [negotiationId])
 
   async function fetchMembers() {
     const { data } = await supabase
@@ -49,6 +60,7 @@ export default function TaskModal({ onClose, onCreated }) {
       due_date: dueDate || null,
       assigned_to: assignedTo || null,
       negotiation_id: negotiationId || null,
+      predecessor_task_id: predecessorId || null,
       status: 'pending',
       created_by: user.id,
     })
@@ -114,6 +126,18 @@ export default function TaskModal({ onClose, onCreated }) {
               ))}
             </select>
           </div>
+
+          {negotiationId && negotiationTasks.length > 0 && (
+            <div className="form-group">
+              <label>DEPENDE DE (opcional)</label>
+              <select value={predecessorId} onChange={e => setPredecessorId(e.target.value)}>
+                <option value="">Ninguna</option>
+                {negotiationTasks.map(t => (
+                  <option key={t.id} value={t.id}>{t.title}{t.status === 'done' ? ' (hecha)' : ''}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {error && <p className="form-error">{error}</p>}
 

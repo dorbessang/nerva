@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import TaskModal from '../components/TaskModal'
 import TaskDrawer from '../components/TaskDrawer'
+import { isTaskBlocked, notifySuccessors } from '../lib/tasks'
 import './Tasks.css'
 
 export default function Tasks() {
@@ -59,7 +60,8 @@ export default function Tasks() {
       .select(`
         *,
         profile:assigned_to ( full_name ),
-        negotiation:negotiation_id ( id, title, product )
+        negotiation:negotiation_id ( id, title, product ),
+        predecessor:predecessor_task_id ( id, title, status, profile:assigned_to ( full_name ) )
       `)
       .order('created_at', { ascending: false })
 
@@ -109,7 +111,7 @@ export default function Tasks() {
   }
 
   function handleCheckClick(task) {
-    if (task.status === 'done') return
+    if (task.status === 'done' || isTaskBlocked(task)) return
     setConfirmTask(task)
   }
 
@@ -119,6 +121,7 @@ export default function Tasks() {
       .update({ status: 'done', completed_at: new Date().toISOString() })
       .eq('id', confirmTask.id)
     if (!error) {
+      await notifySuccessors(supabase, confirmTask, workspaceId)
       setConfirmTask(null)
       fetchTasks()
     }
@@ -218,7 +221,9 @@ export default function Tasks() {
         </div>
       ) : (
         <div className="tasks-list">
-          {tasks.map(task => (
+          {tasks.map(task => {
+            const blocked = isTaskBlocked(task)
+            return (
             <div
               key={task.id}
               className={`task-card ${task.status === 'done' ? 'status-done' : ''}`}
@@ -227,9 +232,10 @@ export default function Tasks() {
               <button
                 className={`task-check ${task.status === 'done' ? 'checked' : ''}`}
                 onClick={(e) => { e.stopPropagation(); handleCheckClick(task) }}
-                title="Marcar como completada"
+                disabled={blocked}
+                title={blocked ? 'Esta tarea depende de otra que todavía no se completó' : 'Marcar como completada'}
               >
-                {task.status === 'done' ? '✓' : ''}
+                {task.status === 'done' ? '✓' : blocked ? '🔒' : ''}
               </button>
 
               <div className="task-card-body">
@@ -243,6 +249,13 @@ export default function Tasks() {
                   })()}
                   {task.title}
                 </p>
+                {blocked && (
+                  <p className="task-blocked-note">
+                    {isPrivileged
+                      ? `🔒 Bloqueada por "${task.predecessor.title}" (${task.predecessor.profile?.full_name || 'sin asignar'} · ${statusLabel(task.predecessor.status)})`
+                      : '🔒 Pendiente de aprobación previa'}
+                  </p>
+                )}
                 {task.negotiation && (
                   <p className="task-meta">
                     {task.negotiation.entity?.country_code && (
@@ -279,7 +292,7 @@ export default function Tasks() {
                 </span>
               </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
 

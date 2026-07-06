@@ -109,6 +109,16 @@
   flex: 1;
 }
 
+.drawer-blocked-note {
+  margin: 0;
+  padding: 10px 12px;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 7px;
+  font-size: 12px;
+  color: #B45309;
+}
+
 .drawer-footer {
   padding: 20px 28px;
   border-top: 1px solid #f0f2f5;

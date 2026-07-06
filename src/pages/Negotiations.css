@@ -760,6 +760,7 @@
 
 .neg-task-body { flex: 1; min-width: 0; }
 .neg-task-title { display: block; font-size: 13px; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.neg-task-blocked-note { display: block; font-size: 11px; color: #B45309; margin-top: 2px; }
 
 .neg-task-status {
   font-size: 11px;

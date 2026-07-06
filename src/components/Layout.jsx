@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import * as LucideIcons from "lucide-react";
 import RoleImpersonator from "./RoleImpersonator";
+import NotificationBell from "./NotificationBell";
 import "./Layout.css";
 
 function EntityIcon({ name, size = 18 }) {
@@ -224,6 +225,7 @@ export default function Layout({ children }) {
           <div className="nerva-status-dot" />
           <span className="nerva-status-text">en línea</span>
           <span className="nerva-header-divider">·</span>
+          <NotificationBell />
           <button className="nerva-header-user" onClick={() => navigate('/profile')}>
             {profile?.full_name || user?.email}
           </button>

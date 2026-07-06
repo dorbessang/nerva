@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import { isTaskBlocked, wouldCreateCycle, notifySuccessors } from '../lib/tasks'
 import './Negotiations.css'
 
 const TERRITORIES = ['ARG','BOL','BRA','CEAM','CHI','COL','ECU','MEX','PAR','PER','URU','VEN']
@@ -907,7 +908,7 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
 }
 
 export function NegotiationDetail({ neg, entities, customStates, getStateConfig, getEntityFlag, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
-  const { effectiveRole, role, user, isStaff } = useAuth()
+  const { effectiveRole, role, user, isStaff, workspaceId } = useAuth()
   const canDelete = effectiveRole === 'owner'
   const canPause = effectiveRole === 'owner' || effectiveRole === 'admin'
   const canEdit = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
@@ -920,6 +921,7 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
 
   function canCompleteTask(task) {
     if (task.status === 'done') return false
+    if (isTaskBlocked(task)) return false
     if (isPrivileged) return true
     if (!task.assigned_to) return effectiveRole !== 'viewer'
     return task.assigned_to === myUserId && effectiveRole !== 'viewer'
@@ -947,7 +949,7 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
 
   async function fetchTasks() {
     const { data } = await supabase.from('tasks')
-      .select(`*, profile:assigned_to ( full_name )`)
+      .select(`*, profile:assigned_to ( full_name ), predecessor:predecessor_task_id ( id, title, status, profile:assigned_to ( full_name ) )`)
       .eq('negotiation_id', neg.id)
       .order('created_at', { ascending: false })
     if (data) setTasks(data)
@@ -1012,9 +1014,10 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
     onClose()
   }
 
-  async function handleToggleTask(taskId, currentStatus) {
-    if (currentStatus === 'done') return
-    await supabase.from('tasks').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', taskId)
+  async function handleToggleTask(task) {
+    if (task.status === 'done' || isTaskBlocked(task)) return
+    await supabase.from('tasks').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', task.id)
+    await notifySuccessors(supabase, task, neg.workspace_id || workspaceId)
     fetchTasks()
   }
 
@@ -1223,15 +1226,20 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
                   {visibleTasks.map(task => {
                     const isOther = task.assigned_to && task.assigned_to !== myUserId
                     const showAssignee = isPrivileged || !isOther
+                    const blocked = isTaskBlocked(task)
                     return (
                       <div key={task.id} className={`neg-task-row ${task.status === 'done' ? 'done' : ''} ${isOther && !isPrivileged ? 'neg-task-row--other' : ''}`}>
                         <button
                           className={`neg-task-check ${task.status === 'done' ? 'checked' : ''}`}
-                          onClick={() => canCompleteTask(task) && handleToggleTask(task.id, task.status)}
+                          onClick={() => canCompleteTask(task) && handleToggleTask(task)}
                           disabled={!canCompleteTask(task)}
-                          title={!canCompleteTask(task) && isOther ? 'Solo el asignado puede completar esta tarea' : undefined}
+                          title={
+                            blocked ? 'Esta tarea depende de otra que todavía no se completó'
+                            : !canCompleteTask(task) && isOther ? 'Solo el asignado puede completar esta tarea'
+                            : undefined
+                          }
                         >
-                          {task.status === 'done' ? '✓' : ''}
+                          {task.status === 'done' ? '✓' : blocked ? '🔒' : ''}
                         </button>
                         <div className="neg-task-body">
                           <span className="neg-task-title">
@@ -1242,6 +1250,13 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
                             }
                             {task.title}
                           </span>
+                          {blocked && (
+                            <span className="neg-task-blocked-note">
+                              {isPrivileged
+                                ? `🔒 Bloqueada por "${task.predecessor.title}" (${task.predecessor.profile?.full_name || 'sin asignar'} · ${statusLabel(task.predecessor.status)})`
+                                : '🔒 Pendiente de aprobación previa'}
+                            </span>
+                          )}
                         </div>
                         <span className={`neg-task-status badge-${task.status}`}>{statusLabel(task.status)}</span>
                         {task.due_date && <span className="neg-task-date">{new Date(task.due_date).toLocaleDateString('es-AR')}</span>}
@@ -1287,35 +1302,38 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
         />
       )}
       {showTaskModal && (
-        <TaskModalInline negotiationId={neg.id} onClose={() => setShowTaskModal(false)} onCreated={fetchTasks} />
+        <TaskModalInline negotiationId={neg.id} existingTasks={tasks} onClose={() => setShowTaskModal(false)} onCreated={fetchTasks} />
       )}
     </div>
   )
 }
 
-function TaskModalInline({ negotiationId, onClose, onCreated }) {
+function TaskModalInline({ negotiationId, existingTasks, onClose, onCreated }) {
+  const { workspaceId } = useAuth()
   const [title, setTitle] = useState('')
   const [priority, setPriority] = useState('medium')
   const [dueDate, setDueDate] = useState('')
   const [assignedTo, setAssignedTo] = useState('')
+  const [predecessorId, setPredecessorId] = useState('')
   const [members, setMembers] = useState([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     supabase.from('workspace_members')
       .select(`user_id, profile:user_id ( full_name, email )`)
-      .eq('workspace_id', 'aaaaaaaa-0000-0000-0000-000000000001')
+      .eq('workspace_id', workspaceId)
       .then(({ data }) => { if (data) setMembers(data) })
-  }, [])
+  }, [workspaceId])
 
   async function handleSave() {
     if (!title.trim()) return
     setSaving(true)
     await supabase.from('tasks').insert({
-      workspace_id: 'aaaaaaaa-0000-0000-0000-000000000001',
+      workspace_id: workspaceId,
       title: title.trim(), priority,
       due_date: dueDate || null, assigned_to: assignedTo || null,
-      negotiation_id: negotiationId, status: 'pending',
+      negotiation_id: negotiationId, predecessor_task_id: predecessorId || null,
+      status: 'pending',
     })
     setSaving(false)
     onCreated()
@@ -1356,6 +1374,17 @@ function TaskModalInline({ negotiationId, onClose, onCreated }) {
               {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email || 'Usuario'}</option>)}
             </select>
           </div>
+          {existingTasks?.length > 0 && (
+            <div className="form-group">
+              <label>DEPENDE DE (opcional)</label>
+              <select value={predecessorId} onChange={e => setPredecessorId(e.target.value)}>
+                <option value="">Ninguna</option>
+                {existingTasks.map(t => (
+                  <option key={t.id} value={t.id}>{t.title}{t.status === 'done' ? ' (hecha)' : ''}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="modal-actions">
             <button className="btn-secondary" onClick={onClose}>Cancelar</button>
             <button className="btn-primary" onClick={handleSave} disabled={saving}>

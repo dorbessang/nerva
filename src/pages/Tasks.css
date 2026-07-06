@@ -222,6 +222,15 @@
   text-overflow: ellipsis;
 }
 
+.task-blocked-note {
+  font-size: 11px;
+  color: #B45309;
+  margin: 2px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .task-card-right {
   display: flex;
   align-items: center;

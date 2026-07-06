@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { wouldCreateCycle, isTaskBlocked } from '../lib/tasks'
 import './TaskDrawer.css'
 
 export default function TaskDrawer({ task, onClose, onUpdated }) {
@@ -9,12 +10,15 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
   const [priority, setPriority] = useState(task.priority)
   const [dueDate, setDueDate] = useState(task.due_date || '')
   const [assignedTo, setAssignedTo] = useState(task.assigned_to || '')
+  const [predecessorId, setPredecessorId] = useState(task.predecessor_task_id || '')
   const [members, setMembers] = useState([])
+  const [siblingTasks, setSiblingTasks] = useState([])
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
     fetchMembers()
+    fetchSiblingTasks()
   }, [])
 
   async function fetchMembers() {
@@ -29,6 +33,19 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
     if (data) setMembers(data)
   }
 
+  async function fetchSiblingTasks() {
+    if (!task.negotiation_id) return
+    const { data } = await supabase
+      .from('tasks')
+      .select('id, title, status, predecessor_task_id')
+      .eq('negotiation_id', task.negotiation_id)
+    if (data) setSiblingTasks(data)
+  }
+
+  const predecessorOptions = siblingTasks.filter(
+    t => t.id !== task.id && !wouldCreateCycle(siblingTasks, task.id, t.id)
+  )
+
   async function handleSave() {
     setSaving(true)
     const { error } = await supabase
@@ -40,6 +57,7 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
         priority,
         due_date: dueDate || null,
         assigned_to: assignedTo || null,
+        predecessor_task_id: predecessorId || null,
       })
       .eq('id', task.id)
     setSaving(false)
@@ -131,6 +149,24 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
               </select>
             </div>
           </div>
+
+          {predecessorOptions.length > 0 && (
+            <div className="form-group">
+              <label>DEPENDE DE (opcional)</label>
+              <select value={predecessorId} onChange={e => setPredecessorId(e.target.value)}>
+                <option value="">Ninguna</option>
+                {predecessorOptions.map(t => (
+                  <option key={t.id} value={t.id}>{t.title}{t.status === 'done' ? ' (hecha)' : ''}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {isTaskBlocked(task) && (
+            <p className="drawer-blocked-note">
+              🔒 Depende de "{task.predecessor.title}" — no se puede completar hasta que esa se marque como hecha.
+            </p>
+          )}
         </div>
 
         <div className="drawer-footer">

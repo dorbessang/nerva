@@ -34,13 +34,13 @@
 - [ ] Spinner de carga personalizado con animación del logo
 - [x] Página de perfil de usuario (`/profile`) — editar full_name propio y cambiar contraseña. Accesible desde el header (ahora muestra full_name en vez del email) y desde un ítem nuevo en el sidebar, visible para cualquier rol
 - [x] Staff role (`is_staff` en `profiles`) + selector "ver como rol" visible solo para equipo Nerva — base para Super Admin backoffice de Etapa 2
-- [ ] Cascade tasks (tareas encadenadas):
-  - Una tarea puede tener una "predecesora" (campo `predecessor_task_id` en tabla `tasks`)
-  - La tarea sucesora aparece como "bloqueada" hasta que la predecesora esté completada
-  - Owner/Admin: ven la cadena completa con todos los asignados y el estado de cada eslabón
-  - Editor: ve su tarea como bloqueada con texto genérico "Pendiente de aprobación previa" sin saber quién la tiene
-  - Viewer: igual que editor, solo ve sus tareas y si están bloqueadas
-  - Al completar una tarea, el sistema verifica si desbloquea alguna sucesora y notifica al asignado (notificaciones in-app, Resend para email en Fase 2)
+- [x] Cascade tasks (tareas encadenadas):
+  - `tasks.predecessor_task_id` (auto-FK), seteable al crear (TaskModal, TaskModalInline) o editar (TaskDrawer), con detección de ciclos
+  - La tarea sucesora aparece "bloqueada" (🔒, no se puede completar) hasta que la predecesora esté "done"
+  - Owner/Admin: ven de qué tarea depende, quién la tiene y su estado
+  - Editor/Viewer: ven "🔒 Pendiente de aprobación previa" sin identidad, mismo patrón que ya ocultaba tareas de terceros
+  - Al completar una tarea se notifica in-app (tabla `notifications`, nueva — primera pieza de un sistema de notificaciones) al asignado de cada sucesora que se desbloquea. Campanita con contador en el header. Email vía Resend queda para Fase 2
+  - De paso se corrigió un bug real en `TaskModalInline` (Negotiations.jsx): tenía el workspace_id hardcodeado al de Testing en vez de usar el workspace activo
 
 ---
 
