@@ -7,7 +7,7 @@
 // Body esperado: { action: 'invite' | 'cancel', workspaceId, email, role }
 // role solo es obligatorio para action: 'invite'.
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
