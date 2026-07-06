@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
   // Si el email ya tiene una cuenta confirmada (aceptó una invitación antes,
   // en este workspace o en otro), no se puede volver a invitar por mail:
   // ya tiene contraseña propia. Lo sumamos directo al workspace.
-  const { data: usersPage } = await admin.auth.admin.listUsers()
+  const { data: usersPage } = await admin.auth.admin.listUsers({ perPage: 1000 })
   const existingUser = usersPage?.users?.find(
     (u) => u.email?.toLowerCase() === email.toLowerCase(),
   )
