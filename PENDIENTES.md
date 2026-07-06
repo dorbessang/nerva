@@ -29,8 +29,8 @@
 - [ ] Panel Owner: invitar usuarios, activar/desactivar, eliminar participantes del WS, ver seats usados vs disponibles
 - [ ] Flujo de invitación por email vía Supabase Auth
 - [ ] Validación de seats al crear usuario (preparar función, activar en Etapa 2)
-- [ ] Click en proyecto desde entidad navega a /negotiations con ese proyecto abierto
-- [ ] Botón "Nuevo proyecto" desde el detalle de una entidad/proveedor (visible para owner, admin y editor) — el modal se abre con esa entidad ya preseleccionada en "Entidades vinculadas"
+- [x] Click en proyecto desde entidad navega a /negotiations con ese proyecto abierto
+- [x] Botón "Nuevo proyecto" desde el detalle de una entidad/proveedor (visible para owner, admin y editor) — el modal se abre con esa entidad ya preseleccionada en "Entidades vinculadas"
 - [ ] Spinner de carga personalizado con animación del logo
 - [x] Staff role (`is_staff` en `profiles`) + selector "ver como rol" visible solo para equipo Nerva — base para Super Admin backoffice de Etapa 2
 - [ ] Cascade tasks (tareas encadenadas):
