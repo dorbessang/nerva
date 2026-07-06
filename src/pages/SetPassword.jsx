@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 export default function SetPassword() {
+  const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState(null)
@@ -21,6 +22,10 @@ export default function SetPassword() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError(null)
+    if (!fullName.trim()) {
+      setError('Ingresá tu nombre completo')
+      return
+    }
     if (password !== confirm) {
       setError('Las contraseñas no coinciden')
       return
@@ -34,15 +39,21 @@ export default function SetPassword() {
       const { data, error } = await supabase.auth.updateUser({ password })
       if (error) throw error
 
-      // Limpiamos la invitación pendiente ahora que ya aceptó y tiene sesión propia
+      const userId = data?.user?.id
       const email = data?.user?.email
+
+      if (userId) {
+        await supabase.from('profiles').update({ full_name: fullName.trim() }).eq('id', userId)
+      }
+
+      // Limpiamos la invitación pendiente ahora que ya aceptó y tiene sesión propia
       if (email) {
         await supabase.from('invitations').delete().eq('email', email.toLowerCase())
       }
 
       navigate('/dashboard')
     } catch (err) {
-      setError('Hubo un error al guardar la contraseña. Intentá de nuevo.')
+      setError('Hubo un error al guardar los datos. Intentá de nuevo.')
     } finally {
       setLoading(false)
     }
@@ -52,8 +63,17 @@ export default function SetPassword() {
     <div style={styles.container}>
       <div style={styles.card}>
         <h1 style={styles.logo}>NERVA</h1>
-        <p style={styles.subtitle}>Creá tu contraseña para acceder</p>
+        <p style={styles.subtitle}>Completá tus datos para acceder</p>
         <form onSubmit={handleSubmit} style={styles.form}>
+          <input
+            style={styles.input}
+            type="text"
+            placeholder="Nombre completo"
+            value={fullName}
+            onChange={e => setFullName(e.target.value)}
+            autoFocus
+            required
+          />
           <input
             style={styles.input}
             type="password"
@@ -72,7 +92,7 @@ export default function SetPassword() {
           />
           {error && <p style={styles.error}>{error}</p>}
           <button style={styles.button} type="submit" disabled={loading}>
-            {loading ? 'Guardando...' : 'Crear contraseña'}
+            {loading ? 'Guardando...' : 'Crear cuenta'}
           </button>
         </form>
       </div>
