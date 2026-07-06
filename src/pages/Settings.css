@@ -289,6 +289,28 @@
   word-break: break-all;
 }
 
+.invite-link-row {
+  display: flex;
+  gap: 8px;
+}
+
+.invite-link-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+  color: #374151;
+}
+
+@media (max-width: 860px) {
+  .invite-link-row {
+    flex-wrap: wrap;
+  }
+}
+
 /* Toggle de tipo de objeto */
 .settings-type-toggle {
   display: flex;

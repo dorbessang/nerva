@@ -119,9 +119,17 @@ Deno.serve(async (req) => {
     return json({ ok: true, direct: true })
   }
 
-  const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${SITE_URL}/set-password`,
-    data: { invited_workspace_id: workspaceId, invited_role: role },
+  // generateLink crea el usuario invitado y el link de acceso, pero no manda
+  // ningún mail (evita el rate limit del mailer default de Supabase). Por
+  // ahora el link se muestra en la UI para que el owner lo copie y lo mande
+  // a mano; cuando se configure SMTP propio (Resend) se puede mandar solo.
+  const { data: linkData, error: inviteError } = await admin.auth.admin.generateLink({
+    type: 'invite',
+    email,
+    options: {
+      redirectTo: `${SITE_URL}/set-password`,
+      data: { invited_workspace_id: workspaceId, invited_role: role },
+    },
   })
 
   if (inviteError) return json({ error: inviteError.message }, 400)
@@ -137,5 +145,5 @@ Deno.serve(async (req) => {
     expires_at: expiresAt,
   })
 
-  return json({ ok: true })
+  return json({ ok: true, inviteLink: linkData?.properties?.action_link ?? null })
 })

@@ -85,6 +85,7 @@ function TabUsuarios({ workspaceId }) {
   const [inviting, setInviting] = useState(false)
   const [inviteError, setInviteError] = useState(null)
   const [inviteSuccess, setInviteSuccess] = useState(null)
+  const [inviteLink, setInviteLink] = useState(null)
   const [confirmRemove, setConfirmRemove] = useState(null) // miembro a eliminar
 
   useEffect(() => {
@@ -144,6 +145,7 @@ function TabUsuarios({ workspaceId }) {
   async function handleInvite() {
     setInviteError(null)
     setInviteSuccess(null)
+    setInviteLink(null)
     if (!inviteEmail.trim()) { setInviteError('El email es obligatorio'); return }
     setInviting(true)
 
@@ -160,10 +162,17 @@ function TabUsuarios({ workspaceId }) {
       setInviteSuccess(`${inviteEmail.trim()} ya tenía cuenta y se sumó directo al workspace.`)
       fetchMembers()
     } else {
-      setInviteSuccess(`Invitación enviada a ${inviteEmail.trim()}.`)
+      setInviteSuccess(`Invitación creada para ${inviteEmail.trim()}. Copiá el link y mandáselo (todavía no se manda mail automático).`)
+      setInviteLink(data?.inviteLink || null)
       fetchInvitations()
     }
     setInviteEmail('')
+  }
+
+  async function handleCopyLink() {
+    if (!inviteLink) return
+    await navigator.clipboard.writeText(inviteLink)
+    setInviteSuccess('Link copiado al portapapeles.')
   }
 
   async function handleCancelInvitation(inv) {
@@ -220,6 +229,12 @@ function TabUsuarios({ workspaceId }) {
             </div>
             {inviteError && <p className="settings-error">{inviteError}</p>}
             {inviteSuccess && <p className="settings-success">{inviteSuccess}</p>}
+            {inviteLink && (
+              <div className="invite-link-row">
+                <input className="invite-link-input" type="text" readOnly value={inviteLink} onFocus={e => e.target.select()} />
+                <button className="settings-btn-secondary" onClick={handleCopyLink}>Copiar</button>
+              </div>
+            )}
           </div>
         )}
 
