@@ -144,9 +144,14 @@ function TabUsuarios({ workspaceId }) {
       setInviteError(data?.error || 'Error al enviar la invitación. Verificá que el email no esté ya invitado.')
       return
     }
-    setInviteSuccess(`Invitación enviada a ${inviteEmail.trim()}.`)
+    if (data?.direct) {
+      setInviteSuccess(`${inviteEmail.trim()} ya tenía cuenta y se sumó directo al workspace.`)
+      fetchMembers()
+    } else {
+      setInviteSuccess(`Invitación enviada a ${inviteEmail.trim()}.`)
+      fetchInvitations()
+    }
     setInviteEmail('')
-    fetchInvitations()
   }
 
   async function handleCancelInvitation(inv) {

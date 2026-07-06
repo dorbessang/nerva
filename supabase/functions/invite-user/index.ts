@@ -90,6 +90,35 @@ Deno.serve(async (req) => {
   // action === 'invite'
   if (!email || !role) return json({ error: 'Faltan datos' }, 400)
 
+  // Si el email ya tiene una cuenta confirmada (aceptó una invitación antes,
+  // en este workspace o en otro), no se puede volver a invitar por mail:
+  // ya tiene contraseña propia. Lo sumamos directo al workspace.
+  const { data: usersPage } = await admin.auth.admin.listUsers()
+  const existingUser = usersPage?.users?.find(
+    (u) => u.email?.toLowerCase() === email.toLowerCase(),
+  )
+
+  if (existingUser && existingUser.email_confirmed_at) {
+    const { data: existingMember } = await admin
+      .from('workspace_members')
+      .select('user_id')
+      .eq('workspace_id', workspaceId)
+      .eq('user_id', existingUser.id)
+      .maybeSingle()
+
+    if (existingMember) return json({ error: 'Ese usuario ya es miembro de este workspace' }, 400)
+
+    const { error: memberError } = await admin.from('workspace_members').insert({
+      workspace_id: workspaceId,
+      user_id: existingUser.id,
+      role,
+      status: 'active',
+    })
+    if (memberError) return json({ error: memberError.message }, 400)
+
+    return json({ ok: true, direct: true })
+  }
+
   const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${SITE_URL}/set-password`,
     data: { invited_workspace_id: workspaceId, invited_role: role },
