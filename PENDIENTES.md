@@ -32,6 +32,7 @@
 - [x] Click en proyecto desde entidad abre el detalle inline (sin salir de la página de la entidad) — decidido a propósito, no navegar a /negotiations
 - [x] Botón "Nuevo proyecto" desde el detalle de una entidad/proveedor (visible para owner, admin y editor) — el modal se abre con esa entidad ya preseleccionada en "Entidades vinculadas"
 - [ ] Spinner de carga personalizado con animación del logo
+- [ ] Página de perfil de usuario — editar full_name/avatar_url propios. Accesible desde el header (hoy muestra `user.email` en vez del nombre — debería mostrar full_name y ser clickeable) y también desde un ítem nuevo en Settings
 - [x] Staff role (`is_staff` en `profiles`) + selector "ver como rol" visible solo para equipo Nerva — base para Super Admin backoffice de Etapa 2
 - [ ] Cascade tasks (tareas encadenadas):
   - Una tarea puede tener una "predecesora" (campo `predecessor_task_id` en tabla `tasks`)
