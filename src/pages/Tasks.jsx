@@ -167,29 +167,38 @@ export default function Tasks() {
         </div>
 
         <div className="tasks-dropdowns">
-          <select className="dropdown-filter" value={filterNegotiation} onChange={e => setFilterNegotiation(e.target.value)}>
-            <option value="">Todos los proyectos</option>
-            {negotiations.map(n => (
-              <option key={n.id} value={n.id}>{n.product || n.title}</option>
-            ))}
-          </select>
-
-          <select className="dropdown-filter" value={filterEntity} onChange={e => setFilterEntity(e.target.value)}>
-            <option value="">Todos los proveedores</option>
-            {entities.map(e => (
-              <option key={e.id} value={e.id}>{e.name}</option>
-            ))}
-          </select>
-
-          {isPrivileged && (
-            <select className="dropdown-filter" value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}>
-              <option value="">Todos los responsables</option>
-              {members.map(m => (
-                <option key={m.user_id} value={m.user_id}>
-                  {m.profile?.full_name || 'Usuario'}
-                </option>
+          <div className="filter-field">
+            <label className="filter-field-label">Proyecto</label>
+            <select className="dropdown-filter" value={filterNegotiation} onChange={e => setFilterNegotiation(e.target.value)}>
+              <option value="">Todos los proyectos</option>
+              {negotiations.map(n => (
+                <option key={n.id} value={n.id}>{n.product || n.title}</option>
               ))}
             </select>
+          </div>
+
+          <div className="filter-field">
+            <label className="filter-field-label">Proveedor</label>
+            <select className="dropdown-filter" value={filterEntity} onChange={e => setFilterEntity(e.target.value)}>
+              <option value="">Todos los proveedores</option>
+              {entities.map(e => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {isPrivileged && (
+            <div className="filter-field">
+              <label className="filter-field-label">Responsable</label>
+              <select className="dropdown-filter" value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}>
+                <option value="">Todos los responsables</option>
+                {members.map(m => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.profile?.full_name || 'Usuario'}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
       </div>

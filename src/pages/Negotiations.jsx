@@ -224,22 +224,34 @@ export default function Negotiations() {
       </div>
 
       <div className="neg-toolbar">
-        <input className="neg-search" type="text" placeholder="🔍 Buscar proyecto o producto..." value={search} onChange={e => setSearch(e.target.value)} />
-        <select className="neg-select" value={filterEntity} onChange={e => setFilterEntity(e.target.value)}>
-          <option value="">Todos los proveedores</option>
-          {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-        </select>
-        <select className="neg-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-          <option value="">Todos los estados</option>
-          {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-        </select>
-        <select className="neg-select" value={filterActivity} onChange={e => setFilterActivity(e.target.value)}>
-          <option value="active">En curso</option>
-          <option value="paused">Pausados</option>
-          <option value="inactive">Inactivos</option>
-          <option value="low_activity">Baja actividad</option>
-          <option value="">Todos</option>
-        </select>
+        <div className="filter-field">
+          <label className="filter-field-label">Buscar</label>
+          <input className="neg-search" type="text" placeholder="🔍 Proyecto o producto..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <div className="filter-field">
+          <label className="filter-field-label">Proveedor</label>
+          <select className="neg-select" value={filterEntity} onChange={e => setFilterEntity(e.target.value)}>
+            <option value="">Todos los proveedores</option>
+            {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        </div>
+        <div className="filter-field">
+          <label className="filter-field-label">Estado</label>
+          <select className="neg-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+            <option value="">Todos los estados</option>
+            {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+          </select>
+        </div>
+        <div className="filter-field">
+          <label className="filter-field-label">Actividad</label>
+          <select className="neg-select" value={filterActivity} onChange={e => setFilterActivity(e.target.value)}>
+            <option value="active">En curso</option>
+            <option value="paused">Pausados</option>
+            <option value="inactive">Inactivos</option>
+            <option value="low_activity">Baja actividad</option>
+            <option value="">Todos (activos e inactivos)</option>
+          </select>
+        </div>
         <div className="neg-view-toggle">
           <button className={`neg-view-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')} title="Vista tabla">☰</button>
           <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Vista cards">⊞</button>
