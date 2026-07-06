@@ -40,20 +40,20 @@ export default function NotificationBell() {
     if (next) fetchNotifications()
   }
 
-  async function markRead(id) {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
-    await supabase.from('notifications').update({ read: true }).eq('id', id)
+  async function dismiss(id) {
+    setNotifications(prev => prev.filter(n => n.id !== id))
+    await supabase.from('notifications').delete().eq('id', id)
   }
 
-  async function markAllRead() {
-    const unreadIds = notifications.filter(n => !n.read).map(n => n.id)
-    if (unreadIds.length === 0) return
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-    await supabase.from('notifications').update({ read: true }).in('id', unreadIds)
+  async function dismissAll() {
+    const ids = notifications.map(n => n.id)
+    if (ids.length === 0) return
+    setNotifications([])
+    await supabase.from('notifications').delete().in('id', ids)
   }
 
   async function handleNotifClick(n) {
-    if (!n.read) markRead(n.id)
+    dismiss(n.id)
     setOpen(false)
     if (!n.task_id) return
 
@@ -70,7 +70,7 @@ export default function NotificationBell() {
     }
   }
 
-  const unreadCount = notifications.filter(n => !n.read).length
+  const unreadCount = notifications.length
 
   function timeAgo(dateStr) {
     const diffMs = Date.now() - new Date(dateStr).getTime()
@@ -93,8 +93,8 @@ export default function NotificationBell() {
         <div className="notif-dropdown">
           <div className="notif-dropdown-header">
             <span>Notificaciones</span>
-            {unreadCount > 0 && (
-              <button className="notif-mark-all" onClick={markAllRead}>Marcar todas leídas</button>
+            {notifications.length > 0 && (
+              <button className="notif-mark-all" onClick={dismissAll}>Borrar todas</button>
             )}
           </div>
           {notifications.length === 0 ? (
@@ -104,7 +104,7 @@ export default function NotificationBell() {
               {notifications.map(n => (
                 <div
                   key={n.id}
-                  className={`notif-item ${n.read ? '' : 'notif-item--unread'}`}
+                  className="notif-item notif-item--unread"
                   onClick={() => handleNotifClick(n)}
                 >
                   <p className="notif-item-title">{n.title}</p>
