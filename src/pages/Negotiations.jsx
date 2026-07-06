@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
@@ -59,6 +59,7 @@ export default function Negotiations() {
   const { user, workspaceId, effectiveRole } = useAuth()
   const canCreateProject = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
   const location = useLocation()
+  const navigate = useNavigate()
   const [negotiations, setNegotiations] = useState([])
   const [entities, setEntities] = useState([])
   const [members, setMembers] = useState([])
@@ -74,12 +75,26 @@ export default function Negotiations() {
   const [editingNeg, setEditingNeg] = useState(null)
   const [showColEditor, setShowColEditor] = useState(false)
   const [cols, saveCols] = useColumnPrefs(user?.id)
+  const [highlightTaskId, setHighlightTaskId] = useState(null)
 
   // Si viene del banner del dashboard, pre-filtra por baja actividad
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     if (params.get('filter') === 'low_activity') setFilterActivity('low_activity')
   }, [location.search])
+
+  // Si viene de una notificación, abre directo el proyecto (y resalta la tarea)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const openNeg = params.get('openNeg')
+    if (!openNeg || negotiations.length === 0) return
+    const found = negotiations.find(n => n.id === openNeg)
+    if (found) {
+      setSelectedNeg(found)
+      setHighlightTaskId(params.get('openTask') || null)
+      navigate('/negotiations', { replace: true })
+    }
+  }, [location.search, negotiations])
 
   useEffect(() => { fetchAll() }, [])
 
@@ -311,7 +326,8 @@ export default function Negotiations() {
           customStates={customStates}
           getStateConfig={getStateConfig}
           getEntityFlag={getEntityFlag}
-          onClose={() => setSelectedNeg(null)}
+          highlightTaskId={highlightTaskId}
+          onClose={() => { setSelectedNeg(null); setHighlightTaskId(null) }}
           onEdit={() => { setEditingNeg(selectedNeg); setSelectedNeg(null); setShowModal(true) }}
           onNotesChanged={fetchAll}
           onDeleted={() => { fetchAll(); setSelectedNeg(null) }}
@@ -907,7 +923,7 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
   )
 }
 
-export function NegotiationDetail({ neg, entities, customStates, getStateConfig, getEntityFlag, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
+export function NegotiationDetail({ neg, entities, customStates, getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
   const { effectiveRole, role, user, isStaff, workspaceId } = useAuth()
   const canDelete = effectiveRole === 'owner'
   const canPause = effectiveRole === 'owner' || effectiveRole === 'admin'
@@ -1227,8 +1243,13 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
                     const isOther = task.assigned_to && task.assigned_to !== myUserId
                     const showAssignee = isPrivileged || !isOther
                     const blocked = isTaskBlocked(task)
+                    const isHighlighted = task.id === highlightTaskId
                     return (
-                      <div key={task.id} className={`neg-task-row ${task.status === 'done' ? 'done' : ''} ${isOther && !isPrivileged ? 'neg-task-row--other' : ''}`}>
+                      <div
+                        key={task.id}
+                        ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'center' }) : undefined}
+                        className={`neg-task-row ${task.status === 'done' ? 'done' : ''} ${isOther && !isPrivileged ? 'neg-task-row--other' : ''} ${isHighlighted ? 'neg-task-row--highlight' : ''}`}
+                      >
                         <button
                           className={`neg-task-check ${task.status === 'done' ? 'checked' : ''}`}
                           onClick={() => canCompleteTask(task) && handleToggleTask(task)}

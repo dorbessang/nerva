@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import './NotificationBell.css'
 
 export default function NotificationBell() {
   const { user, workspaceId } = useAuth()
+  const navigate = useNavigate()
   const [notifications, setNotifications] = useState([])
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -50,6 +52,24 @@ export default function NotificationBell() {
     await supabase.from('notifications').update({ read: true }).in('id', unreadIds)
   }
 
+  async function handleNotifClick(n) {
+    if (!n.read) markRead(n.id)
+    setOpen(false)
+    if (!n.task_id) return
+
+    const { data: task } = await supabase
+      .from('tasks')
+      .select('negotiation_id')
+      .eq('id', n.task_id)
+      .maybeSingle()
+
+    if (task?.negotiation_id) {
+      navigate(`/negotiations?openNeg=${task.negotiation_id}&openTask=${n.task_id}`)
+    } else {
+      navigate(`/tasks?openTask=${n.task_id}`)
+    }
+  }
+
   const unreadCount = notifications.filter(n => !n.read).length
 
   function timeAgo(dateStr) {
@@ -85,7 +105,7 @@ export default function NotificationBell() {
                 <div
                   key={n.id}
                   className={`notif-item ${n.read ? '' : 'notif-item--unread'}`}
-                  onClick={() => !n.read && markRead(n.id)}
+                  onClick={() => handleNotifClick(n)}
                 >
                   <p className="notif-item-title">{n.title}</p>
                   {n.body && <p className="notif-item-body">{n.body}</p>}

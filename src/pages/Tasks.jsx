@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import TaskModal from '../components/TaskModal'
@@ -8,6 +9,8 @@ import './Tasks.css'
 
 export default function Tasks() {
   const { user, role, workspaceId, effectiveRole } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const isPrivileged = effectiveRole === 'owner' || effectiveRole === 'admin'
   const canCreateTask = effectiveRole !== 'viewer'
   const [tasks, setTasks] = useState([])
@@ -108,6 +111,14 @@ export default function Tasks() {
 
     setTasks(result)
     setLoading(false)
+
+    // Si viene de una notificación, abre directo el detalle de esa tarea
+    const openTaskId = new URLSearchParams(location.search).get('openTask')
+    if (openTaskId) {
+      const found = result.find(t => t.id === openTaskId)
+      if (found) setSelectedTask(found)
+      navigate('/tasks', { replace: true })
+    }
   }
 
   function handleCheckClick(task) {

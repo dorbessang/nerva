@@ -738,6 +738,7 @@
 .neg-task-row.done .neg-task-title { text-decoration: line-through; color: #9ca3af; }
 .neg-task-row--other { background: #fafafa; opacity: 0.75; }
 .neg-task-row--hidden-hint { background: transparent; border: none !important; padding: 6px 12px; }
+.neg-task-row--highlight { background: #EFF6FF; box-shadow: inset 3px 0 0 #1D4ED8; }
 
 .neg-task-check {
   width: 16px;
