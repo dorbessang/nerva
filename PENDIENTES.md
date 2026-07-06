@@ -26,9 +26,9 @@
 ## ETAPA 1 — Prioridad 2
 
 - [x] Sistema de permisos por rol — owner/admin/editor/viewer con gates en proyectos, entidades, tareas y notas. DeleteConfirmModal estilo GitHub para borrados destructivos
-- [ ] Panel Owner: invitar usuarios, activar/desactivar, eliminar participantes del WS, ver seats usados vs disponibles
-- [ ] Flujo de invitación por email vía Supabase Auth
-- [ ] Validación de seats al crear usuario (preparar función, activar en Etapa 2)
+- [x] Panel Owner: invitar usuarios, activar/desactivar, eliminar participantes del WS, ver seats usados (el tope "vs disponibles" depende del sistema de planes, Etapa 2)
+- [x] Flujo de invitación por email vía Supabase Auth — Edge Function `invite-user` (invita, cancela) + trigger `handle_invited_user` que suma al workspace con el rol correcto al aceptar
+- [x] Validación de seats al crear usuario — función SQL `workspace_seats_used(workspace_id)` preparada, sin bloquear nada todavía (se activa en Etapa 2)
 - [x] Click en proyecto desde entidad abre el detalle inline (sin salir de la página de la entidad) — decidido a propósito, no navegar a /negotiations
 - [x] Botón "Nuevo proyecto" desde el detalle de una entidad/proveedor (visible para owner, admin y editor) — el modal se abre con esa entidad ya preseleccionada en "Entidades vinculadas"
 - [ ] Spinner de carga personalizado con animación del logo

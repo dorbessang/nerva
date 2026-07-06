@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import './DeleteConfirmModal.css'
 
-export default function DeleteConfirmModal({ itemName, itemType = 'elemento', onConfirm, onCancel }) {
+export default function DeleteConfirmModal({
+  itemName,
+  itemType = 'elemento',
+  warningText = 'Esta acción es irreversible. Se perderá todo el historial, notas y tareas asociadas.',
+  onConfirm,
+  onCancel,
+}) {
   const [typed, setTyped] = useState('')
   const matches = typed === itemName
 
@@ -15,10 +21,7 @@ export default function DeleteConfirmModal({ itemName, itemType = 'elemento', on
       <div className="dcm-card" onClick={e => e.stopPropagation()}>
         <div className="dcm-icon">⚠️</div>
         <h2 className="dcm-title">Eliminar {itemType}</h2>
-        <p className="dcm-body">
-          Esta acción es <strong>irreversible</strong>. Se perderá todo el historial,
-          notas y tareas asociadas.
-        </p>
+        <p className="dcm-body">{warningText}</p>
         <p className="dcm-body">
           Para confirmar, escribí el nombre exacto:
         </p>

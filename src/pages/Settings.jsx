@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 
@@ -57,6 +58,7 @@ export default function Settings() {
 // ─── TAB USUARIOS ────────────────────────────────────────────────────────────
 
 function TabUsuarios({ workspaceId }) {
+  const { user: currentUser } = useAuth()
   const [members, setMembers] = useState([])
   const [invitations, setInvitations] = useState([])
   const [loading, setLoading] = useState(true)
@@ -66,6 +68,7 @@ function TabUsuarios({ workspaceId }) {
   const [inviting, setInviting] = useState(false)
   const [inviteError, setInviteError] = useState(null)
   const [inviteSuccess, setInviteSuccess] = useState(null)
+  const [confirmRemove, setConfirmRemove] = useState(null) // miembro a eliminar
 
   useEffect(() => {
     fetchMembers()
@@ -75,7 +78,7 @@ function TabUsuarios({ workspaceId }) {
   async function fetchMembers() {
     const { data } = await supabase
       .from('workspace_members')
-      .select(`user_id, role, profile:user_id ( full_name, email )`)
+      .select(`user_id, role, status, profile:user_id ( full_name, email )`)
       .eq('workspace_id', workspaceId)
       .order('role')
     if (data) setMembers(data)
@@ -87,7 +90,6 @@ function TabUsuarios({ workspaceId }) {
       .from('invitations')
       .select('*')
       .eq('workspace_id', workspaceId)
-      .eq('accepted', false)
       .order('created_at', { ascending: false })
     if (data) setInvitations(data)
   }
@@ -101,39 +103,51 @@ function TabUsuarios({ workspaceId }) {
     fetchMembers()
   }
 
+  async function handleToggleStatus(member) {
+    const newStatus = member.status === 'active' ? 'inactive' : 'active'
+    await supabase
+      .from('workspace_members')
+      .update({ status: newStatus })
+      .eq('workspace_id', workspaceId)
+      .eq('user_id', member.user_id)
+    fetchMembers()
+  }
+
+  async function handleRemoveMember() {
+    if (!confirmRemove) return
+    await supabase
+      .from('workspace_members')
+      .delete()
+      .eq('workspace_id', workspaceId)
+      .eq('user_id', confirmRemove.user_id)
+    setConfirmRemove(null)
+    fetchMembers()
+  }
+
   async function handleInvite() {
     setInviteError(null)
     setInviteSuccess(null)
     if (!inviteEmail.trim()) { setInviteError('El email es obligatorio'); return }
     setInviting(true)
 
-    // Generamos un token único para la invitación
-    const token = Array.from(crypto.getRandomValues(new Uint8Array(24)))
-      .map(b => b.toString(16).padStart(2, '0')).join('')
-
-    const expiresAt = new Date()
-    expiresAt.setDate(expiresAt.getDate() + 3) // 3 días de expiración
-
-    const { error } = await supabase.from('invitations').insert({
-      workspace_id: workspaceId,
-      email: inviteEmail.trim().toLowerCase(),
-      role: inviteRole,
-      token,
-      expires_at: expiresAt.toISOString(),
+    const { data, error } = await supabase.functions.invoke('invite-user', {
+      body: { action: 'invite', email: inviteEmail.trim().toLowerCase(), role: inviteRole, workspaceId },
     })
 
     setInviting(false)
-    if (error) {
-      setInviteError('Error al crear la invitación. Verificá que el email no esté ya invitado.')
+    if (error || data?.error) {
+      setInviteError(data?.error || 'Error al enviar la invitación. Verificá que el email no esté ya invitado.')
       return
     }
-    setInviteSuccess(`Invitación creada. Token: ${token}`)
+    setInviteSuccess(`Invitación enviada a ${inviteEmail.trim()}.`)
     setInviteEmail('')
     fetchInvitations()
   }
 
-  async function handleCancelInvitation(id) {
-    await supabase.from('invitations').delete().eq('id', id)
+  async function handleCancelInvitation(inv) {
+    await supabase.functions.invoke('invite-user', {
+      body: { action: 'cancel', email: inv.email, workspaceId },
+    })
     fetchInvitations()
   }
 
@@ -150,7 +164,7 @@ function TabUsuarios({ workspaceId }) {
       {/* Lista de miembros activos */}
       <div className="settings-block">
         <div className="settings-block-header">
-          <h2 className="settings-block-title">Miembros del workspace</h2>
+          <h2 className="settings-block-title">Miembros del workspace ({members.filter(m => m.status === 'active').length} activos)</h2>
           <button className="settings-btn-primary" onClick={() => setShowInviteForm(v => !v)}>
             + Invitar usuario
           </button>
@@ -189,30 +203,49 @@ function TabUsuarios({ workspaceId }) {
 
         {/* Tabla de miembros */}
         <div className="settings-table">
-          {members.map(m => (
-            <div key={m.user_id} className="settings-row">
-              <div className="settings-row-info">
-                <div className="settings-avatar">
-                  {(m.profile?.full_name || m.profile?.email || '?')[0].toUpperCase()}
+          {members.map(m => {
+            const isSelf = m.user_id === currentUser?.id
+            const isOwner = m.role === 'owner'
+            return (
+              <div key={m.user_id} className={`settings-row ${m.status === 'inactive' ? 'settings-row--inactive' : ''}`}>
+                <div className="settings-row-info">
+                  <div className="settings-avatar">
+                    {(m.profile?.full_name || m.profile?.email || '?')[0].toUpperCase()}
+                  </div>
+                  <div className="settings-row-text">
+                    <div className="settings-row-name">
+                      {m.profile?.full_name || 'Sin nombre'}
+                      {m.status === 'inactive' && <span className="settings-inactive-badge">Desactivado</span>}
+                    </div>
+                    <div className="settings-row-email">{m.profile?.email}</div>
+                  </div>
                 </div>
-                <div className="settings-row-text">
-                  <div className="settings-row-name">{m.profile?.full_name || 'Sin nombre'}</div>
-                  <div className="settings-row-email">{m.profile?.email}</div>
+                <div className="settings-row-actions">
+                  <select
+                    className="settings-role-select"
+                    value={m.role}
+                    onChange={e => handleChangeRole(m.user_id, e.target.value)}
+                    disabled={isOwner}
+                  >
+                    <option value="owner">Owner</option>
+                    <option value="admin">Admin</option>
+                    <option value="editor">Editor</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                  {!isOwner && !isSelf && (
+                    <>
+                      <button className="settings-btn-secondary" onClick={() => handleToggleStatus(m)}>
+                        {m.status === 'active' ? 'Desactivar' : 'Reactivar'}
+                      </button>
+                      <button className="settings-btn-danger" onClick={() => setConfirmRemove(m)}>
+                        Eliminar
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-              <select
-                className="settings-role-select"
-                value={m.role}
-                onChange={e => handleChangeRole(m.user_id, e.target.value)}
-                disabled={m.role === 'owner'}
-              >
-                <option value="owner">Owner</option>
-                <option value="admin">Admin</option>
-                <option value="editor">Editor</option>
-                <option value="viewer">Viewer</option>
-              </select>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
@@ -230,13 +263,23 @@ function TabUsuarios({ workspaceId }) {
                     <div className="settings-row-email">Rol: {roleLabel(inv.role)} · Expira: {new Date(inv.expires_at).toLocaleDateString('es-AR')}</div>
                   </div>
                 </div>
-                <button className="settings-btn-danger" onClick={() => handleCancelInvitation(inv.id)}>
+                <button className="settings-btn-danger" onClick={() => handleCancelInvitation(inv)}>
                   Cancelar
                 </button>
               </div>
             ))}
           </div>
         </div>
+      )}
+
+      {confirmRemove && (
+        <DeleteConfirmModal
+          itemName={confirmRemove.profile?.full_name || confirmRemove.profile?.email}
+          itemType="miembro"
+          warningText="Esta persona pierde acceso inmediato al workspace. Sus tareas ya asignadas y proyectos no se borran, pero quedan sin ese responsable visible."
+          onConfirm={handleRemoveMember}
+          onCancel={() => setConfirmRemove(null)}
+        />
       )}
     </div>
   )

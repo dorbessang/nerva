@@ -108,6 +108,31 @@
   border-radius: 8px;
 }
 
+.settings-row--inactive {
+  opacity: 0.6;
+  background: #f3f4f6;
+}
+
+.settings-inactive-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  background: #e5e7eb;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.settings-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .settings-row-info {
   display: flex;
   align-items: center;
@@ -544,6 +569,12 @@
   .settings-row {
     flex-wrap: wrap;
     gap: 10px;
+  }
+
+  .settings-row-actions {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .settings-block-header {
