@@ -805,6 +805,9 @@ const NOTIF_TYPES = [
   { key: 'task_unblocked', label: 'Se desbloquea una tarea que tengo asignada' },
   { key: 'role_changed', label: 'Cambia mi rol en este workspace' },
   { key: 'negotiation_status_changed', label: 'Cambia el estado de un proyecto con tareas mías' },
+  { key: 'task_due_soon', label: 'Una tarea mía vence mañana' },
+  { key: 'task_overdue', label: 'Una tarea mía está vencida' },
+  { key: 'negotiation_inactive', label: 'Un proyecto con tareas mías se marca inactivo' },
 ]
 
 function TabNotificaciones({ workspaceId }) {

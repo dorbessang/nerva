@@ -50,6 +50,8 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
 
   async function handleSave() {
     setSaving(true)
+    const newDueDate = dueDate || null
+    const dueDateChanged = newDueDate !== (task.due_date || null)
     const { error } = await supabase
       .from('tasks')
       .update({
@@ -57,9 +59,12 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
         description: description.trim() || null,
         status,
         priority,
-        due_date: dueDate || null,
+        due_date: newDueDate,
         assigned_to: assignedTo || null,
         predecessor_task_id: predecessorId || null,
+        // Si cambia la fecha límite, el aviso de "por vencer/vencida" tiene
+        // que poder volver a dispararse para la nueva fecha
+        ...(dueDateChanged ? { due_soon_notified_at: null, overdue_notified_at: null } : {}),
       })
       .eq('id', task.id)
     setSaving(false)
