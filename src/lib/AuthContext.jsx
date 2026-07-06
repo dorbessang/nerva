@@ -7,6 +7,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [session, setSession] = useState(null)
   const [role, setRole] = useState(null)
+  const [profile, setProfile] = useState(null)
   const [isStaff, setIsStaff] = useState(false)
   const [effectiveRole, setEffectiveRole] = useState(null)
   const [workspaceId, setWorkspaceId] = useState(null)
@@ -27,6 +28,7 @@ export function AuthProvider({ children }) {
       if (session?.user) fetchWorkspaces(session.user.id)
       else {
         setRole(null)
+        setProfile(null)
         setIsStaff(false)
         setEffectiveRole(null)
         setWorkspaceId(null)
@@ -47,11 +49,12 @@ export function AuthProvider({ children }) {
         .eq('status', 'active'),
       supabase
         .from('profiles')
-        .select('is_staff')
+        .select('full_name, avatar_url, is_staff')
         .eq('id', userId)
         .single(),
     ])
 
+    setProfile(profileRes.data ?? null)
     const staff = profileRes.data?.is_staff === true
     setIsStaff(staff)
 
@@ -94,8 +97,18 @@ export function AuthProvider({ children }) {
     if (user) await fetchWorkspaces(user.id)
   }
 
+  async function refreshProfile() {
+    if (!user) return
+    const { data } = await supabase
+      .from('profiles')
+      .select('full_name, avatar_url, is_staff')
+      .eq('id', user.id)
+      .single()
+    setProfile(data ?? null)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, session, role, effectiveRole, isStaff, impersonateRole, workspaceId, workspaces, setActiveWorkspace, refreshWorkspaces, loading }}>
+    <AuthContext.Provider value={{ user, session, role, effectiveRole, isStaff, impersonateRole, profile, refreshProfile, workspaceId, workspaces, setActiveWorkspace, refreshWorkspaces, loading }}>
       {children}
     </AuthContext.Provider>
   )

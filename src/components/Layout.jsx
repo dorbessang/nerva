@@ -26,7 +26,7 @@ function useIsMobile(breakpoint = 860) {
 }
 
 export default function Layout({ children }) {
-  const { user, workspaces, workspaceId, setActiveWorkspace } = useAuth();
+  const { user, profile, workspaces, workspaceId, setActiveWorkspace } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -224,7 +224,9 @@ export default function Layout({ children }) {
           <div className="nerva-status-dot" />
           <span className="nerva-status-text">en línea</span>
           <span className="nerva-header-divider">·</span>
-          <span className="nerva-header-user">{user?.email}</span>
+          <button className="nerva-header-user" onClick={() => navigate('/profile')}>
+            {profile?.full_name || user?.email}
+          </button>
           <button onClick={handleSignOut} className="nerva-header-signout">
             Cerrar sesión
           </button>
@@ -324,6 +326,14 @@ export default function Layout({ children }) {
           </nav>
 
           <div className="sidebar-bottom">
+            <button
+              onClick={() => navigate("/profile")}
+              className={`nav-item ${location.pathname === "/profile" ? "active" : ""}`}
+              title={showLabels ? "" : "Mi perfil"}
+            >
+              <span className="nav-icon"><LucideIcons.User size={18} /></span>
+              {showLabels && <span className="nav-label">Mi perfil</span>}
+            </button>
             <button
               onClick={() => navigate("/settings")}
               className={`nav-item ${location.pathname === "/settings" ? "active" : ""}`}

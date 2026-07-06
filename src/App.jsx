@@ -16,6 +16,7 @@ import Entities from "./pages/Entities";
 import Negotiations from "./pages/Negotiations";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -101,6 +102,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Settings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
               </ProtectedRoute>
             }
           />
