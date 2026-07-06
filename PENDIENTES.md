@@ -48,6 +48,8 @@
 - [ ] Notificaciones in-app — eventos pendientes, requieren un chequeo periódico (cron), no solo código de cliente (decidido explícitamente: **no** notificar bajas/remociones de WS ni de proyecto, eso queda en silencio):
   - Tarea por vencer / vencida (ver si conviene sumarlo al pg_cron que ya corre para inactividad)
   - Proyecto marcado inactivo (90-120 días) — hoy es un banner global, sumar aviso puntual a los asignados de ese proyecto
+- [x] Settings personal para cualquier rol — pestaña "Notificaciones" (`/settings`) visible para todos (a diferencia de Usuarios/Estados/Tipos de entidad/Workspace, que siguen siendo owner/admin). Toggle on/off por tipo de evento, tabla `notification_preferences` (user_id + workspace_id + type), cada `notify*` la respeta antes de insertar
+- [ ] Settings personal — resto de lo pensado más allá de notificaciones (Etapa 2/Fase 2): preferencias de vista (tema, filtro por defecto, densidad de tabla), zona horaria/formato de fecha, workspace por defecto (hoy vive en localStorage)
 
 ---
 

@@ -1,5 +1,7 @@
 // Helpers compartidos para tareas encadenadas (predecessor_task_id)
 
+import { isNotificationEnabled } from './notifications'
+
 export function isTaskBlocked(task) {
   return !!task.predecessor && task.predecessor.status !== 'done'
 }
@@ -31,7 +33,13 @@ export async function notifySuccessors(supabase, completedTask, workspaceId) {
     .select('id, title, assigned_to')
     .eq('predecessor_task_id', completedTask.id)
 
-  const toNotify = (successors || []).filter(s => s.assigned_to)
+  const candidates = (successors || []).filter(s => s.assigned_to)
+  if (candidates.length === 0) return
+
+  const enabledChecks = await Promise.all(
+    candidates.map(async (s) => ({ s, ok: await isNotificationEnabled(supabase, { userId: s.assigned_to, workspaceId, type: 'task_unblocked' }) }))
+  )
+  const toNotify = enabledChecks.filter(c => c.ok).map(c => c.s)
   if (toNotify.length === 0) return
 
   await supabase.from('notifications').insert(
@@ -50,6 +58,7 @@ export async function notifySuccessors(supabase, completedTask, workspaceId) {
 // se autoasigna). `task` necesita al menos { id, title }.
 export async function notifyTaskAssigned(supabase, { workspaceId, task, assignedTo, actingUserId }) {
   if (!assignedTo || assignedTo === actingUserId) return
+  if (!(await isNotificationEnabled(supabase, { userId: assignedTo, workspaceId, type: 'task_assigned' }))) return
   await supabase.from('notifications').insert({
     workspace_id: workspaceId,
     user_id: assignedTo,

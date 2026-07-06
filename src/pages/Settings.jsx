@@ -23,20 +23,13 @@ async function extractFunctionError(error) {
 export default function Settings() {
   const { workspaceId, effectiveRole } = useAuth()
   const isOwner = effectiveRole === 'owner'
-  const [activeTab, setActiveTab] = useState(isOwner ? 'usuarios' : 'estados')
+  const isAdminOrOwner = effectiveRole === 'owner' || effectiveRole === 'admin'
+  const [activeTab, setActiveTab] = useState(isAdminOrOwner ? (isOwner ? 'usuarios' : 'estados') : 'notificaciones')
 
   useEffect(() => {
-    if (activeTab === 'usuarios' && !isOwner) setActiveTab('estados')
-  }, [isOwner, activeTab])
-
-  // Solo owner y admin pueden acceder a Settings
-  if (effectiveRole !== 'owner' && effectiveRole !== 'admin') {
-    return (
-      <div className="settings-container">
-        <p className="settings-unauthorized">No tenés permisos para acceder a esta sección.</p>
-      </div>
-    )
-  }
+    if (activeTab === 'usuarios' && !isOwner) setActiveTab(isAdminOrOwner ? 'estados' : 'notificaciones')
+    if (['estados', 'entidades', 'workspace'].includes(activeTab) && !isAdminOrOwner) setActiveTab('notificaciones')
+  }, [isOwner, isAdminOrOwner, activeTab])
 
   return (
     <div className="settings-container">
@@ -48,9 +41,10 @@ export default function Settings() {
       <div className="settings-tabs">
         {[
           ...(isOwner ? [{ key: 'usuarios', label: 'Usuarios' }] : []),
-          { key: 'estados', label: 'Estados' },
-          { key: 'entidades', label: 'Tipos de entidad' },
-          { key: 'workspace', label: 'Workspace' },
+          ...(isAdminOrOwner ? [{ key: 'estados', label: 'Estados' }] : []),
+          ...(isAdminOrOwner ? [{ key: 'entidades', label: 'Tipos de entidad' }] : []),
+          ...(isAdminOrOwner ? [{ key: 'workspace', label: 'Workspace' }] : []),
+          { key: 'notificaciones', label: 'Notificaciones' },
         ].map(tab => (
           <button
             key={tab.key}
@@ -65,9 +59,10 @@ export default function Settings() {
       {/* Contenido según tab activo */}
       <div className="settings-content">
         {activeTab === 'usuarios' && isOwner && <TabUsuarios workspaceId={workspaceId} />}
-        {activeTab === 'estados' && <TabEstados workspaceId={workspaceId} />}
-        {activeTab === 'entidades' && <TabEntidades workspaceId={workspaceId} />}
-        {activeTab === 'workspace' && <TabWorkspace workspaceId={workspaceId} />}
+        {activeTab === 'estados' && isAdminOrOwner && <TabEstados workspaceId={workspaceId} />}
+        {activeTab === 'entidades' && isAdminOrOwner && <TabEntidades workspaceId={workspaceId} />}
+        {activeTab === 'workspace' && isAdminOrOwner && <TabWorkspace workspaceId={workspaceId} />}
+        {activeTab === 'notificaciones' && <TabNotificaciones workspaceId={workspaceId} />}
       </div>
     </div>
   )
@@ -796,6 +791,76 @@ function TabWorkspace({ workspaceId }) {
         <button className="settings-btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? 'Guardando...' : saved ? '✓ Guardado' : 'Guardar cambios'}
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── TAB NOTIFICACIONES ───────────────────────────────────────────────────────
+// A diferencia de las demás pestañas, esta es personal: cualquier rol puede
+// verla y editarla, elige solo por sí mismo, no afecta a nadie más del WS.
+
+const NOTIF_TYPES = [
+  { key: 'task_assigned', label: 'Me asignan una tarea' },
+  { key: 'task_unblocked', label: 'Se desbloquea una tarea que tengo asignada' },
+  { key: 'role_changed', label: 'Cambia mi rol en este workspace' },
+  { key: 'negotiation_status_changed', label: 'Cambia el estado de un proyecto con tareas mías' },
+]
+
+function TabNotificaciones({ workspaceId }) {
+  const { user } = useAuth()
+  const [prefs, setPrefs] = useState({})
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchPrefs()
+  }, [workspaceId])
+
+  async function fetchPrefs() {
+    setLoading(true)
+    const { data } = await supabase
+      .from('notification_preferences')
+      .select('type, enabled')
+      .eq('user_id', user.id)
+      .eq('workspace_id', workspaceId)
+    const map = {}
+    NOTIF_TYPES.forEach(t => { map[t.key] = true })
+    ;(data || []).forEach(p => { map[p.type] = p.enabled })
+    setPrefs(map)
+    setLoading(false)
+  }
+
+  async function toggle(type) {
+    const newVal = !prefs[type]
+    setPrefs(p => ({ ...p, [type]: newVal }))
+    await supabase
+      .from('notification_preferences')
+      .upsert({ user_id: user.id, workspace_id: workspaceId, type, enabled: newVal }, { onConflict: 'user_id,workspace_id,type' })
+  }
+
+  if (loading) return <div className="settings-loading">Cargando...</div>
+
+  return (
+    <div className="settings-section">
+      <div className="settings-block">
+        <h2 className="settings-block-title">Notificaciones</h2>
+        <p className="settings-hint">
+          Elegí qué avisos in-app querés recibir en este workspace. Esto es personal, no afecta a nadie más.
+          Por ahora solo hay notificaciones dentro de la app — mail/WhatsApp están planeados para más adelante.
+        </p>
+        <div className="settings-table">
+          {NOTIF_TYPES.map(t => (
+            <div key={t.key} className="settings-row">
+              <div className="settings-row-info">
+                <div className="settings-row-name">{t.label}</div>
+              </div>
+              <label className="notif-pref-toggle">
+                <input type="checkbox" checked={!!prefs[t.key]} onChange={() => toggle(t.key)} />
+                <span className="notif-pref-slider" />
+              </label>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
