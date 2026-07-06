@@ -8,12 +8,16 @@ import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 
 export default function Settings() {
-  const { workspaceId, role } = useAuth()
-  const isOwner = role === 'owner'
+  const { workspaceId, effectiveRole } = useAuth()
+  const isOwner = effectiveRole === 'owner'
   const [activeTab, setActiveTab] = useState(isOwner ? 'usuarios' : 'estados')
 
+  useEffect(() => {
+    if (activeTab === 'usuarios' && !isOwner) setActiveTab('estados')
+  }, [isOwner, activeTab])
+
   // Solo owner y admin pueden acceder a Settings
-  if (role !== 'owner' && role !== 'admin') {
+  if (effectiveRole !== 'owner' && effectiveRole !== 'admin') {
     return (
       <div className="settings-container">
         <p className="settings-unauthorized">No tenés permisos para acceder a esta sección.</p>
