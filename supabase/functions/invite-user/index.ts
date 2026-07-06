@@ -3,6 +3,7 @@
 // Invita a un usuario a un workspace por email (usando la Admin API de
 // Supabase Auth, que requiere la service role key y por eso no puede
 // llamarse directo desde el frontend), o cancela una invitación pendiente.
+// Solo el owner del workspace puede invocarla.
 //
 // Body esperado: { action: 'invite' | 'cancel', workspaceId, email, role }
 // role solo es obligatorio para action: 'invite'.
@@ -51,7 +52,7 @@ Deno.serve(async (req) => {
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
-  // Solo owner/admin de ESE workspace pueden invitar o cancelar invitaciones
+  // Solo el owner de ESE workspace puede invitar o cancelar invitaciones
   const { data: membership } = await admin
     .from('workspace_members')
     .select('role')
@@ -59,7 +60,7 @@ Deno.serve(async (req) => {
     .eq('user_id', caller.id)
     .maybeSingle()
 
-  if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+  if (!membership || membership.role !== 'owner') {
     return json({ error: 'No tenés permisos para gestionar usuarios en este workspace' }, 403)
   }
 

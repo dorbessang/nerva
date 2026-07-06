@@ -9,7 +9,8 @@ import * as LucideIcons from 'lucide-react'
 
 export default function Settings() {
   const { workspaceId, role } = useAuth()
-  const [activeTab, setActiveTab] = useState('usuarios')
+  const isOwner = role === 'owner'
+  const [activeTab, setActiveTab] = useState(isOwner ? 'usuarios' : 'estados')
 
   // Solo owner y admin pueden acceder a Settings
   if (role !== 'owner' && role !== 'admin') {
@@ -29,7 +30,7 @@ export default function Settings() {
       {/* Tabs de navegación interna */}
       <div className="settings-tabs">
         {[
-          { key: 'usuarios', label: 'Usuarios' },
+          ...(isOwner ? [{ key: 'usuarios', label: 'Usuarios' }] : []),
           { key: 'estados', label: 'Estados' },
           { key: 'entidades', label: 'Tipos de entidad' },
           { key: 'workspace', label: 'Workspace' },
@@ -46,7 +47,7 @@ export default function Settings() {
 
       {/* Contenido según tab activo */}
       <div className="settings-content">
-        {activeTab === 'usuarios' && <TabUsuarios workspaceId={workspaceId} />}
+        {activeTab === 'usuarios' && isOwner && <TabUsuarios workspaceId={workspaceId} />}
         {activeTab === 'estados' && <TabEstados workspaceId={workspaceId} />}
         {activeTab === 'entidades' && <TabEntidades workspaceId={workspaceId} />}
         {activeTab === 'workspace' && <TabWorkspace workspaceId={workspaceId} />}
