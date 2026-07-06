@@ -7,6 +7,18 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 
+// supabase.functions.invoke() devuelve data: null cuando la función responde
+// con status != 2xx — el body real (con el mensaje de error de la función)
+// solo queda accesible vía error.context, que es el Response crudo.
+async function extractFunctionError(error) {
+  try {
+    const body = await error?.context?.json()
+    return body?.error || null
+  } catch {
+    return null
+  }
+}
+
 export default function Settings() {
   const { workspaceId, effectiveRole } = useAuth()
   const isOwner = effectiveRole === 'owner'
@@ -141,7 +153,7 @@ function TabUsuarios({ workspaceId }) {
 
     setInviting(false)
     if (error || data?.error) {
-      setInviteError(data?.error || 'Error al enviar la invitación. Verificá que el email no esté ya invitado.')
+      setInviteError(data?.error || (await extractFunctionError(error)) || 'Error al enviar la invitación. Verificá que el email no esté ya invitado.')
       return
     }
     if (data?.direct) {

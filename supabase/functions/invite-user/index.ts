@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     // Si la cuenta invitada todavía no confirmó, la borramos para que el
     // link de invitación deje de funcionar. Si ya confirmó, no tocamos nada
     // (ya es un usuario real, "cancelar" ya no aplica).
-    const { data: usersPage } = await admin.auth.admin.listUsers()
+    const { data: usersPage } = await admin.auth.admin.listUsers({ perPage: 1000 })
     const target = usersPage?.users?.find(
       (u) => u.email?.toLowerCase() === email.toLowerCase(),
     )
