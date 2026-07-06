@@ -80,6 +80,16 @@ export default function Negotiations() {
     if (params.get('filter') === 'low_activity') setFilterActivity('low_activity')
   }, [location.search])
 
+  // Si viene de "ver proyecto" desde una entidad, abre ese proyecto directamente
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const openId = params.get('open')
+    if (openId && negotiations.length > 0) {
+      const found = negotiations.find(n => n.id === openId)
+      if (found) setSelectedNeg(found)
+    }
+  }, [location.search, negotiations])
+
   useEffect(() => { fetchAll() }, [])
 
   async function fetchAll() {
@@ -636,12 +646,12 @@ function ChipsCombobox({ options, selected, onChange, placeholder, allowSelectAl
   )
 }
 
-export function NegotiationModal({ initial, entities, members, customStates, onClose, onCancel, onSaved, workspaceId, userId }) {
+export function NegotiationModal({ initial, presetEntity, entities, members, customStates, onClose, onCancel, onSaved, workspaceId, userId }) {
   const empty = {
     title: '', product: '', status: customStates[0]?.name || 'Contactado',
     nda: '—', target_date: '', notes: '', observations: '',
     territories: [], companies: [], participants: [],
-    entity_ids: [], // [{ id, role }]
+    entity_ids: presetEntity ? [{ id: presetEntity.id, role: '' }] : [], // [{ id, role }]
     tasks: []
   }
   const [form, setForm] = useState(initial ? {

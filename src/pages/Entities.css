@@ -567,6 +567,33 @@
   line-height: 1;
 }
 
+.entity-projects-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.entity-projects-header .detail-section-title {
+  margin-bottom: 0;
+}
+
+.entity-negs-new-btn {
+  background: #0B1F3A;
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s;
+}
+
+.entity-negs-new-btn:hover { background-color: #162d52; }
+
 .entity-negs-toggle {
   width: 100%;
   margin-top: 6px;
@@ -763,6 +790,10 @@
   .entities-header {
     flex-wrap: wrap;
     gap: 12px;
+  }
+
+  .entity-projects-header {
+    flex-wrap: wrap;
   }
 
   .entities-toolbar {
