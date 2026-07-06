@@ -10,8 +10,8 @@
 - [x] Workspace "Nerva Testing" — type = 'testing', sin limitaciones, owner: Gervasio
 - [x] WS Personal — trigger `handle_new_user` crea perfil + WS personal automáticamente al registrar usuario
 - [x] Workspace switcher en header — dropdown fijo alineado con la sidebar
-- [ ] Deploy en Vercel
-- [ ] Pasada responsive completa
+- [x] Deploy en Vercel
+- [x] Pasada responsive completa
 - [x] Múltiples entidades por proyecto — selector con búsqueda, checkbox múltiple y rol opcional por entidad
 - [x] Feature de inactividad — columna activity_status + last_activity_at, triggers, pg_cron, dashboard cards "En curso"/"Completados", banner alerta 90-120 días, filtro low_activity en Proyectos
 - [x] Settings — tipos de entidad con ícono, plural personalizable y edición inline
