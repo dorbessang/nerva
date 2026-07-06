@@ -58,7 +58,6 @@
   - Teléfono / cargo
   - Ver en qué workspaces está el usuario y con qué rol en cada uno
   - Sesiones activas / cerrar sesión en otros dispositivos
-  - Preferencias de notificaciones (cuando exista el sistema de notificaciones)
   - Zona horaria / idioma
   - Eliminar/desactivar la propia cuenta
 - [ ] Tabla `plans` con 4 tiers: Free, Starter, Pro, Business

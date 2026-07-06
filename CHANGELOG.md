@@ -4,6 +4,44 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-06
+
+### Feature: Sistema de invitación de usuarios y gestión de miembros
+- Edge Function `invite-user` (Deno, `jsr:@supabase/supabase-js`): invita por email o suma directo al workspace si el email ya tiene una cuenta confirmada (usa `generateLink` en vez de `inviteUserByEmail` para no depender del rate limit del mailer default de Supabase — el link se muestra en la UI para copiar y mandar a mano hasta que haya SMTP propio)
+- Solo el owner puede invitar/gestionar usuarios (antes era owner+admin), reforzado tanto en la Edge Function como en la UI
+- Settings usa `effectiveRole` en vez de `role` — era la única página que no respetaba el preview de "ver como rol" del staff
+- Panel de miembros: activar/desactivar, cambiar rol, eliminar, cancelar invitación pendiente — requirió sumar policies de RLS de UPDATE/DELETE en `workspace_members` que no existían (solo había SELECT)
+- Trigger `handle_invited_user` no alcanzaba a limpiar la invitación pendiente al aceptar (corría antes de que se insertara la fila) — se resuelve borrándola desde `/set-password` con una policy de self-delete en `invitations`
+- `/set-password` ahora también pide nombre completo, no solo contraseña
+
+### Feature: Página de perfil de usuario (`/profile`)
+- Editar nombre completo propio y cambiar contraseña, accesible para cualquier rol (a diferencia del resto de Settings)
+- Acceso desde el nombre en el header (antes mostraba el email) y desde un ítem nuevo en el sidebar, visible también en mobile
+- `AuthContext` expone `profile` (full_name, avatar_url, is_staff) y `refreshProfile()`
+
+### Feature: Cascade tasks (tareas encadenadas)
+- `tasks.predecessor_task_id`, seteable al crear o editar una tarea, con detección de ciclos (`src/lib/tasks.js`)
+- Una tarea con predecesora sin completar aparece bloqueada (🔒) y no se puede marcar como hecha
+- Owner/admin ven de qué tarea depende y quién la tiene; editor/viewer ven un texto genérico sin esa info — mismo patrón ya usado para ocultar tareas de terceros
+- Fix de paso: `TaskModalInline` (crear tarea desde el detalle de un proyecto) tenía el `workspace_id` hardcodeado al workspace de Testing en vez de usar el activo
+
+### Feature: Sistema de notificaciones in-app (desde cero)
+- Tabla `notifications` (workspace_id, user_id, type, title, body, task_id, negotiation_id, read) + campanita con contador en el header
+- Se borran al leerse — al hacer click, con "Borrar todas", o automáticamente si la tarea/situación se resuelve por otro camino. No se acumulan marcadas como leídas
+- Click navega directo al proyecto o tarea correspondiente (`?openNeg=`/`?openTask=`, se limpian de la URL después de abrir)
+- 5 eventos cubiertos: asignación de tarea, desbloqueo de cascada, cambio de rol / alta directa a un workspace, cambio de estado de un proyecto, y tarea por vencer/vencida + proyecto marcado inactivo (estos dos últimos vía cron propio `notify_pending_events()`, con marcadores `*_notified_at` para no reavisar lo mismo todos los días)
+- Decisión explícita: bajas/remociones de workspace o de proyecto quedan siempre en silencio, no generan notificación
+
+### Feature: Settings personal para cualquier rol
+- Pestaña "Notificaciones" en `/settings` visible para todos los roles (las demás pestañas — Usuarios, Estados, Tipos de entidad, Workspace — siguen siendo owner/admin)
+- Tabla `notification_preferences` (user_id + workspace_id + type): toggle on/off por tipo de evento, cada función que genera una notificación la chequea antes de insertar
+
+### Correcciones técnicas
+- `supabase.functions.invoke()` devuelve `data: null` en respuestas no-2xx — el mensaje de error real de la Edge Function quedaba oculto detrás de un fallback genérico; se agrega `extractFunctionError()` para leerlo desde `error.context`
+- `listUsers()` sin `perPage` podía no encontrar usuarios existentes en proyectos con más de 50 cuentas (paginación default de la Admin API)
+
+---
+
 ## 2026-06-25 / 2026-06-26
 
 ### Feature: Inactividad automática y manual
