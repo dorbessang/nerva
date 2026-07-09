@@ -2,6 +2,48 @@
 
 ---
 
+## VISIÓN DE PRODUCTO Y ARQUITECTURA (largo plazo)
+
+Sesión de repensada estratégica (2026-07-06). Contexto para retomar sin perder el razonamiento.
+
+### Diagnóstico: "híbrido raro" entre planner y CRM
+Nerva nació para seguir negociaciones ya existentes (un planner con vocabulario de CRM encima), no para generarlas. Estructuralmente hoy el centro de todo es el **Proyecto** (`negotiations`): tareas, notas y entidades vinculadas cuelgan de él. Un CRM hecho y derecho invierte esa jerarquía: el centro es la **cuenta/entidad**, y los deals son solo un hilo dentro de una relación que dura años.
+
+Comparado contra CRM de pipeline / vendor management / deal-trackers de licensing (Cortellis, DealForma, Biotechgate — más cercanos a lo que este producto es en realidad que un CRM genérico tipo HubSpot), los huecos más importantes identificados:
+- **Sin manejo de documentos** — no se puede adjuntar el NDA/contrato/propuesta a un proyecto (huella más obvia del dominio, hoy inexistente)
+- **Sin valor monetario del deal** — ningún campo de monto/moneda/estructura de pago, por eso no hay forma de calcular "valor de pipeline"
+- Sin kanban visual, sin búsqueda global, sin export/reportes, sin scorecard de proveedor, sin alertas de vencimiento de NDA/contrato (solo de tareas), sin @menciones, sin timeline de auditoría, sin bulk actions/import CSV, sin API/webhooks
+
+### Decisión: entidad-céntrico, no proyecto-céntrico
+Las entidades son lo permanente. Los proyectos pasan a ser **un tipo de vínculo posible entre entidades**, no el centro. La idea del usuario: distintos sectores de una misma empresa (BD, Finanzas, RRHH) se relacionan distinto con la misma entidad — eso solo es posible si la entidad no le "pertenece" a ningún módulo.
+
+Cambios concretos acordados para acercarse a esto **sin reescribir nada todavía**:
+1. Notas y tareas tienen que poder colgar directo de una entidad (`entity_id`), no solo de un proyecto — hoy no se puede *generar* un proyecto a futuro desde una entidad, solo seguir uno que ya existe. Ese fue el punto flojo identificado.
+2. Timeline de actividad agregado en la ficha de la entidad (hoy solo muestra "proyectos vinculados").
+3. Campos de valor de deal en `negotiations` (monto, moneda, estructura de pago: upfront/milestones/royalties) — antes de pensar en un módulo de Finanzas real, para poder valorizar proyectos y pipeline ya mismo.
+
+### Principio de diseño para decidir qué construir de acá en adelante
+**¿Esto mejora el producto de hoy (BD/licensing), además de servir a la visión larga?** Si una feature solo se justifica por el ERP imaginario del futuro y no le suma nada al uso actual, no se construye todavía — construir sobre necesidades estimadas en vez de reales es el error a evitar (dicho explícitamente por el usuario).
+
+### Decisión: mutación vs. rebuild-desde-cero-como-ERP
+Se evaluó explícitamente si convenía repensar Nerva de raíz o levantar un ERP aparte (con eventual migración de datos). **Decisión: ni mutar todo de golpe ni reconstruir aparte — un solo Nerva, un solo backbone.**
+
+Razón: todo lo ya construido (auth, multi-workspace, RLS, roles/permisos, invitaciones, notificaciones, entidades+contactos) no es plomería específica de CRM — es plomería genérica de cualquier SaaS multi-tenant que un ERP necesitaría exactamente igual. Reconstruir eso desde cero en una app nueva es trabajo puro sin valor agregado, y ya se identificó el costo real de separar: migración de datos, doble auth, doble UX, usuarios confundidos durante la transición.
+
+Excepción reconocida: módulos con un dominio genuinamente distinto (contabilidad real — partida doble, inmutabilidad de asientos, conciliación) sí merecen diseño propio desde cero cuando lleguen, pero como **subsistema dentro de Nerva** (mismas entidades, mismo workspace, mismo login, misma marca), nunca como app separada.
+
+### Sobre el "framework de módulos" genérico
+Decisión explícita de **no construirlo todavía**. Se define el patrón target para que futuros módulos lo sigan, pero se posterga la formalización hasta construir el segundo módulo real (Finanzas o RRHH, a decidir) — recién con dos casos concretos se sabe qué es genérico de verdad y qué no. Patrón target:
+- Cada módulo (BD/Negociaciones hoy, Finanzas/RRHH después) es su propio set de tablas, su propia sección de sidebar, sus propios permisos
+- Todos los módulos se conectan a `entities` vía tabla de vínculo (como `negotiation_entities` hoy) — ningún módulo "posee" la entidad
+- Los campos custom por workspace (ya en Fase 2) viven *dentro* de cada módulo, no como reemplazo del módulo
+- La elección de "tipo de CRM" al crear un workspace pasa a ser, en este esquema, qué **módulos** están activos — no solo qué `entity_types` vienen precargados
+
+### Próximo paso acordado
+Arrancar por notas/tareas colgando de entidades (punto 1) cuando se retome el proyecto.
+
+---
+
 ## ETAPA 1 — Prioridad 1
 
 - [x] Nuevo schema completo en Supabase (nuevo proyecto) — tablas, RLS, triggers
