@@ -442,24 +442,27 @@
 .neg-card-inactive:hover { background: #bae6fd; }
 
 .neg-card {
+  display: flex;
+  align-items: stretch;
   background: #ffffff;
   border-radius: 12px;
-  padding: 20px;
   border: 1px solid #e5e7eb;
   cursor: pointer;
   transition: all 0.15s;
+  overflow: hidden;
 }
 
 .neg-card:hover { box-shadow: 0 4px 16px rgba(11,31,58,0.1); transform: translateY(-1px); }
 
 .neg-card-select-strip {
   display: flex;
-  align-items: center;
-  margin: -20px -20px 12px -20px;
-  padding: 6px 14px;
+  justify-content: center;
+  align-items: flex-start;
+  flex-shrink: 0;
+  width: 30px;
+  padding-top: 16px;
   background: #f9fafb;
-  border-bottom: 1px solid #f0f2f5;
-  border-radius: 12px 12px 0 0;
+  border-right: 1px solid #f0f2f5;
   cursor: default;
 }
 
@@ -468,6 +471,12 @@
   height: 14px;
   flex-shrink: 0;
   cursor: pointer;
+}
+
+.neg-card-body {
+  flex: 1;
+  min-width: 0;
+  padding: 20px;
 }
 
 .neg-card-header {

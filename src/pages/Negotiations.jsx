@@ -681,14 +681,16 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
                 onChange={() => onToggleSelect(neg.id)}
               />
             </div>
-            <div className="neg-card-header">
-              <div className="neg-card-title">
-                {actIcon && <span className={`neg-paused-icon ${neg.activity_status === 'inactive' ? 'neg-icon-inactive' : 'neg-icon-paused'}`}>{actIcon}</span>}
-                {neg.product || neg.title}
+            <div className="neg-card-body">
+              <div className="neg-card-header">
+                <div className="neg-card-title">
+                  {actIcon && <span className={`neg-paused-icon ${neg.activity_status === 'inactive' ? 'neg-icon-inactive' : 'neg-icon-paused'}`}>{actIcon}</span>}
+                  {neg.product || neg.title}
+                </div>
+                <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>
               </div>
-              <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>
+              {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag))}
             </div>
-            {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag))}
           </div>
         )
       })}
