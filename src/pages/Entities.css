@@ -427,6 +427,30 @@
   background: #fff;
 }
 
+.entity-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 18px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.entity-tab {
+  background: transparent;
+  border: none;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.entity-tab:hover { color: #0B1F3A; }
+.entity-tab.active { color: #0B1F3A; border-bottom-color: #0B1F3A; font-weight: 700; }
+
 .entity-info-row {
   display: flex;
   flex-direction: column;
@@ -785,6 +809,16 @@
 @media (max-width: 860px) {
   .entities-container {
     padding: 16px;
+  }
+
+  .entity-tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .entity-tab {
+    flex-shrink: 0;
   }
 
   .entities-header {

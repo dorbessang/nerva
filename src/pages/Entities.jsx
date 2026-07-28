@@ -284,6 +284,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
   const [showNegModal, setShowNegModal] = useState(false)
   const [bgColor, textColor] = getAvatarColor(entity.name)
   const [activityRefresh, setActivityRefresh] = useState(0)
+  const [rightTab, setRightTab] = useState('actividad')
   const [entityTasks, setEntityTasks] = useState([])
   const [members, setMembers] = useState([])
   const [showTaskForm, setShowTaskForm] = useState(false)
@@ -480,75 +481,6 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
               </div>
             )}
 
-            <div className="detail-section">
-              <div className="detail-section-title">Notas</div>
-              <NotesPostIts
-                entityId={entity.id}
-                workspaceId={workspaceId}
-                canEdit={canNote}
-                onChanged={() => setActivityRefresh(v => v + 1)}
-              />
-            </div>
-
-            <div className="detail-section">
-              <div className="entity-projects-header">
-                <div className="detail-section-title">Tareas</div>
-                {canTask && (
-                  <button className="entity-negs-new-btn" onClick={() => setShowTaskForm(v => !v)}>+ Nueva tarea</button>
-                )}
-              </div>
-              {showTaskForm && (
-                <div className="neg-note-add" style={{ flexWrap: 'wrap', marginBottom: 10 }}>
-                  <input
-                    type="text"
-                    className="neg-note-input"
-                    placeholder="¿Qué hay que hacer?"
-                    value={newTaskTitle}
-                    onChange={e => setNewTaskTitle(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleAddEntityTask() }}
-                    autoFocus
-                  />
-                  <select value={newTaskAssignee} onChange={e => setNewTaskAssignee(e.target.value)} style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid #e5e7eb', fontSize: 13 }}>
-                    <option value="">Sin asignar</option>
-                    {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email || 'Usuario'}</option>)}
-                  </select>
-                  <input type="date" className="neg-note-date-input" value={newTaskDue} onChange={e => setNewTaskDue(e.target.value)} />
-                  <button className="neg-add-task-btn" onClick={handleAddEntityTask} disabled={savingTask || !newTaskTitle.trim()}>
-                    + Agregar
-                  </button>
-                </div>
-              )}
-              {entityTasks.length === 0 ? (
-                <p className="detail-empty">Sin tareas todavía.</p>
-              ) : (
-                <div className="neg-tasks-list">
-                  {entityTasks.map(task => (
-                    <div key={task.id} className={`neg-task-row ${task.status === 'done' ? 'done' : ''}`}>
-                      <button
-                        className={`neg-task-check ${task.status === 'done' ? 'checked' : ''}`}
-                        onClick={() => canTask && handleCompleteEntityTask(task)}
-                        disabled={!canTask || task.status === 'done'}
-                      >
-                        {task.status === 'done' ? '✓' : ''}
-                      </button>
-                      <div className="neg-task-body">
-                        <span className="neg-task-title">
-                          {task.profile?.full_name && <span style={{ color: '#1D4ED8', fontWeight: 600 }}>@{task.profile.full_name}: </span>}
-                          {task.title}
-                        </span>
-                      </div>
-                      {task.due_date && <span className="neg-task-date">{new Date(task.due_date).toLocaleDateString('es-AR')}</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="detail-section">
-              <div className="detail-section-title">Actividad</div>
-              <ActivityTimeline entityId={entity.id} refreshKey={activityRefresh} />
-            </div>
-
             {canDelete && (
               <div className="detail-footer-inline">
                 <button className="btn-delete" onClick={() => setConfirmDelete(true)}>
@@ -558,78 +490,164 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
             )}
           </div>
 
-          {/* Columna derecha — proyectos */}
+          {/* Columna derecha — actividad / proyectos / notas / tareas, a pestañas */}
           <div className="entity-detail-col entity-detail-col--right">
-            <div className="entity-projects-header">
-              <div className="detail-section-title">Proyectos ({negs.length})</div>
-              {canCreateProject && (
-                <button className="entity-negs-new-btn" onClick={() => { setEditingNeg(null); setShowNegModal(true) }}>+ Nuevo proyecto</button>
-              )}
+            <div className="entity-tabs">
+              {[
+                { key: 'actividad', label: 'Actividad' },
+                { key: 'proyectos', label: `Proyectos (${negs.length})` },
+                { key: 'notas', label: 'Notas' },
+                { key: 'tareas', label: 'Tareas' },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  className={`entity-tab ${rightTab === tab.key ? 'active' : ''}`}
+                  onClick={() => setRightTab(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
 
-            {negs.length === 0 ? (
-              <p className="detail-empty">Sin proyectos todavía.</p>
-            ) : (
-              <>
-                {/* Stats chips por estado */}
-                {Object.keys(counts).length > 0 && (
-                  <div className="entity-proj-stats">
-                    {Object.entries(counts).map(([status, count]) => {
-                      const cfg = getStateConfig(status)
-                      return (
-                        <div key={status} className="entity-proj-stat">
-                          <div className="entity-proj-stat-n" style={{ color: cfg.color }}>{count}</div>
-                          <div className="entity-proj-stat-lbl">{status}</div>
-                        </div>
-                      )
-                    })}
+            {rightTab === 'actividad' && (
+              <ActivityTimeline entityId={entity.id} refreshKey={activityRefresh} />
+            )}
+
+            {rightTab === 'notas' && (
+              <NotesPostIts
+                entityId={entity.id}
+                workspaceId={workspaceId}
+                canEdit={canNote}
+                onChanged={() => setActivityRefresh(v => v + 1)}
+              />
+            )}
+
+            {rightTab === 'tareas' && (
+              <div>
+                {canTask && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+                    <button className="entity-negs-new-btn" onClick={() => setShowTaskForm(v => !v)}>+ Nueva tarea</button>
                   </div>
                 )}
+                {showTaskForm && (
+                  <div className="neg-note-add" style={{ flexWrap: 'wrap', marginBottom: 10 }}>
+                    <input
+                      type="text"
+                      className="neg-note-input"
+                      placeholder="¿Qué hay que hacer?"
+                      value={newTaskTitle}
+                      onChange={e => setNewTaskTitle(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleAddEntityTask() }}
+                      autoFocus
+                    />
+                    <select value={newTaskAssignee} onChange={e => setNewTaskAssignee(e.target.value)} style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid #e5e7eb', fontSize: 13 }}>
+                      <option value="">Sin asignar</option>
+                      {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email || 'Usuario'}</option>)}
+                    </select>
+                    <input type="date" className="neg-note-date-input" value={newTaskDue} onChange={e => setNewTaskDue(e.target.value)} />
+                    <button className="neg-add-task-btn" onClick={handleAddEntityTask} disabled={savingTask || !newTaskTitle.trim()}>
+                      + Agregar
+                    </button>
+                  </div>
+                )}
+                {entityTasks.length === 0 ? (
+                  <p className="detail-empty">Sin tareas todavía.</p>
+                ) : (
+                  <div className="neg-tasks-list">
+                    {entityTasks.map(task => (
+                      <div key={task.id} className={`neg-task-row ${task.status === 'done' ? 'done' : ''}`}>
+                        <button
+                          className={`neg-task-check ${task.status === 'done' ? 'checked' : ''}`}
+                          onClick={() => canTask && handleCompleteEntityTask(task)}
+                          disabled={!canTask || task.status === 'done'}
+                        >
+                          {task.status === 'done' ? '✓' : ''}
+                        </button>
+                        <div className="neg-task-body">
+                          <span className="neg-task-title">
+                            {task.profile?.full_name && <span style={{ color: '#1D4ED8', fontWeight: 600 }}>@{task.profile.full_name}: </span>}
+                            {task.title}
+                          </span>
+                        </div>
+                        {task.due_date && <span className="neg-task-date">{new Date(task.due_date).toLocaleDateString('es-AR')}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-                {/* Lista de proyectos */}
-                {(() => {
-                  const THRESHOLD = 5
-                  const visibleNegs = showAllNegs ? negs : negs.slice(0, THRESHOLD)
-                  return (
-                    <>
-                      <div className="entity-negs-list">
-                        {visibleNegs.map(neg => {
-                          const cfg = getStateConfig(neg.status)
-                          const isInactive = neg.activity_status === 'inactive'
-                          const isPaused = neg.activity_status === 'paused'
+            {rightTab === 'proyectos' && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+                  {canCreateProject && (
+                    <button className="entity-negs-new-btn" onClick={() => { setEditingNeg(null); setShowNegModal(true) }}>+ Nuevo proyecto</button>
+                  )}
+                </div>
+
+                {negs.length === 0 ? (
+                  <p className="detail-empty">Sin proyectos todavía.</p>
+                ) : (
+                  <>
+                    {/* Stats chips por estado */}
+                    {Object.keys(counts).length > 0 && (
+                      <div className="entity-proj-stats">
+                        {Object.entries(counts).map(([status, count]) => {
+                          const cfg = getStateConfig(status)
                           return (
-                            <div
-                              key={neg.id}
-                              className={`entity-neg-row ${isPaused ? 'entity-neg-row--paused' : ''} ${isInactive ? 'entity-neg-row--inactive' : ''}`}
-                              onClick={() => handleSelectNeg(neg)}
-                            >
-                              <div className="entity-neg-main">
-                                <div className="entity-neg-product">
-                                  {isPaused && <span style={{ fontSize: 12, marginRight: 4, opacity: 0.5 }}>⏸</span>}
-                                  {isInactive && <span style={{ fontSize: 12, marginRight: 4, color: '#0369a1' }}>💤</span>}
-                                  {neg.product || neg.title}
-                                </div>
-                                {neg.target_date && (
-                                  <div className="entity-neg-date">
-                                    {new Date(neg.target_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="entity-neg-right">
-                                {neg.nda && neg.nda !== '—' && neg.nda !== 'No' && (
-                                  <span className="entity-neg-nda">NDA ✓</span>
-                                )}
-                                <span className="entity-neg-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>
-                                  {neg.status}
-                                </span>
-                                <span className="entity-neg-arrow">›</span>
-                              </div>
+                            <div key={status} className="entity-proj-stat">
+                              <div className="entity-proj-stat-n" style={{ color: cfg.color }}>{count}</div>
+                              <div className="entity-proj-stat-lbl">{status}</div>
                             </div>
                           )
                         })}
                       </div>
-                      {negs.length > THRESHOLD && (
-                        <button
+                    )}
+
+                    {/* Lista de proyectos */}
+                    {(() => {
+                      const THRESHOLD = 5
+                      const visibleNegs = showAllNegs ? negs : negs.slice(0, THRESHOLD)
+                      return (
+                        <>
+                          <div className="entity-negs-list">
+                            {visibleNegs.map(neg => {
+                              const cfg = getStateConfig(neg.status)
+                              const isInactive = neg.activity_status === 'inactive'
+                              const isPaused = neg.activity_status === 'paused'
+                              return (
+                                <div
+                                  key={neg.id}
+                                  className={`entity-neg-row ${isPaused ? 'entity-neg-row--paused' : ''} ${isInactive ? 'entity-neg-row--inactive' : ''}`}
+                                  onClick={() => handleSelectNeg(neg)}
+                                >
+                                  <div className="entity-neg-main">
+                                    <div className="entity-neg-product">
+                                      {isPaused && <span style={{ fontSize: 12, marginRight: 4, opacity: 0.5 }}>⏸</span>}
+                                      {isInactive && <span style={{ fontSize: 12, marginRight: 4, color: '#0369a1' }}>💤</span>}
+                                      {neg.product || neg.title}
+                                    </div>
+                                    {neg.target_date && (
+                                      <div className="entity-neg-date">
+                                        {new Date(neg.target_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="entity-neg-right">
+                                    {neg.nda && neg.nda !== '—' && neg.nda !== 'No' && (
+                                      <span className="entity-neg-nda">NDA ✓</span>
+                                    )}
+                                    <span className="entity-neg-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>
+                                      {neg.status}
+                                    </span>
+                                    <span className="entity-neg-arrow">›</span>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {negs.length > THRESHOLD && (
+                            <button
                           className="entity-negs-toggle"
                           onClick={() => setShowAllNegs(v => !v)}
                         >
@@ -642,6 +660,8 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
                   )
                 })()}
               </>
+            )}
+            </>
             )}
           </div>
         </div>
