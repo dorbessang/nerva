@@ -115,6 +115,7 @@ Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diag
   - Pro: 1 WS equipo, 15 seats, ilimitado
   - Business: hasta 5 WS equipo, 50 seats por WS, ilimitado
 - [ ] Validación activa límite entidades y proyectos activos
+- [ ] Límite de storage de documentos por plan — Supabase Free da 1GB total (compartido por *todo* el proyecto, no por workspace) y 50MB máx por archivo; hoy la app ya cotiza 20MB por archivo desde el cliente. Evaluar si el tope de storage entra como otro eje de los planes (como entidades/proyectos) antes de que haya varios workspaces de clientes reales compartiendo la cuota
 - [ ] UI "límite alcanzado" con CTA a upgrade
 - [ ] Self-registration con pantalla de registro en la app (email, contraseña, nombre)
 - [ ] Sistema de permisos por proyecto (project_members):
