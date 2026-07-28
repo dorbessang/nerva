@@ -5,6 +5,7 @@ import { useAuth } from '../lib/AuthContext'
 import TaskModal from '../components/TaskModal'
 import TaskDrawer from '../components/TaskDrawer'
 import { isTaskBlocked, notifySuccessors, dismissNotificationsForTask } from '../lib/tasks'
+import { logActivity } from '../lib/activity'
 import './Tasks.css'
 
 export default function Tasks() {
@@ -134,6 +135,12 @@ export default function Tasks() {
     if (!error) {
       await notifySuccessors(supabase, confirmTask, workspaceId)
       await dismissNotificationsForTask(supabase, confirmTask.id)
+      if (confirmTask.negotiation_id || confirmTask.entity_id) {
+        await logActivity(supabase, {
+          workspaceId, negotiationId: confirmTask.negotiation_id, entityId: confirmTask.entity_id,
+          type: 'task_completed', title: `Tarea completada: "${confirmTask.title}"`, actorId: user?.id,
+        })
+      }
       setConfirmTask(null)
       fetchTasks()
     }

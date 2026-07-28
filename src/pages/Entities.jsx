@@ -6,6 +6,10 @@ import EntityModal from '../components/EntityModal'
 import { NegotiationDetail, NegotiationModal } from './Negotiations'
 import { getFlagUrl, getCountryName } from '../components/CountrySelector'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import NotesPostIts from '../components/NotesPostIts'
+import ActivityTimeline from '../components/ActivityTimeline'
+import { notifyTaskAssigned } from '../lib/tasks'
+import { logActivity } from '../lib/activity'
 import './Entities.css'
 
 const AVATAR_COLORS = [
@@ -270,6 +274,8 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
   const { workspaceId, user, effectiveRole } = useAuth()
   const canDelete = effectiveRole === 'owner'
   const canCreateProject = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
+  const canNote = effectiveRole !== 'viewer'
+  const canTask = effectiveRole !== 'viewer'
   const [showEditModal, setShowEditModal] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showAllNegs, setShowAllNegs] = useState(false)
@@ -277,6 +283,72 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
   const [editingNeg, setEditingNeg] = useState(null)
   const [showNegModal, setShowNegModal] = useState(false)
   const [bgColor, textColor] = getAvatarColor(entity.name)
+  const [activityRefresh, setActivityRefresh] = useState(0)
+  const [entityTasks, setEntityTasks] = useState([])
+  const [members, setMembers] = useState([])
+  const [showTaskForm, setShowTaskForm] = useState(false)
+  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskAssignee, setNewTaskAssignee] = useState('')
+  const [newTaskDue, setNewTaskDue] = useState('')
+  const [savingTask, setSavingTask] = useState(false)
+
+  useEffect(() => { fetchEntityTasks(); fetchMembers() }, [entity.id])
+
+  async function fetchEntityTasks() {
+    const { data } = await supabase.from('tasks')
+      .select('*, profile:assigned_to ( full_name )')
+      .eq('entity_id', entity.id)
+      .order('created_at', { ascending: false })
+    if (data) setEntityTasks(data)
+  }
+
+  async function fetchMembers() {
+    const { data } = await supabase.from('workspace_members')
+      .select('user_id, profile:user_id ( full_name, email )')
+      .eq('workspace_id', workspaceId)
+    if (data) setMembers(data)
+  }
+
+  async function handleAddEntityTask() {
+    if (!newTaskTitle.trim()) return
+    setSavingTask(true)
+    const { data, error } = await supabase.from('tasks').insert({
+      workspace_id: workspaceId,
+      entity_id: entity.id,
+      title: newTaskTitle.trim(),
+      assigned_to: newTaskAssignee || null,
+      due_date: newTaskDue || null,
+      status: 'pending',
+      priority: 'medium',
+      created_by: user?.id,
+    }).select('id, title').single()
+    setSavingTask(false)
+    if (error) return
+    if (data) {
+      await notifyTaskAssigned(supabase, { workspaceId, task: data, assignedTo: newTaskAssignee, actingUserId: user?.id })
+      await logActivity(supabase, {
+        workspaceId, entityId: entity.id, type: 'task_created',
+        title: `Tarea creada: "${data.title}"`, actorId: user?.id,
+      })
+    }
+    setNewTaskTitle('')
+    setNewTaskAssignee('')
+    setNewTaskDue('')
+    setShowTaskForm(false)
+    fetchEntityTasks()
+    setActivityRefresh(v => v + 1)
+  }
+
+  async function handleCompleteEntityTask(task) {
+    if (task.status === 'done') return
+    await supabase.from('tasks').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', task.id)
+    await logActivity(supabase, {
+      workspaceId, entityId: entity.id, type: 'task_completed',
+      title: `Tarea completada: "${task.title}"`, actorId: user?.id,
+    })
+    fetchEntityTasks()
+    setActivityRefresh(v => v + 1)
+  }
 
   const negs = (entity.negotiation_entities || [])
     .map(n => n.negotiation)
@@ -407,6 +479,75 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
                 </div>
               </div>
             )}
+
+            <div className="detail-section">
+              <div className="detail-section-title">Notas</div>
+              <NotesPostIts
+                entityId={entity.id}
+                workspaceId={workspaceId}
+                canEdit={canNote}
+                onChanged={() => setActivityRefresh(v => v + 1)}
+              />
+            </div>
+
+            <div className="detail-section">
+              <div className="entity-projects-header">
+                <div className="detail-section-title">Tareas</div>
+                {canTask && (
+                  <button className="entity-negs-new-btn" onClick={() => setShowTaskForm(v => !v)}>+ Nueva tarea</button>
+                )}
+              </div>
+              {showTaskForm && (
+                <div className="neg-note-add" style={{ flexWrap: 'wrap', marginBottom: 10 }}>
+                  <input
+                    type="text"
+                    className="neg-note-input"
+                    placeholder="¿Qué hay que hacer?"
+                    value={newTaskTitle}
+                    onChange={e => setNewTaskTitle(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleAddEntityTask() }}
+                    autoFocus
+                  />
+                  <select value={newTaskAssignee} onChange={e => setNewTaskAssignee(e.target.value)} style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid #e5e7eb', fontSize: 13 }}>
+                    <option value="">Sin asignar</option>
+                    {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email || 'Usuario'}</option>)}
+                  </select>
+                  <input type="date" className="neg-note-date-input" value={newTaskDue} onChange={e => setNewTaskDue(e.target.value)} />
+                  <button className="neg-add-task-btn" onClick={handleAddEntityTask} disabled={savingTask || !newTaskTitle.trim()}>
+                    + Agregar
+                  </button>
+                </div>
+              )}
+              {entityTasks.length === 0 ? (
+                <p className="detail-empty">Sin tareas todavía.</p>
+              ) : (
+                <div className="neg-tasks-list">
+                  {entityTasks.map(task => (
+                    <div key={task.id} className={`neg-task-row ${task.status === 'done' ? 'done' : ''}`}>
+                      <button
+                        className={`neg-task-check ${task.status === 'done' ? 'checked' : ''}`}
+                        onClick={() => canTask && handleCompleteEntityTask(task)}
+                        disabled={!canTask || task.status === 'done'}
+                      >
+                        {task.status === 'done' ? '✓' : ''}
+                      </button>
+                      <div className="neg-task-body">
+                        <span className="neg-task-title">
+                          {task.profile?.full_name && <span style={{ color: '#1D4ED8', fontWeight: 600 }}>@{task.profile.full_name}: </span>}
+                          {task.title}
+                        </span>
+                      </div>
+                      {task.due_date && <span className="neg-task-date">{new Date(task.due_date).toLocaleDateString('es-AR')}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="detail-section">
+              <div className="detail-section-title">Actividad</div>
+              <ActivityTimeline entityId={entity.id} refreshKey={activityRefresh} />
+            </div>
 
             {canDelete && (
               <div className="detail-footer-inline">

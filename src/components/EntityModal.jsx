@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import CountrySelector from './CountrySelector'
+import { logActivity } from '../lib/activity'
 import './EntityModal.css'
 
 const emptyContact = () => ({
@@ -15,7 +16,7 @@ const emptyContact = () => ({
 })
 
 export default function EntityModal({ onClose, onCreated, initial = null, entityTypeSingular = 'proveedor' }) {
-  const { workspaceId } = useAuth()
+  const { workspaceId, user } = useAuth()
   const [name, setName] = useState(initial?.name || '')
   const [countryCode, setCountryCode] = useState(initial?.country_code || '')
   const [companyType, setCompanyType] = useState(initial?.custom_fields?.company_type || '')
@@ -136,6 +137,10 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
           }))
         )
       }
+      await logActivity(supabase, {
+        workspaceId, entityId: entityData.id, type: 'entity_created',
+        title: `"${entityData.name}" agregado`, actorId: user?.id,
+      })
     }
 
     setLoading(false)

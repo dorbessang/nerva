@@ -3,8 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import NotesPostIts from '../components/NotesPostIts'
+import ActivityTimeline from '../components/ActivityTimeline'
 import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
+import { logActivity } from '../lib/activity'
 import './Negotiations.css'
 
 const TERRITORIES = ['ARG','BOL','BRA','CEAM','CHI','COL','ECU','MEX','PAR','PER','URU','VEN']
@@ -726,10 +729,20 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
           recipients: (existingTasks || []).map(t => t.assigned_to),
           actingUserId: userId,
         })
+        await logActivity(supabase, {
+          workspaceId, negotiationId: initial.id, type: 'status_changed',
+          title: `Estado cambió de "${initial.status}" a "${form.status}"`, actorId: userId,
+        })
       }
     } else {
       const { data } = await supabase.from('negotiations').insert(row).select().single()
       negId = data?.id
+      if (negId) {
+        await logActivity(supabase, {
+          workspaceId, negotiationId: negId, type: 'project_created',
+          title: `Proyecto "${row.product || row.title}" creado`, actorId: userId,
+        })
+      }
     }
     if (negId) {
       await supabase.from('negotiation_entities').delete().eq('negotiation_id', negId)
@@ -746,6 +759,10 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
         }))).select('id, title, assigned_to')
         for (const t of insertedTasks || []) {
           await notifyTaskAssigned(supabase, { workspaceId, task: t, assignedTo: t.assigned_to, actingUserId: userId })
+          await logActivity(supabase, {
+            workspaceId, negotiationId: negId, type: 'task_created',
+            title: `Tarea creada: "${t.title}"`, actorId: userId,
+          })
         }
       }
     }
@@ -960,23 +977,18 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [tasks, setTasks] = useState([])
   const [showTaskModal, setShowTaskModal] = useState(false)
+  const [activityRefresh, setActivityRefresh] = useState(0)
   const [activityStatus, setActivityStatus] = useState(neg.activity_status || 'active')
   const [inlineStatus, setInlineStatus] = useState(neg.status || '')
   const [inlineNda, setInlineNda] = useState(neg.nda || '—')
   const [inlineObs, setInlineObs] = useState(neg.observations || '')
-  const [notes, setNotes] = useState(neg.notes_list || [])
-  const [newNote, setNewNote] = useState('')
-  const [newNoteDate, setNewNoteDate] = useState(new Date().toISOString().split('T')[0])
-  const [savingNote, setSavingNote] = useState(false)
-  const [editingNoteId, setEditingNoteId] = useState(null)
-  const [editingNoteText, setEditingNoteText] = useState('')
   const cfg = getStateConfig(neg.status)
   const flag = getEntityFlag(neg)
   const primaryEntity = neg.primary_entity || neg.negotiation_entities?.map(ne => ne.entity).filter(Boolean)[0] || null
   const entityNames = primaryEntity?.name || '—'
   const secondaryEntities = (neg.negotiation_entities || []).filter(ne => ne.entity?.id && ne.entity.id !== primaryEntity?.id)
 
-  useEffect(() => { fetchTasks(); fetchNotes() }, [])
+  useEffect(() => { fetchTasks() }, [])
 
   async function fetchTasks() {
     const { data } = await supabase.from('tasks')
@@ -986,48 +998,8 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
     if (data) setTasks(data)
   }
 
-  async function fetchNotes() {
-    const { data, error } = await supabase.from('negotiation_notes')
-      .select('*')
-      .eq('negotiation_id', neg.id)
-      .order('note_date', { ascending: true })
-    if (error) console.error('fetchNotes error:', error.message)
-    if (data) setNotes(data)
-  }
-
-  async function handleAddNote() {
-    if (!newNote.trim()) return
-    setSavingNote(true)
-    const { error } = await supabase.from('negotiation_notes').insert({
-      negotiation_id: neg.id,
-      workspace_id: neg.workspace_id,
-      content: newNote.trim(),
-      note_date: newNoteDate,
-    })
-    if (error) { console.error('addNote error:', error.message); setSavingNote(false); return }
-    setNewNote('')
-    setNewNoteDate(new Date().toISOString().split('T')[0])
-    setSavingNote(false)
-    fetchNotes()
-    onNotesChanged?.()
-  }
-
-  async function handleDeleteNote(noteId) {
-    await supabase.from('negotiation_notes').delete().eq('id', noteId)
-    setNotes(prev => prev.filter(n => n.id !== noteId))
-    onNotesChanged?.()
-  }
-
-  async function handleSaveNoteEdit(noteId) {
-    const text = editingNoteText.trim()
-    if (!text) return
-    await supabase.from('negotiation_notes').update({ content: text }).eq('id', noteId)
-    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, content: text } : n))
-    setEditingNoteId(null)
-    onNotesChanged?.()
-  }
-
   async function saveInlineField(field, value) {
+    const prevValue = neg[field]
     await supabase.from('negotiations').update({ [field]: value }).eq('id', neg.id)
     if (field === 'status') {
       await notifyNegotiationStatusChanged(supabase, {
@@ -1038,6 +1010,11 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
         recipients: tasks.map(t => t.assigned_to),
         actingUserId: user?.id,
       })
+      await logActivity(supabase, {
+        workspaceId: neg.workspace_id || workspaceId, negotiationId: neg.id, type: 'status_changed',
+        title: `Estado cambió de "${prevValue}" a "${value}"`, actorId: user?.id,
+      })
+      setActivityRefresh(v => v + 1)
     }
     onActivityChanged?.()
   }
@@ -1060,7 +1037,12 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
     await supabase.from('tasks').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', task.id)
     await notifySuccessors(supabase, task, neg.workspace_id || workspaceId)
     await dismissNotificationsForTask(supabase, task.id)
+    await logActivity(supabase, {
+      workspaceId: neg.workspace_id || workspaceId, negotiationId: neg.id, type: 'task_completed',
+      title: `Tarea completada: "${task.title}"`, actorId: user?.id,
+    })
     fetchTasks()
+    setActivityRefresh(v => v + 1)
   }
 
   function statusLabel(status) {
@@ -1161,80 +1143,12 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
           )}
           <div className="neg-detail-section">
             <div className="detail-section-title">NOTAS</div>
-            <div className="neg-notes-list">
-              {notes.length === 0 && <p className="detail-empty">Sin notas todavía.</p>}
-              {notes.map((n, idx) => {
-                const NOTE_COLORS = [
-                  { bg: '#fef08a', border: '#fde047', date: '#854d0e' },
-                  { bg: '#bfdbfe', border: '#93c5fd', date: '#1e40af' },
-                  { bg: '#bbf7d0', border: '#86efac', date: '#166534' },
-                  { bg: '#fecdd3', border: '#fda4af', date: '#9f1239' },
-                ]
-                const hash = n.id ? n.id.charCodeAt(0) + n.id.charCodeAt(4) : idx
-                const col = NOTE_COLORS[hash % NOTE_COLORS.length]
-                const rotations = [-3, -1.5, 0, 1.5, 3]
-                const rot = rotations[(hash + idx) % rotations.length]
-                const isEditing = editingNoteId === n.id
-                return (
-                  <div key={n.id} className="neg-note-item" style={{
-                    background: col.bg,
-                    borderLeft: `3px solid ${col.border}`,
-                    transform: isEditing ? 'rotate(0deg) scale(1.03)' : `rotate(${rot}deg)`,
-                    marginLeft: idx % 2 === 0 ? 0 : 8,
-                    zIndex: isEditing ? 20 : idx,
-                  }}>
-                    <span className="neg-note-date" style={{ color: col.date }}>
-                      {new Date(n.note_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                    </span>
-                    {isEditing ? (
-                      <textarea
-                        className="neg-note-edit-input"
-                        value={editingNoteText}
-                        autoFocus
-                        onChange={e => setEditingNoteText(e.target.value)}
-                        onBlur={() => handleSaveNoteEdit(n.id)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveNoteEdit(n.id) }
-                          if (e.key === 'Escape') setEditingNoteId(null)
-                        }}
-                        style={{ background: 'transparent', border: 'none', outline: 'none', width: '100%', font: 'inherit', fontSize: 13, resize: 'none', lineHeight: 1.5, padding: 0, color: '#374151' }}
-                        rows={3}
-                      />
-                    ) : (
-                      <span
-                        className="neg-note-content"
-                        onDoubleClick={canNote ? () => { setEditingNoteId(n.id); setEditingNoteText(n.content) } : undefined}
-                        title={canNote ? 'Doble click para editar' : undefined}
-                      >{n.content}</span>
-                    )}
-                    {!isEditing && canNote && (
-                      <button className="neg-note-delete" onClick={() => handleDeleteNote(n.id)} title="Eliminar nota">✕</button>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-            {canNote && (
-              <div className="neg-note-add">
-                <input
-                  type="date"
-                  className="neg-note-date-input"
-                  value={newNoteDate}
-                  onChange={e => setNewNoteDate(e.target.value)}
-                />
-                <input
-                  type="text"
-                  className="neg-note-input"
-                  placeholder="Nueva nota..."
-                  value={newNote}
-                  onChange={e => setNewNote(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleAddNote() }}
-                />
-                <button className="neg-add-task-btn" onClick={handleAddNote} disabled={savingNote || !newNote.trim()}>
-                  + Agregar
-                </button>
-              </div>
-            )}
+            <NotesPostIts
+              negotiationId={neg.id}
+              workspaceId={neg.workspace_id || workspaceId}
+              canEdit={canNote}
+              onChanged={() => { setActivityRefresh(v => v + 1); onNotesChanged?.() }}
+            />
           </div>
           <div className="neg-detail-section">
             <div className="detail-section-title">OBSERVACIONES INTERNAS</div>
@@ -1321,6 +1235,10 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
               )
             })()}
           </div>
+          <div className="neg-detail-section">
+            <div className="detail-section-title">ACTIVIDAD</div>
+            <ActivityTimeline negotiationId={neg.id} refreshKey={activityRefresh} />
+          </div>
         </div>
         <div className="detail-footer">
           {canPause && (
@@ -1349,7 +1267,7 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
         />
       )}
       {showTaskModal && (
-        <TaskModalInline negotiationId={neg.id} existingTasks={tasks} onClose={() => setShowTaskModal(false)} onCreated={fetchTasks} />
+        <TaskModalInline negotiationId={neg.id} existingTasks={tasks} onClose={() => setShowTaskModal(false)} onCreated={() => { fetchTasks(); setActivityRefresh(v => v + 1) }} />
       )}
     </div>
   )
@@ -1383,7 +1301,13 @@ function TaskModalInline({ negotiationId, existingTasks, onClose, onCreated }) {
       status: 'pending',
     }).select('id, title').single()
     setSaving(false)
-    if (data) await notifyTaskAssigned(supabase, { workspaceId, task: data, assignedTo, actingUserId: user?.id })
+    if (data) {
+      await notifyTaskAssigned(supabase, { workspaceId, task: data, assignedTo, actingUserId: user?.id })
+      await logActivity(supabase, {
+        workspaceId, negotiationId, type: 'task_created',
+        title: `Tarea creada: "${data.title}"`, actorId: user?.id,
+      })
+    }
     onCreated()
     onClose()
   }

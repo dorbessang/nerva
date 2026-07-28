@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { notifyTaskAssigned } from '../lib/tasks'
+import { logActivity } from '../lib/activity'
 import './TaskModal.css'
 
 export default function TaskModal({ onClose, onCreated }) {
@@ -67,7 +68,15 @@ export default function TaskModal({ onClose, onCreated }) {
     }).select('id, title').single()
     setLoading(false)
     if (error) { setError('Error al crear la tarea. Intentá de nuevo.'); return }
-    if (data) await notifyTaskAssigned(supabase, { workspaceId, task: data, assignedTo, actingUserId: user.id })
+    if (data) {
+      await notifyTaskAssigned(supabase, { workspaceId, task: data, assignedTo, actingUserId: user.id })
+      if (negotiationId) {
+        await logActivity(supabase, {
+          workspaceId, negotiationId, type: 'task_created',
+          title: `Tarea creada: "${data.title}"`, actorId: user.id,
+        })
+      }
+    }
     onCreated()
     onClose()
   }

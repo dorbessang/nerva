@@ -18,9 +18,9 @@ Comparado contra CRM de pipeline / vendor management / deal-trackers de licensin
 Las entidades son lo permanente. Los proyectos pasan a ser **un tipo de vínculo posible entre entidades**, no el centro. La idea del usuario: distintos sectores de una misma empresa (BD, Finanzas, RRHH) se relacionan distinto con la misma entidad — eso solo es posible si la entidad no le "pertenece" a ningún módulo.
 
 Cambios concretos acordados para acercarse a esto **sin reescribir nada todavía**:
-1. Notas y tareas tienen que poder colgar directo de una entidad (`entity_id`), no solo de un proyecto — hoy no se puede *generar* un proyecto a futuro desde una entidad, solo seguir uno que ya existe. Ese fue el punto flojo identificado.
-2. Timeline de actividad agregado en la ficha de la entidad (hoy solo muestra "proyectos vinculados").
-3. Campos de valor de deal en `negotiations` (monto, moneda, estructura de pago: upfront/milestones/royalties) — antes de pensar en un módulo de Finanzas real, para poder valorizar proyectos y pipeline ya mismo.
+1. [x] Notas y tareas cuelgan directo de una entidad (`entity_id`), no solo de un proyecto — ya no hace falta un proyecto para dejar rastro de una relación en curso. `negotiation_notes.negotiation_id` ahora nullable + `entity_id` nuevo (constraint: al menos uno de los dos); `tasks.entity_id` nuevo. Componente `NotesPostIts` extraído y reusado en proyecto/entidad
+2. [x] Timeline de actividad — no solo en la entidad, también en el proyecto (ampliación pedida en la práctica). Tabla `activity_log` nueva (workspace_id, negotiation_id, entity_id, type, title, actor_id) + componente `ActivityTimeline`. El de la entidad agrega también la actividad de todos los proyectos vinculados a ella (verdadero hub). Eventos logueados: proyecto creado, entidad creada, nota agregada, tarea creada/completada, cambio de estado. Bug encontrado y corregido en el camino: el timeline no se refrescaba solo al agregar algo, necesitó un `refreshKey`
+3. [ ] Campos de valor de deal en `negotiations` (monto, moneda, estructura de pago: upfront/milestones/royalties) — antes de pensar en un módulo de Finanzas real, para poder valorizar proyectos y pipeline ya mismo
 
 ### Principio de diseño para decidir qué construir de acá en adelante
 **¿Esto mejora el producto de hoy (BD/licensing), además de servir a la visión larga?** Si una feature solo se justifica por el ERP imaginario del futuro y no le suma nada al uso actual, no se construye todavía — construir sobre necesidades estimadas en vez de reales es el error a evitar (dicho explícitamente por el usuario).
@@ -40,7 +40,7 @@ Decisión explícita de **no construirlo todavía**. Se define el patrón target
 - La elección de "tipo de CRM" al crear un workspace pasa a ser, en este esquema, qué **módulos** están activos — no solo qué `entity_types` vienen precargados
 
 ### Próximo paso acordado
-Arrancar por notas/tareas colgando de entidades (punto 1) cuando se retome el proyecto.
+Puntos 1 y 2 completos. Sigue el punto 3 (campos de valor de deal en `negotiations`) cuando se retome el proyecto.
 
 ---
 
