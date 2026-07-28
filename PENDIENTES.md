@@ -40,7 +40,11 @@ Decisión explícita de **no construirlo todavía**. Se define el patrón target
 - La elección de "tipo de CRM" al crear un workspace pasa a ser, en este esquema, qué **módulos** están activos — no solo qué `entity_types` vienen precargados
 
 ### Próximo paso acordado
-Puntos 1, 2 y 3 completos. Sin próximo paso todavía acordado — a definir cuando se retome el proyecto.
+Puntos 1, 2 y 3 completos, funcionalidad probada y en producción. Sin próximo paso todavía acordado — a definir.
+
+### Pendientes estéticos (UI polish, no bloqueantes)
+- Card de "Valor de pipeline"/"Seleccionados" en Proyectos — funciona bien, pero el diseño se puede pulir más (usuario: "podría mejorar, pero dejalo como pendiente")
+- Seguramente vayan sumándose más a medida que se usa la app en el día a día — no priorizar hasta después de la próxima tanda de funcionalidad
 
 ---
 
