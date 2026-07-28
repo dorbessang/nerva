@@ -5,6 +5,7 @@ import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import NotesPostIts from '../components/NotesPostIts'
 import ActivityTimeline from '../components/ActivityTimeline'
+import DealMilestones from '../components/DealMilestones'
 import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
@@ -13,6 +14,7 @@ import './Negotiations.css'
 const TERRITORIES = ['ARG','BOL','BRA','CEAM','CHI','COL','ECU','MEX','PAR','PER','URU','VEN']
 const COMPANIES = ['Ethical Nutrition','Millet','Roemmers','Siegfried','Sidus','Tuteur', 'Ceoderma']
 const NDA_STATES = ['—','Enviado','En Revisión','Firmado']
+const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
 
 // Todas las columnas disponibles para la tabla
 const ALL_COLUMNS = [
@@ -681,7 +683,8 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
     nda: '—', target_date: '', notes: '', observations: '',
     territories: [], companies: [], participants: [],
     entity_ids: presetEntity ? [{ id: presetEntity.id, role: '' }] : [], // [{ id, role }]
-    tasks: []
+    tasks: [],
+    currency: 'USD', milestones: []
   }
   const [form, setForm] = useState(initial ? {
     ...empty, ...initial,
@@ -690,13 +693,17 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
       const primaryIdx = ids.findIndex(e => e.id === initial.primary_entity_id)
       return primaryIdx > 0 ? [ids[primaryIdx], ...ids.filter((_, i) => i !== primaryIdx)] : ids
     })(),
-    tasks: []
+    tasks: [],
+    currency: initial.currency || 'USD', milestones: []
   } : empty)
   const [entitySearch, setEntitySearch] = useState('')
   const [entityDropdownOpen, setEntityDropdownOpen] = useState(false)
   const entityRef = useRef(null)
   const [newTask, setNewTask] = useState('')
   const [newTaskAssignee, setNewTaskAssignee] = useState('')
+  const [newMilestoneName, setNewMilestoneName] = useState('')
+  const [newMilestoneAmount, setNewMilestoneAmount] = useState('')
+  const [newMilestoneDate, setNewMilestoneDate] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -715,6 +722,7 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
       territories: form.territories, companies: form.companies,
       participants: form.participants, created_by: userId,
       primary_entity_id: form.entity_ids[0]?.id || null,
+      currency: form.currency,
     }
     let negId = initial?.id
     if (initial?.id) {
@@ -762,6 +770,19 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
           await logActivity(supabase, {
             workspaceId, negotiationId: negId, type: 'task_created',
             title: `Tarea creada: "${t.title}"`, actorId: userId,
+          })
+        }
+      }
+      if (form.milestones.length > 0) {
+        const { data: insertedMilestones } = await supabase.from('deal_milestones').insert(form.milestones.map((m, idx) => ({
+          workspace_id: workspaceId, negotiation_id: negId,
+          name: m.name, amount: m.amount, estimated_date: m.estimated_date || null, sort_order: idx,
+        }))).select('id, name, amount')
+        for (const m of insertedMilestones || []) {
+          await logActivity(supabase, {
+            workspaceId, negotiationId: negId, type: 'milestone_added',
+            title: `Hito agregado: "${m.name}" (${Number(m.amount).toLocaleString('es-AR')}${form.currency ? ' ' + form.currency : ''})`,
+            actorId: userId,
           })
         }
       }
@@ -891,6 +912,12 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
                 {NDA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
+            <div className="form-group">
+              <label>MONEDA</label>
+              <select value={form.currency} onChange={e => set('currency', e.target.value)}>
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
           </div>
           <div className="form-group">
             <label>PARTICIPANTES</label>
@@ -949,6 +976,35 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
               </div>
             ))}
           </div>
+          <div className="form-group">
+            <label>HITOS DE PAGO {initial ? '' : 'INICIALES'}</label>
+            <div className="neg-milestone-add" style={{ marginTop: 0 }}>
+              <input type="text" className="neg-note-input neg-milestone-name-input" value={newMilestoneName} onChange={e => setNewMilestoneName(e.target.value)}
+                placeholder="Ej: Upfront, Milestone Fase 2, Royalties Año 1..." />
+              <input type="number" className="neg-note-date-input neg-milestone-amount-input" value={newMilestoneAmount} onChange={e => setNewMilestoneAmount(e.target.value)}
+                placeholder="Monto" min="0" step="0.01" />
+              <input type="date" className="neg-note-date-input neg-milestone-date-input" value={newMilestoneDate} onChange={e => setNewMilestoneDate(e.target.value)} />
+              <button type="button" className="btn-secondary" onClick={() => {
+                const amount = parseFloat(newMilestoneAmount)
+                if (!newMilestoneName.trim() || !amount || amount <= 0) return
+                set('milestones', [...form.milestones, { id: Date.now(), name: newMilestoneName.trim(), amount, estimated_date: newMilestoneDate }])
+                setNewMilestoneName(''); setNewMilestoneAmount(''); setNewMilestoneDate('')
+              }}>
+                + Agregar
+              </button>
+            </div>
+            {form.milestones.map(m => (
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, border: '1px solid #e5e7eb', marginTop: 6 }}>
+                <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>{m.name}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#059669' }}>{Number(m.amount).toLocaleString('es-AR')} {form.currency}</span>
+                {m.estimated_date && <span style={{ fontSize: 11, color: '#9ca3af' }}>{new Date(m.estimated_date + 'T00:00:00').toLocaleDateString('es-AR')}</span>}
+                <button type="button" onClick={() => set('milestones', form.milestones.filter(x => x.id !== m.id))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 16 }}>×</button>
+              </div>
+            ))}
+            {initial && (
+              <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>Los hitos ya existentes se editan desde la vista de detalle del proyecto.</p>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -982,6 +1038,7 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
   const [inlineStatus, setInlineStatus] = useState(neg.status || '')
   const [inlineNda, setInlineNda] = useState(neg.nda || '—')
   const [inlineObs, setInlineObs] = useState(neg.observations || '')
+  const [inlineCurrency, setInlineCurrency] = useState(neg.currency || 'USD')
   const cfg = getStateConfig(neg.status)
   const flag = getEntityFlag(neg)
   const primaryEntity = neg.primary_entity || neg.negotiation_entities?.map(ne => ne.entity).filter(Boolean)[0] || null
@@ -1013,6 +1070,13 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
       await logActivity(supabase, {
         workspaceId: neg.workspace_id || workspaceId, negotiationId: neg.id, type: 'status_changed',
         title: `Estado cambió de "${prevValue}" a "${value}"`, actorId: user?.id,
+      })
+      setActivityRefresh(v => v + 1)
+    }
+    if (field === 'currency' && prevValue !== value) {
+      await logActivity(supabase, {
+        workspaceId: neg.workspace_id || workspaceId, negotiationId: neg.id, type: 'deal_value_updated',
+        title: `Moneda del deal cambiada a "${value}"`, actorId: user?.id,
       })
       setActivityRefresh(v => v + 1)
     }
@@ -1122,6 +1186,29 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
                 <div className="neg-detail-value">{inlineNda}</div>
               )}
             </div>
+          </div>
+          <div className="neg-detail-section">
+            <div className="neg-tasks-header">
+              <div className="detail-section-title">VALOR DEL DEAL</div>
+              {canEditInline ? (
+                <select
+                  className="neg-inline-select neg-inline-select--small"
+                  value={inlineCurrency}
+                  onChange={e => { setInlineCurrency(e.target.value); saveInlineField('currency', e.target.value) }}
+                >
+                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              ) : (
+                <span className="neg-detail-value">{inlineCurrency}</span>
+              )}
+            </div>
+            <DealMilestones
+              negotiationId={neg.id}
+              workspaceId={neg.workspace_id || workspaceId}
+              currency={inlineCurrency}
+              canEdit={canNote}
+              onChanged={() => setActivityRefresh(v => v + 1)}
+            />
           </div>
           {neg.participants?.length > 0 && (
             <div className="neg-detail-section">

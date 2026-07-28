@@ -20,7 +20,7 @@ Las entidades son lo permanente. Los proyectos pasan a ser **un tipo de vínculo
 Cambios concretos acordados para acercarse a esto **sin reescribir nada todavía**:
 1. [x] Notas y tareas cuelgan directo de una entidad (`entity_id`), no solo de un proyecto — ya no hace falta un proyecto para dejar rastro de una relación en curso. `negotiation_notes.negotiation_id` ahora nullable + `entity_id` nuevo (constraint: al menos uno de los dos); `tasks.entity_id` nuevo. Componente `NotesPostIts` extraído y reusado en proyecto/entidad
 2. [x] Timeline de actividad — no solo en la entidad, también en el proyecto (ampliación pedida en la práctica). Tabla `activity_log` nueva (workspace_id, negotiation_id, entity_id, type, title, actor_id) + componente `ActivityTimeline`. El de la entidad agrega también la actividad de todos los proyectos vinculados a ella (verdadero hub). Eventos logueados: proyecto creado, entidad creada, nota agregada, tarea creada/completada, cambio de estado. Bug encontrado y corregido en el camino: el timeline no se refrescaba solo al agregar algo, necesitó un `refreshKey`
-3. [ ] Campos de valor de deal en `negotiations` (monto, moneda, estructura de pago: upfront/milestones/royalties) — antes de pensar en un módulo de Finanzas real, para poder valorizar proyectos y pipeline ya mismo
+3. [x] Campos de valor de deal en `negotiations` — `currency` (selector) + tabla `deal_milestones` (desglose libre de hitos: upfront, milestones, royalties, lo que sea, cada uno con nombre/monto/fecha estimada). Componente `DealMilestones`, sección "VALOR DEL DEAL" en detalle y alta inicial en el modal de creación. Card "Valor de pipeline" en el Dashboard, suma los hitos de proyectos en curso agrupados por moneda (sin conversión automática)
 
 ### Principio de diseño para decidir qué construir de acá en adelante
 **¿Esto mejora el producto de hoy (BD/licensing), además de servir a la visión larga?** Si una feature solo se justifica por el ERP imaginario del futuro y no le suma nada al uso actual, no se construye todavía — construir sobre necesidades estimadas en vez de reales es el error a evitar (dicho explícitamente por el usuario).
@@ -40,7 +40,7 @@ Decisión explícita de **no construirlo todavía**. Se define el patrón target
 - La elección de "tipo de CRM" al crear un workspace pasa a ser, en este esquema, qué **módulos** están activos — no solo qué `entity_types` vienen precargados
 
 ### Próximo paso acordado
-Puntos 1 y 2 completos. Sigue el punto 3 (campos de valor de deal en `negotiations`) cuando se retome el proyecto.
+Puntos 1, 2 y 3 completos. Sin próximo paso todavía acordado — a definir cuando se retome el proyecto.
 
 ---
 

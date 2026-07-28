@@ -9,6 +9,8 @@ const TYPE_ICONS = {
   task_created: '☑️',
   task_completed: '✅',
   status_changed: '🔄',
+  milestone_added: '💰',
+  deal_value_updated: '💱',
 }
 
 // Timeline cronológico de todo lo que pasó con un proyecto o con una

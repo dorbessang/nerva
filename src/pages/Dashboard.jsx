@@ -36,6 +36,9 @@ export default function Dashboard() {
   // Proyectos modificados recientemente
   const [recentActivity, setRecentActivity] = useState([]);
 
+  // Valor de pipeline — suma de hitos de pago de proyectos en curso, agrupado por moneda
+  const [pipelineValue, setPipelineValue] = useState([]);
+
   useEffect(() => {
     if (workspaceId) fetchAll();
   }, [workspaceId]);
@@ -45,12 +48,12 @@ export default function Dashboard() {
     const today = new Date().toISOString().split("T")[0];
 
     // Traemos todos los datos en paralelo para mejor performance
-    const [negsRes, tasksRes, entitiesRes, statesRes, myTasksRes, recentRes] =
+    const [negsRes, tasksRes, entitiesRes, statesRes, myTasksRes, recentRes, milestonesRes] =
       await Promise.all([
         // Todos los proyectos del workspace (para métricas)
         supabase
           .from("negotiations")
-          .select("id, status, activity_status, last_activity_at")
+          .select("id, status, activity_status, last_activity_at, currency")
           .eq("workspace_id", workspaceId),
 
         // Todas las tareas (para contar pendientes y vencidas)
@@ -102,6 +105,12 @@ export default function Dashboard() {
           .eq("workspace_id", workspaceId)
           .order("updated_at", { ascending: false })
           .limit(6),
+
+        // Hitos de pago de todos los proyectos (para valorizar el pipeline)
+        supabase
+          .from("deal_milestones")
+          .select("negotiation_id, amount")
+          .eq("workspace_id", workspaceId),
       ]);
 
     const negotiations = negsRes.data || [];
@@ -139,6 +148,22 @@ export default function Dashboard() {
     });
 
     const activeNegs = negotiations.filter(n => n.activity_status === 'active' && n.status !== 'Completado');
+
+    // Sumamos los hitos de pago de los proyectos en curso, agrupados por moneda
+    // (sin conversión automática — cada moneda se muestra por separado)
+    const activeNegIds = new Set(activeNegs.map(n => n.id));
+    const currencyByNegId = Object.fromEntries(negotiations.map(n => [n.id, n.currency || 'USD']));
+    const totalsByCurrency = {};
+    for (const m of milestonesRes.data || []) {
+      if (!activeNegIds.has(m.negotiation_id)) continue;
+      const cur = currencyByNegId[m.negotiation_id] || 'USD';
+      totalsByCurrency[cur] = (totalsByCurrency[cur] || 0) + Number(m.amount);
+    }
+    setPipelineValue(
+      Object.entries(totalsByCurrency)
+        .map(([currency, total]) => ({ currency, total }))
+        .sort((a, b) => b.total - a.total)
+    );
     const completedStateData = (statesRes.data || []).find(s => s.name === 'Completado');
     const completedNegCount = negotiations.filter(n => n.status === 'Completado').length;
     setStateCounts([
@@ -250,6 +275,25 @@ export default function Dashboard() {
             {stats.pausedProjects === 0 && 'en el workspace'}
           </p>
         </div>
+      </div>
+
+      {/* Valor de pipeline — suma de hitos de pago de proyectos en curso */}
+      <div className="db-section-card" style={{ marginBottom: 16 }}>
+        <p className="db-section-title">Valor de pipeline (proyectos en curso)</p>
+        {pipelineValue.length === 0 ? (
+          <p className="db-empty">Sin hitos de pago cargados todavía.</p>
+        ) : (
+          <div className="db-pipeline-row">
+            {pipelineValue.map((p) => (
+              <div key={p.currency} className="db-pipeline-chip">
+                <span className="db-pipeline-amount">
+                  {p.total.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                </span>
+                <span className="db-pipeline-currency">{p.currency}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Grid de 2 columnas: gráfico de estados + mis tareas */}

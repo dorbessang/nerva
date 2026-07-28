@@ -374,6 +374,35 @@
   padding: 16px 0;
 }
 
+.db-pipeline-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.db-pipeline-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  border-radius: 10px;
+  padding: 10px 16px;
+}
+
+.db-pipeline-amount {
+  font-size: 22px;
+  font-weight: 700;
+  color: #059669;
+}
+
+.db-pipeline-currency {
+  font-size: 12px;
+  font-weight: 600;
+  color: #047857;
+}
+
 .db-recent-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

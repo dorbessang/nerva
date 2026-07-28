@@ -775,6 +775,41 @@
 
 .neg-task-date { font-size: 11px; color: #9ca3af; flex-shrink: 0; }
 
+.neg-milestone-amount { font-size: 13px; font-weight: 600; color: #059669; flex-shrink: 0; }
+
+.neg-milestone-delete {
+  background: none;
+  border: none;
+  color: #d1d5db;
+  cursor: pointer;
+  font-size: 13px;
+  flex-shrink: 0;
+  padding: 0 0 0 4px;
+  transition: color 0.15s;
+}
+
+.neg-milestone-delete:hover { color: #dc2626; }
+
+.neg-milestone-total {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+  padding: 8px 14px;
+}
+
+.neg-milestone-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.neg-milestone-name-input { flex: 2; min-width: 180px; }
+.neg-milestone-amount-input { width: 110px; flex-shrink: 0; }
+.neg-milestone-date-input { width: 130px; flex-shrink: 0; }
+
 .detail-section-title {
   font-size: 11px;
   font-weight: 700;
@@ -1162,6 +1197,12 @@
 
   .neg-newtask-row select,
   .neg-newtask-row button {
+    width: 100%;
+  }
+
+  .neg-milestone-name-input,
+  .neg-milestone-amount-input,
+  .neg-milestone-date-input {
     width: 100%;
   }
 }

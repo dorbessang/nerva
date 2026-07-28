@@ -4,6 +4,21 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-28
+
+### Feature: Primer paso del pivot entidad-céntrico (notas/tareas/timeline)
+- Notas y tareas pueden colgar directo de una entidad (`entity_id`), sin necesitar un proyecto — `negotiation_notes.negotiation_id` ahora nullable + `entity_id` nuevo (constraint: al menos uno de los dos), `tasks.entity_id` nuevo. Componente `NotesPostIts` extraído y reusado en proyecto/entidad
+- Tabla `activity_log` genérica (workspace_id, negotiation_id, entity_id, type, title, actor_id) + componente `ActivityTimeline`, usado en el detalle de proyectos y de entidades. El de la entidad agrega también la actividad de todos los proyectos vinculados a ella
+- Vista de detalle de entidad rediseñada: la columna izquierda queda fija con Información + Contactos; la derecha pasa a pestañas (Actividad / Proyectos / Notas / Tareas) en vez de mostrar los proyectos por default
+- Todos los modales grandes de detalle/edición (`.entity-detail-card--wide`, `.neg-detail-card`, `.neg-modal-card`) pasan a tener tamaño fijo (`90vw / max 1100px / 85vh`) en vez de `max-height` variable — antes se achicaban o agrandaban según el contenido de la pestaña activa
+
+### Feature: Valor de deal por proyecto + pipeline
+- `negotiations.currency` (selector) + tabla `deal_milestones` (nombre, monto, fecha estimada, sort_order) — desglose libre en vez de una estructura rígida de pago, para cubrir upfront/milestones/royalties/lo que sea con las mismas filas
+- Componente `DealMilestones`, sección "VALOR DEL DEAL" en el detalle del proyecto y alta de hitos iniciales en el modal de creación
+- Card "Valor de pipeline" en el Dashboard — suma los hitos de los proyectos en curso agrupados por moneda (sin conversión automática entre monedas)
+
+---
+
 ## 2026-07-06
 
 ### Feature: Sistema de invitación de usuarios y gestión de miembros
