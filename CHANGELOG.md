@@ -13,9 +13,13 @@ Registro detallado de cambios por sesión de trabajo.
 - Todos los modales grandes de detalle/edición (`.entity-detail-card--wide`, `.neg-detail-card`, `.neg-modal-card`) pasan a tener tamaño fijo (`90vw / max 1100px / 85vh`) en vez de `max-height` variable — antes se achicaban o agrandaban según el contenido de la pestaña activa
 
 ### Feature: Valor de deal por proyecto + pipeline
-- `negotiations.currency` (selector) + tabla `deal_milestones` (nombre, monto, fecha estimada, sort_order) — desglose libre en vez de una estructura rígida de pago, para cubrir upfront/milestones/royalties/lo que sea con las mismas filas
+- `negotiations.currency` (selector) + tabla `deal_milestones` (nombre, monto, fecha estimada, `timing_note` de texto libre, sort_order) — desglose libre en vez de una estructura rígida de pago, para cubrir upfront/milestones/royalties/lo que sea con las mismas filas
 - Componente `DealMilestones`, sección "VALOR DEL DEAL" en el detalle del proyecto y alta de hitos iniciales en el modal de creación
+- Monto admite negativos (pagos que salen, no solo cobros) — se muestran en rojo y el total refleja el valor neto
+- `timing_note`: campo de texto libre para cuando no hay fecha exacta ("al momento del lanzamiento"), se muestra junto a o en lugar de la fecha
+- Los hitos ya cargados se pueden editar inline (nombre/monto/fecha/momento), no solo borrar
 - Card "Valor de pipeline" en el Dashboard — suma los hitos de los proyectos en curso agrupados por moneda (sin conversión automática entre monedas)
+- Misma card en la página de Proyectos, con selección múltiple de filas: muestra el total de los proyectos filtrados y un subtotal aparte de los seleccionados manualmente
 
 ---
 

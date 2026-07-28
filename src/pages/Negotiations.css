@@ -61,6 +61,67 @@
   margin-bottom: 20px;
 }
 
+.neg-pipeline-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px 20px;
+  margin-bottom: 20px;
+}
+
+.neg-pipeline-block { display: flex; flex-direction: column; gap: 8px; }
+
+.neg-pipeline-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.neg-pipeline-clear {
+  background: none;
+  border: none;
+  color: #1D4ED8;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 0;
+}
+
+.neg-pipeline-clear:hover { text-decoration: underline; }
+
+.neg-pipeline-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.neg-pipeline-empty { font-size: 13px; color: #9ca3af; }
+
+.neg-pipeline-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #059669;
+}
+
+.neg-pipeline-chip--negative { background: #FEF2F2; border-color: #FECACA; color: #DC2626; }
+
+.neg-pipeline-currency { font-size: 11px; font-weight: 600; opacity: 0.8; }
+
+.neg-th-check, .neg-td-check { width: 32px; text-align: center; }
+
 .neg-stat-card {
   background: #ffffff;
   border: 1px solid #e5e7eb;
@@ -398,6 +459,7 @@
 .neg-card-inactive:hover { background: #bae6fd; }
 
 .neg-card {
+  position: relative;
   background: #ffffff;
   border-radius: 12px;
   padding: 20px;
@@ -407,6 +469,15 @@
 }
 
 .neg-card:hover { box-shadow: 0 4px 16px rgba(11,31,58,0.1); transform: translateY(-1px); }
+
+.neg-card-checkbox {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
 
 .neg-card-header {
   display: flex;
@@ -791,6 +862,22 @@
 
 .neg-milestone-delete:hover { color: #dc2626; }
 
+.neg-milestone-edit {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 12px;
+  flex-shrink: 0;
+  padding: 0 0 0 8px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.neg-milestone-edit:hover { opacity: 1; }
+
+.neg-milestone-edit-row { flex-wrap: wrap; gap: 8px; padding: 10px 14px; }
+
 .neg-milestone-total {
   text-align: right;
   font-size: 13px;
@@ -812,6 +899,7 @@
 .neg-milestone-name-input { flex: 2; min-width: 180px; }
 .neg-milestone-amount-input { width: 110px; flex-shrink: 0; }
 .neg-milestone-date-input { width: 130px; flex-shrink: 0; }
+.neg-milestone-timing-input { flex: 1.5; min-width: 160px; }
 
 .detail-section-title {
   font-size: 11px;
@@ -1205,7 +1293,8 @@
 
   .neg-milestone-name-input,
   .neg-milestone-amount-input,
-  .neg-milestone-date-input {
+  .neg-milestone-date-input,
+  .neg-milestone-timing-input {
     width: 100%;
   }
 }

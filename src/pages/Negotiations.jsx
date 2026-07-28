@@ -5,7 +5,7 @@ import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import NotesPostIts from '../components/NotesPostIts'
 import ActivityTimeline from '../components/ActivityTimeline'
-import DealMilestones from '../components/DealMilestones'
+import DealMilestones, { formatAmount } from '../components/DealMilestones'
 import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
@@ -82,6 +82,8 @@ export default function Negotiations() {
   const [showColEditor, setShowColEditor] = useState(false)
   const [cols, saveCols] = useColumnPrefs(user?.id)
   const [highlightTaskId, setHighlightTaskId] = useState(null)
+  const [milestones, setMilestones] = useState([])
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
 
   // Si viene del banner del dashboard, pre-filtra por baja actividad
   useEffect(() => {
@@ -106,14 +108,16 @@ export default function Negotiations() {
 
   async function fetchAll() {
     setLoading(true)
-    const [negsRes, entitiesRes, membersRes, statesRes] = await Promise.all([
+    const [negsRes, entitiesRes, membersRes, statesRes, milestonesRes] = await Promise.all([
       supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code)').order('created_at', { ascending: false }),
       supabase.from('entities').select('id, name, country_code').order('name'),
       supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`).eq('workspace_id', workspaceId),
       supabase.from('custom_states').select('*').eq('object_type', 'negotiation').order('sort_order'),
+      supabase.from('deal_milestones').select('negotiation_id, amount').eq('workspace_id', workspaceId),
     ])
 
     if (negsRes.error) { setLoading(false); return }
+    setMilestones(milestonesRes.data || [])
 
     const negIds = negsRes.data.map(n => n.id)
     const [{ data: negEntities }, { data: negNotes }] = await Promise.all([
@@ -215,6 +219,38 @@ export default function Negotiations() {
     return true
   })
 
+  // Suma los hitos de pago de un set de proyectos, agrupados por moneda (sin conversión)
+  function pipelineByCurrency(negIds) {
+    const idSet = new Set(negIds)
+    const currencyByNegId = Object.fromEntries(negotiations.map(n => [n.id, n.currency || 'USD']))
+    const totals = {}
+    for (const m of milestones) {
+      if (!idSet.has(m.negotiation_id)) continue
+      const cur = currencyByNegId[m.negotiation_id] || 'USD'
+      totals[cur] = (totals[cur] || 0) + Number(m.amount)
+    }
+    return Object.entries(totals).map(([currency, total]) => ({ currency, total })).sort((a, b) => b.total - a.total)
+  }
+
+  const totalPipeline = pipelineByCurrency(filtered.map(n => n.id))
+  const selectedPipeline = selectedIds.size > 0 ? pipelineByCurrency([...selectedIds]) : []
+  const allVisibleSelected = filtered.length > 0 && filtered.every(n => selectedIds.has(n.id))
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedIds(prev => {
+      if (filtered.every(n => prev.has(n.id))) return new Set()
+      return new Set(filtered.map(n => n.id))
+    })
+  }
+
   return (
     <div className="neg-container">
       <div className="neg-header">
@@ -243,6 +279,38 @@ export default function Negotiations() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="neg-pipeline-card">
+        <div className="neg-pipeline-block">
+          <span className="neg-pipeline-label">Valor de pipeline ({filtered.length} proyecto{filtered.length !== 1 ? 's' : ''} filtrado{filtered.length !== 1 ? 's' : ''})</span>
+          <div className="neg-pipeline-row">
+            {totalPipeline.length === 0 ? (
+              <span className="neg-pipeline-empty">Sin hitos de pago cargados</span>
+            ) : totalPipeline.map(p => (
+              <span key={p.currency} className={`neg-pipeline-chip ${p.total < 0 ? 'neg-pipeline-chip--negative' : ''}`}>
+                {formatAmount(p.total)} <span className="neg-pipeline-currency">{p.currency}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+        {selectedIds.size > 0 && (
+          <div className="neg-pipeline-block">
+            <span className="neg-pipeline-label">
+              Seleccionados ({selectedIds.size})
+              <button className="neg-pipeline-clear" onClick={() => setSelectedIds(new Set())}>Deseleccionar</button>
+            </span>
+            <div className="neg-pipeline-row">
+              {selectedPipeline.length === 0 ? (
+                <span className="neg-pipeline-empty">Sin hitos de pago cargados</span>
+              ) : selectedPipeline.map(p => (
+                <span key={p.currency} className={`neg-pipeline-chip ${p.total < 0 ? 'neg-pipeline-chip--negative' : ''}`}>
+                  {formatAmount(p.total)} <span className="neg-pipeline-currency">{p.currency}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="neg-toolbar">
@@ -296,9 +364,11 @@ export default function Negotiations() {
       ) : filtered.length === 0 ? (
         <div className="neg-empty">No hay proyectos todavía.</div>
       ) : view === 'table' ? (
-        <TableView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} />
+        <TableView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols}
+          selectedIds={selectedIds} onToggleSelect={toggleSelect} allVisibleSelected={allVisibleSelected} onToggleSelectAll={toggleSelectAllVisible} />
       ) : (
-        <CardsView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} />
+        <CardsView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols}
+          selectedIds={selectedIds} onToggleSelect={toggleSelect} />
       )}
 
       {showModal && (
@@ -493,7 +563,7 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag) {
   }
 }
 
-function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols }) {
+function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll }) {
   const visibleCols = cols.filter(c => c.visible)
 
   return (
@@ -501,6 +571,9 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
       <table className="neg-table">
         <thead>
           <tr>
+            <th className="neg-th-check">
+              <input type="checkbox" checked={allVisibleSelected} onChange={onToggleSelectAll} title="Seleccionar todos los visibles" />
+            </th>
             {visibleCols.map(c => {
               const def = ALL_COLUMNS.find(x => x.key === c.key)
               return <th key={c.key}>{def?.label}</th>
@@ -512,6 +585,9 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
             const rowClass = neg.activity_status === 'paused' ? 'neg-row-paused' : neg.activity_status === 'inactive' ? 'neg-row-inactive' : ''
             return (
               <tr key={neg.id} onClick={() => onSelect(neg)} className={`neg-table-row ${rowClass}`}>
+                <td className="neg-td-check" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedIds.has(neg.id)} onChange={() => onToggleSelect(neg.id)} />
+                </td>
                 {visibleCols.map(c => renderCell(c.key, neg, getStateConfig, getEntityName, getEntityFlag))}
               </tr>
             )
@@ -588,7 +664,7 @@ function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag)
   }
 }
 
-function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols }) {
+function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, selectedIds, onToggleSelect }) {
   // Columnas visibles excluyendo product y status (que van hardcodeados en el header)
   const visibleFields = cols.filter(c => c.visible && c.key !== 'product' && c.key !== 'status')
 
@@ -600,6 +676,13 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
         const cardClass = neg.activity_status === 'paused' ? 'neg-card-paused' : neg.activity_status === 'inactive' ? 'neg-card-inactive' : ''
         return (
           <div key={neg.id} className={`neg-card ${cardClass}`} onClick={() => onSelect(neg)}>
+            <input
+              type="checkbox"
+              className="neg-card-checkbox"
+              checked={selectedIds.has(neg.id)}
+              onClick={e => e.stopPropagation()}
+              onChange={() => onToggleSelect(neg.id)}
+            />
             <div className="neg-card-header">
               <div className="neg-card-title">
                 {actIcon && <span className={`neg-paused-icon ${neg.activity_status === 'inactive' ? 'neg-icon-inactive' : 'neg-icon-paused'}`}>{actIcon}</span>}
@@ -704,6 +787,7 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
   const [newMilestoneName, setNewMilestoneName] = useState('')
   const [newMilestoneAmount, setNewMilestoneAmount] = useState('')
   const [newMilestoneDate, setNewMilestoneDate] = useState('')
+  const [newMilestoneTiming, setNewMilestoneTiming] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -776,7 +860,7 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
       if (form.milestones.length > 0) {
         const { data: insertedMilestones } = await supabase.from('deal_milestones').insert(form.milestones.map((m, idx) => ({
           workspace_id: workspaceId, negotiation_id: negId,
-          name: m.name, amount: m.amount, estimated_date: m.estimated_date || null, sort_order: idx,
+          name: m.name, amount: m.amount, estimated_date: m.estimated_date || null, timing_note: m.timing_note || null, sort_order: idx,
         }))).select('id, name, amount')
         for (const m of insertedMilestones || []) {
           await logActivity(supabase, {
@@ -984,11 +1068,13 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
               <input type="number" className="neg-note-date-input neg-milestone-amount-input" value={newMilestoneAmount} onChange={e => setNewMilestoneAmount(e.target.value)}
                 placeholder="Monto (negativo = pago a hacer)" step="0.01" />
               <input type="date" className="neg-note-date-input neg-milestone-date-input" value={newMilestoneDate} onChange={e => setNewMilestoneDate(e.target.value)} />
+              <input type="text" className="neg-note-input neg-milestone-timing-input" value={newMilestoneTiming} onChange={e => setNewMilestoneTiming(e.target.value)}
+                placeholder="Momento (si no hay fecha exacta, ej: al lanzamiento)" />
               <button type="button" className="btn-secondary" onClick={() => {
                 const amount = parseFloat(newMilestoneAmount)
                 if (!newMilestoneName.trim() || Number.isNaN(amount) || amount === 0) return
-                set('milestones', [...form.milestones, { id: Date.now(), name: newMilestoneName.trim(), amount, estimated_date: newMilestoneDate }])
-                setNewMilestoneName(''); setNewMilestoneAmount(''); setNewMilestoneDate('')
+                set('milestones', [...form.milestones, { id: Date.now(), name: newMilestoneName.trim(), amount, estimated_date: newMilestoneDate, timing_note: newMilestoneTiming.trim() }])
+                setNewMilestoneName(''); setNewMilestoneAmount(''); setNewMilestoneDate(''); setNewMilestoneTiming('')
               }}>
                 + Agregar
               </button>
@@ -997,7 +1083,11 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
               <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, border: '1px solid #e5e7eb', marginTop: 6 }}>
                 <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>{m.name}</span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: Number(m.amount) < 0 ? '#DC2626' : '#059669' }}>{Number(m.amount).toLocaleString('es-AR')} {form.currency}</span>
-                {m.estimated_date && <span style={{ fontSize: 11, color: '#9ca3af' }}>{new Date(m.estimated_date + 'T00:00:00').toLocaleDateString('es-AR')}</span>}
+                {(m.estimated_date || m.timing_note) && (
+                  <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                    {[m.estimated_date ? new Date(m.estimated_date + 'T00:00:00').toLocaleDateString('es-AR') : null, m.timing_note].filter(Boolean).join(' · ')}
+                  </span>
+                )}
                 <button type="button" onClick={() => set('milestones', form.milestones.filter(x => x.id !== m.id))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 16 }}>×</button>
               </div>
             ))}
@@ -1207,7 +1297,7 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
               workspaceId={neg.workspace_id || workspaceId}
               currency={inlineCurrency}
               canEdit={canNote}
-              onChanged={() => setActivityRefresh(v => v + 1)}
+              onChanged={() => { setActivityRefresh(v => v + 1); onActivityChanged?.() }}
             />
           </div>
           {neg.participants?.length > 0 && (
