@@ -11,6 +11,7 @@ const TYPE_ICONS = {
   status_changed: '🔄',
   milestone_added: '💰',
   deal_value_updated: '💱',
+  document_uploaded: '📎',
 }
 
 // Timeline cronológico de todo lo que pasó con un proyecto o con una

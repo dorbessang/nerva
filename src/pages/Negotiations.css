@@ -836,6 +836,22 @@
 .neg-task-title { display: block; font-size: 13px; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .neg-task-blocked-note { display: block; font-size: 11px; color: #B45309; margin-top: 2px; }
 
+.doc-icon { font-size: 18px; flex-shrink: 0; }
+.doc-meta { display: block; font-size: 11px; color: #9ca3af; margin-top: 2px; }
+
+.doc-download {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 14px;
+  flex-shrink: 0;
+  padding: 0 0 0 4px;
+  transition: color 0.15s;
+}
+
+.doc-download:hover { color: #1D4ED8; }
+
 .neg-task-status {
   font-size: 11px;
   padding: 2px 8px;

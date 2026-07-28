@@ -10,8 +10,8 @@ Sesión de repensada estratégica (2026-07-06). Contexto para retomar sin perder
 Nerva nació para seguir negociaciones ya existentes (un planner con vocabulario de CRM encima), no para generarlas. Estructuralmente hoy el centro de todo es el **Proyecto** (`negotiations`): tareas, notas y entidades vinculadas cuelgan de él. Un CRM hecho y derecho invierte esa jerarquía: el centro es la **cuenta/entidad**, y los deals son solo un hilo dentro de una relación que dura años.
 
 Comparado contra CRM de pipeline / vendor management / deal-trackers de licensing (Cortellis, DealForma, Biotechgate — más cercanos a lo que este producto es en realidad que un CRM genérico tipo HubSpot), los huecos más importantes identificados:
-- **Sin manejo de documentos** — no se puede adjuntar el NDA/contrato/propuesta a un proyecto (huella más obvia del dominio, hoy inexistente)
-- **Sin valor monetario del deal** — ningún campo de monto/moneda/estructura de pago, por eso no hay forma de calcular "valor de pipeline"
+- [x] **Manejo de documentos** — tabla `documents` (polimórfica negotiation_id/entity_id, igual patrón que notas/tareas) + bucket privado `documents` en Storage. Componente `Documents` (subir/listar/descargar vía signed URL/borrar), wireado en detalle de proyecto y como pestaña nueva en detalle de entidad. Límite 20MB por archivo, logActivity al subir
+- [x] **Valor monetario del deal** — ver punto 3 más abajo (`currency` + `deal_milestones`)
 - Sin kanban visual, sin búsqueda global, sin export/reportes, sin scorecard de proveedor, sin alertas de vencimiento de NDA/contrato (solo de tareas), sin @menciones, sin timeline de auditoría, sin bulk actions/import CSV, sin API/webhooks
 
 ### Decisión: entidad-céntrico, no proyecto-céntrico
@@ -20,7 +20,9 @@ Las entidades son lo permanente. Los proyectos pasan a ser **un tipo de vínculo
 Cambios concretos acordados para acercarse a esto **sin reescribir nada todavía**:
 1. [x] Notas y tareas cuelgan directo de una entidad (`entity_id`), no solo de un proyecto — ya no hace falta un proyecto para dejar rastro de una relación en curso. `negotiation_notes.negotiation_id` ahora nullable + `entity_id` nuevo (constraint: al menos uno de los dos); `tasks.entity_id` nuevo. Componente `NotesPostIts` extraído y reusado en proyecto/entidad
 2. [x] Timeline de actividad — no solo en la entidad, también en el proyecto (ampliación pedida en la práctica). Tabla `activity_log` nueva (workspace_id, negotiation_id, entity_id, type, title, actor_id) + componente `ActivityTimeline`. El de la entidad agrega también la actividad de todos los proyectos vinculados a ella (verdadero hub). Eventos logueados: proyecto creado, entidad creada, nota agregada, tarea creada/completada, cambio de estado. Bug encontrado y corregido en el camino: el timeline no se refrescaba solo al agregar algo, necesitó un `refreshKey`
-3. [x] Campos de valor de deal en `negotiations` — `currency` (selector) + tabla `deal_milestones` (desglose libre de hitos: upfront, milestones, royalties, lo que sea, cada uno con nombre/monto/fecha estimada). Componente `DealMilestones`, sección "VALOR DEL DEAL" en detalle y alta inicial en el modal de creación. Card "Valor de pipeline" en el Dashboard, suma los hitos de proyectos en curso agrupados por moneda (sin conversión automática)
+3. [x] Campos de valor de deal en `negotiations` — `currency` (selector) + tabla `deal_milestones` (desglose libre de hitos: upfront, milestones, royalties, lo que sea, cada uno con nombre/monto/fecha estimada o `timing_note` de texto libre si no hay fecha exacta, editable inline). Monto admite negativos (pagos salientes). Componente `DealMilestones`, sección "VALOR DEL DEAL" en detalle y alta inicial en el modal de creación. Card "Valor de pipeline" en el Dashboard y en Proyectos (con subtotal de selección múltiple), suma los hitos agrupados por moneda (sin conversión automática)
+4. [x] Campo `description` (texto largo) en `negotiations` — reemplaza un campo `notes` legado que nunca tuvo control de UI (siempre se guardaba vacío). Sección "DESCRIPCIÓN" prominente en el detalle (inline-editable) y en el modal de creación/edición, separado de "Observaciones internas" (comentario interno corto) y de las notas post-it (bitácora fechada)
+5. [x] Documentos adjuntos — ver el punto correspondiente más arriba en el diagnóstico de huecos
 
 ### Principio de diseño para decidir qué construir de acá en adelante
 **¿Esto mejora el producto de hoy (BD/licensing), además de servir a la visión larga?** Si una feature solo se justifica por el ERP imaginario del futuro y no le suma nada al uso actual, no se construye todavía — construir sobre necesidades estimadas en vez de reales es el error a evitar (dicho explícitamente por el usuario).
@@ -40,7 +42,7 @@ Decisión explícita de **no construirlo todavía**. Se define el patrón target
 - La elección de "tipo de CRM" al crear un workspace pasa a ser, en este esquema, qué **módulos** están activos — no solo qué `entity_types` vienen precargados
 
 ### Próximo paso acordado
-Puntos 1, 2 y 3 completos, funcionalidad probada y en producción. Sin próximo paso todavía acordado — a definir.
+Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diagnóstico quedan: kanban visual, búsqueda global, export/reportes, scorecard de proveedor, alertas de vencimiento de NDA/contrato, @menciones, bulk actions/import CSV, API/webhooks. Sin próximo paso todavía acordado entre esos — a definir.
 
 ### Pendientes estéticos (UI polish, no bloqueantes)
 - Card de "Valor de pipeline"/"Seleccionados" en Proyectos — funciona bien, pero el diseño se puede pulir más (usuario: "podría mejorar, pero dejalo como pendiente")

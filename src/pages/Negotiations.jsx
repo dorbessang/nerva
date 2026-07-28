@@ -6,6 +6,7 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import NotesPostIts from '../components/NotesPostIts'
 import ActivityTimeline from '../components/ActivityTimeline'
 import DealMilestones, { formatAmount } from '../components/DealMilestones'
+import Documents from '../components/Documents'
 import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
@@ -21,6 +22,7 @@ const ALL_COLUMNS = [
   { key: 'product',          label: 'Producto',         alwaysVisible: true  },
   { key: 'entities',         label: 'Proveedor'                              },
   { key: 'status',           label: 'Estado'                                 },
+  { key: 'description',      label: 'Descripción'                            },
   { key: 'nda',              label: 'NDA'                                    },
   { key: 'territories',      label: 'Territorios'                            },
   { key: 'companies',        label: 'Empresas'                               },
@@ -543,6 +545,8 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag) {
       const preview = list.map(n => `${new Date(n.note_date + 'T00:00:00').toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit' })}: ${n.content}`).join(' · ')
       return <td key={key} className="neg-td-text">{preview}</td>
     }
+    case 'description':
+      return <td key={key} className="neg-td-text">{neg.description ? neg.description : '—'}</td>
     case 'observations':
       return <td key={key} className="neg-td-text">{neg.observations ? neg.observations : '—'}</td>
     case 'activity_status': {
@@ -644,6 +648,9 @@ function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag)
       const preview = list.map(n => `${new Date(n.note_date + 'T00:00:00').toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit' })}: ${n.content}`).join(' · ')
       return <div key={key} className="neg-card-text neg-card-field">{preview}</div>
     }
+    case 'description':
+      if (!neg.description) return null
+      return <div key={key} className="neg-card-text neg-card-field">{neg.description}</div>
     case 'observations':
       if (!neg.observations) return null
       return <div key={key} className="neg-card-text neg-card-field">{neg.observations}</div>
@@ -763,7 +770,7 @@ function ChipsCombobox({ options, selected, onChange, placeholder, allowSelectAl
 export function NegotiationModal({ initial, presetEntity, entities, members, customStates, onClose, onCancel, onSaved, workspaceId, userId }) {
   const empty = {
     title: '', product: '', status: customStates[0]?.name || 'Contactado',
-    nda: '—', target_date: '', notes: '', observations: '',
+    nda: '—', target_date: '', description: '', observations: '',
     territories: [], companies: [], participants: [],
     entity_ids: presetEntity ? [{ id: presetEntity.id, role: '' }] : [], // [{ id, role }]
     tasks: [],
@@ -802,7 +809,7 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
       product: form.product?.trim(),
       status: form.status, nda: form.nda,
       target_date: form.target_date || null,
-      notes: form.notes, observations: form.observations,
+      description: form.description, observations: form.observations,
       territories: form.territories, companies: form.companies,
       participants: form.participants, created_by: userId,
       primary_entity_id: form.entity_ids[0]?.id || null,
@@ -895,6 +902,15 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
               <label>PRODUCTO / LÍNEA *</label>
               <input type="text" value={form.product} onChange={e => set('product', e.target.value)} placeholder="Ej: Ibuprofeno 400mg" />
             </div>
+          </div>
+          <div className="form-group">
+            <label>DESCRIPCIÓN</label>
+            <textarea
+              value={form.description}
+              onChange={e => set('description', e.target.value)}
+              rows={3}
+              placeholder="De qué se trata este proyecto: contexto, alcance, términos generales..."
+            />
           </div>
 
           {/* Selector de entidades — combobox + lista de seleccionadas */}
@@ -1128,6 +1144,7 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
   const [inlineStatus, setInlineStatus] = useState(neg.status || '')
   const [inlineNda, setInlineNda] = useState(neg.nda || '—')
   const [inlineObs, setInlineObs] = useState(neg.observations || '')
+  const [inlineDescription, setInlineDescription] = useState(neg.description || '')
   const [inlineCurrency, setInlineCurrency] = useState(neg.currency || 'USD')
   const cfg = getStateConfig(neg.status)
   const flag = getEntityFlag(neg)
@@ -1241,6 +1258,21 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
               <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{inlineStatus}</span>
             )}
           </div>
+          <div className="neg-detail-section">
+            <div className="detail-section-title">DESCRIPCIÓN</div>
+            {canEditInline ? (
+              <textarea
+                className="neg-inline-obs"
+                value={inlineDescription}
+                onChange={e => setInlineDescription(e.target.value)}
+                onBlur={() => saveInlineField('description', inlineDescription)}
+                placeholder="De qué se trata este proyecto: contexto, alcance, términos generales..."
+                rows={3}
+              />
+            ) : (
+              <p className="detail-empty" style={{ whiteSpace: 'pre-wrap' }}>{inlineDescription || 'Sin descripción todavía.'}</p>
+            )}
+          </div>
           {secondaryEntities.length > 0 && (
             <div className="neg-detail-section">
               <div className="detail-section-title">ENTIDADES VINCULADAS</div>
@@ -1298,6 +1330,15 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
               currency={inlineCurrency}
               canEdit={canNote}
               onChanged={() => { setActivityRefresh(v => v + 1); onActivityChanged?.() }}
+            />
+          </div>
+          <div className="neg-detail-section">
+            <div className="detail-section-title">DOCUMENTOS</div>
+            <Documents
+              negotiationId={neg.id}
+              workspaceId={neg.workspace_id || workspaceId}
+              canEdit={canNote}
+              onChanged={() => setActivityRefresh(v => v + 1)}
             />
           </div>
           {neg.participants?.length > 0 && (

@@ -21,6 +21,12 @@ Registro detallado de cambios por sesión de trabajo.
 - Card "Valor de pipeline" en el Dashboard — suma los hitos de los proyectos en curso agrupados por moneda (sin conversión automática entre monedas)
 - Misma card en la página de Proyectos, con selección múltiple de filas: muestra el total de los proyectos filtrados y un subtotal aparte de los seleccionados manualmente
 
+### Feature: Descripción larga y documentos adjuntos por proyecto/entidad
+- `negotiations.description` — reemplaza un campo `notes` legado que nunca tuvo control de UI (se guardaba vacío siempre). Sección "DESCRIPCIÓN" inline-editable en el detalle y campo en el modal de creación/edición, separado de "Observaciones internas" y de las notas post-it
+- Tabla `documents` (polimórfica negotiation_id/entity_id, mismo patrón que notas/tareas/actividad) + bucket privado `documents` en Supabase Storage
+- Componente `Documents` — subir (límite 20MB), listar con ícono/tamaño/quién subió/fecha, descargar vía signed URL, borrar. Sección en el detalle de proyecto y pestaña nueva ("Documentos") en el detalle de entidad
+- Cierra los puntos 4 y 5 de la visión de producto entidad-céntrica (documentos era el hueco más obvio del diagnóstico original)
+
 ---
 
 ## 2026-07-06

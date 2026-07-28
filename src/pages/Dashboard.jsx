@@ -98,7 +98,7 @@ export default function Dashboard() {
           .from("negotiations")
           .select(
             `
-        id, product, title, status, updated_at, nda, notes,
+        id, product, title, status, updated_at, nda, description,
         negotiation_entities ( entity:entity_id ( name, country_code ) )
       `,
           )
@@ -490,11 +490,11 @@ export default function Dashboard() {
             const entityNames =
               neg.entities?.map((e) => e.name).join(", ") || "—";
 
-            // Tooltip que aparece al hacer hover — muestra estado, NDA y notas
+            // Tooltip que aparece al hacer hover — muestra estado, NDA y descripción
             const tooltipText = [
               `Estado: ${neg.status || "—"}`,
               `NDA: ${neg.nda || "—"}`,
-              neg.notes ? `Notas: ${neg.notes}` : null,
+              neg.description ? `Descripción: ${neg.description}` : null,
             ]
               .filter(Boolean)
               .join("\n");

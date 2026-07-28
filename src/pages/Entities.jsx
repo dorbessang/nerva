@@ -8,6 +8,7 @@ import { getFlagUrl, getCountryName } from '../components/CountrySelector'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import NotesPostIts from '../components/NotesPostIts'
 import ActivityTimeline from '../components/ActivityTimeline'
+import Documents from '../components/Documents'
 import { notifyTaskAssigned } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import './Entities.css'
@@ -498,6 +499,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
                 { key: 'proyectos', label: `Proyectos (${negs.length})` },
                 { key: 'notas', label: 'Notas' },
                 { key: 'tareas', label: 'Tareas' },
+                { key: 'documentos', label: 'Documentos' },
               ].map(tab => (
                 <button
                   key={tab.key}
@@ -515,6 +517,15 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
 
             {rightTab === 'notas' && (
               <NotesPostIts
+                entityId={entity.id}
+                workspaceId={workspaceId}
+                canEdit={canNote}
+                onChanged={() => setActivityRefresh(v => v + 1)}
+              />
+            )}
+
+            {rightTab === 'documentos' && (
+              <Documents
                 entityId={entity.id}
                 workspaceId={workspaceId}
                 canEdit={canNote}
