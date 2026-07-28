@@ -444,7 +444,8 @@
   border-radius: 10px;
   width: 90vw;
   max-width: 1100px;
-  max-height: 90vh;
+  height: 85vh;
+  max-height: 85vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -465,7 +466,8 @@
   border-radius: 10px;
   width: 90vw;
   max-width: 1100px;
-  max-height: 90vh;
+  height: 85vh;
+  max-height: 85vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
