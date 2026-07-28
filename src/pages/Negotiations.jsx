@@ -673,14 +673,15 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
         const cardClass = neg.activity_status === 'paused' ? 'neg-card-paused' : neg.activity_status === 'inactive' ? 'neg-card-inactive' : ''
         return (
           <div key={neg.id} className={`neg-card ${cardClass}`} onClick={() => onSelect(neg)}>
-            <div className="neg-card-header">
+            <div className="neg-card-select-strip" onClick={e => e.stopPropagation()}>
               <input
                 type="checkbox"
                 className="neg-card-checkbox"
                 checked={selectedIds.has(neg.id)}
-                onClick={e => e.stopPropagation()}
                 onChange={() => onToggleSelect(neg.id)}
               />
+            </div>
+            <div className="neg-card-header">
               <div className="neg-card-title">
                 {actIcon && <span className={`neg-paused-icon ${neg.activity_status === 'inactive' ? 'neg-icon-inactive' : 'neg-icon-paused'}`}>{actIcon}</span>}
                 {neg.product || neg.title}
