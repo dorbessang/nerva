@@ -403,6 +403,14 @@
   color: #047857;
 }
 
+.db-pipeline-chip--negative {
+  background: #FEF2F2;
+  border-color: #FECACA;
+}
+
+.db-pipeline-chip--negative .db-pipeline-amount { color: #DC2626; }
+.db-pipeline-chip--negative .db-pipeline-currency { color: #B91C1C; }
+
 .db-recent-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

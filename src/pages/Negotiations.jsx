@@ -982,11 +982,11 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
               <input type="text" className="neg-note-input neg-milestone-name-input" value={newMilestoneName} onChange={e => setNewMilestoneName(e.target.value)}
                 placeholder="Ej: Upfront, Milestone Fase 2, Royalties Año 1..." />
               <input type="number" className="neg-note-date-input neg-milestone-amount-input" value={newMilestoneAmount} onChange={e => setNewMilestoneAmount(e.target.value)}
-                placeholder="Monto" min="0" step="0.01" />
+                placeholder="Monto (negativo = pago a hacer)" step="0.01" />
               <input type="date" className="neg-note-date-input neg-milestone-date-input" value={newMilestoneDate} onChange={e => setNewMilestoneDate(e.target.value)} />
               <button type="button" className="btn-secondary" onClick={() => {
                 const amount = parseFloat(newMilestoneAmount)
-                if (!newMilestoneName.trim() || !amount || amount <= 0) return
+                if (!newMilestoneName.trim() || Number.isNaN(amount) || amount === 0) return
                 set('milestones', [...form.milestones, { id: Date.now(), name: newMilestoneName.trim(), amount, estimated_date: newMilestoneDate }])
                 setNewMilestoneName(''); setNewMilestoneAmount(''); setNewMilestoneDate('')
               }}>
@@ -996,7 +996,7 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
             {form.milestones.map(m => (
               <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, border: '1px solid #e5e7eb', marginTop: 6 }}>
                 <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>{m.name}</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#059669' }}>{Number(m.amount).toLocaleString('es-AR')} {form.currency}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: Number(m.amount) < 0 ? '#DC2626' : '#059669' }}>{Number(m.amount).toLocaleString('es-AR')} {form.currency}</span>
                 {m.estimated_date && <span style={{ fontSize: 11, color: '#9ca3af' }}>{new Date(m.estimated_date + 'T00:00:00').toLocaleDateString('es-AR')}</span>}
                 <button type="button" onClick={() => set('milestones', form.milestones.filter(x => x.id !== m.id))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 16 }}>×</button>
               </div>

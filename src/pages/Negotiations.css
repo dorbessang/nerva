@@ -776,6 +776,7 @@
 .neg-task-date { font-size: 11px; color: #9ca3af; flex-shrink: 0; }
 
 .neg-milestone-amount { font-size: 13px; font-weight: 600; color: #059669; flex-shrink: 0; }
+.neg-milestone-amount--negative { color: #DC2626; }
 
 .neg-milestone-delete {
   background: none;
@@ -797,6 +798,8 @@
   color: #111827;
   padding: 8px 14px;
 }
+
+.neg-milestone-total--negative { color: #DC2626; }
 
 .neg-milestone-add {
   display: flex;

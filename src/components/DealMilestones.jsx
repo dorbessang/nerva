@@ -10,8 +10,9 @@ export function formatAmount(n) {
 }
 
 // Desglose de hitos de pago de un proyecto (upfront, milestones, royalties,
-// lo que sea) — cada uno es una fila libre con nombre + monto + fecha
-// estimada. El valor total del deal es la suma de todos los hitos.
+// pagos a terceros, lo que sea) — cada uno es una fila libre con nombre +
+// monto + fecha estimada. El monto admite negativos (pagos que salen,
+// no solo cobros) para que el total refleje el valor neto del deal.
 export default function DealMilestones({ negotiationId, workspaceId, currency, canEdit, onChanged }) {
   const { user } = useAuth()
   const [milestones, setMilestones] = useState([])
@@ -33,7 +34,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
 
   async function handleAdd() {
     const amount = parseFloat(newAmount)
-    if (!newName.trim() || !amount || amount <= 0) return
+    if (!newName.trim() || Number.isNaN(amount) || amount === 0) return
     setSaving(true)
     const { error } = await supabase.from('deal_milestones').insert({
       workspace_id: workspaceId,
@@ -76,7 +77,9 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
               <div className="neg-task-body">
                 <span className="neg-task-title">{m.name}</span>
               </div>
-              <span className="neg-milestone-amount">{formatAmount(m.amount)}{currency ? ` ${currency}` : ''}</span>
+              <span className={`neg-milestone-amount ${Number(m.amount) < 0 ? 'neg-milestone-amount--negative' : ''}`}>
+                {formatAmount(m.amount)}{currency ? ` ${currency}` : ''}
+              </span>
               {m.estimated_date && (
                 <span className="neg-task-date">{new Date(m.estimated_date + 'T00:00:00').toLocaleDateString('es-AR')}</span>
               )}
@@ -88,7 +91,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
         </div>
       )}
       {milestones.length > 0 && (
-        <div className="neg-milestone-total">
+        <div className={`neg-milestone-total ${total < 0 ? 'neg-milestone-total--negative' : ''}`}>
           Total: {formatAmount(total)}{currency ? ` ${currency}` : ''}
         </div>
       )}
@@ -104,10 +107,9 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
           <input
             type="number"
             className="neg-note-date-input neg-milestone-amount-input"
-            placeholder="Monto"
+            placeholder="Monto (negativo = pago a hacer)"
             value={newAmount}
             onChange={e => setNewAmount(e.target.value)}
-            min="0"
             step="0.01"
           />
           <input

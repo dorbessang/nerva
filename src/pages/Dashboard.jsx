@@ -285,7 +285,7 @@ export default function Dashboard() {
         ) : (
           <div className="db-pipeline-row">
             {pipelineValue.map((p) => (
-              <div key={p.currency} className="db-pipeline-chip">
+              <div key={p.currency} className={`db-pipeline-chip ${p.total < 0 ? 'db-pipeline-chip--negative' : ''}`}>
                 <span className="db-pipeline-amount">
                   {p.total.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
                 </span>
