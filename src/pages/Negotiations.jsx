@@ -279,14 +279,11 @@ export default function Negotiations() {
             </div>
           </div>
         ))}
-      </div>
-
-      <div className="neg-pipeline-card">
-        <div className="neg-pipeline-block">
-          <span className="neg-pipeline-label">Valor de pipeline ({filtered.length} proyecto{filtered.length !== 1 ? 's' : ''} filtrado{filtered.length !== 1 ? 's' : ''})</span>
+        <div className="neg-stat-card neg-stat-card--pipeline">
+          <div className="neg-stat-label">Valor de pipeline ({filtered.length})</div>
           <div className="neg-pipeline-row">
             {totalPipeline.length === 0 ? (
-              <span className="neg-pipeline-empty">Sin hitos de pago cargados</span>
+              <span className="neg-pipeline-empty">Sin hitos cargados</span>
             ) : totalPipeline.map(p => (
               <span key={p.currency} className={`neg-pipeline-chip ${p.total < 0 ? 'neg-pipeline-chip--negative' : ''}`}>
                 {formatAmount(p.total)} <span className="neg-pipeline-currency">{p.currency}</span>
@@ -295,14 +292,14 @@ export default function Negotiations() {
           </div>
         </div>
         {selectedIds.size > 0 && (
-          <div className="neg-pipeline-block">
-            <span className="neg-pipeline-label">
+          <div className="neg-stat-card neg-stat-card--pipeline">
+            <div className="neg-stat-label">
               Seleccionados ({selectedIds.size})
               <button className="neg-pipeline-clear" onClick={() => setSelectedIds(new Set())}>Deseleccionar</button>
-            </span>
+            </div>
             <div className="neg-pipeline-row">
               {selectedPipeline.length === 0 ? (
-                <span className="neg-pipeline-empty">Sin hitos de pago cargados</span>
+                <span className="neg-pipeline-empty">Sin hitos cargados</span>
               ) : selectedPipeline.map(p => (
                 <span key={p.currency} className={`neg-pipeline-chip ${p.total < 0 ? 'neg-pipeline-chip--negative' : ''}`}>
                   {formatAmount(p.total)} <span className="neg-pipeline-currency">{p.currency}</span>
@@ -676,14 +673,14 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
         const cardClass = neg.activity_status === 'paused' ? 'neg-card-paused' : neg.activity_status === 'inactive' ? 'neg-card-inactive' : ''
         return (
           <div key={neg.id} className={`neg-card ${cardClass}`} onClick={() => onSelect(neg)}>
-            <input
-              type="checkbox"
-              className="neg-card-checkbox"
-              checked={selectedIds.has(neg.id)}
-              onClick={e => e.stopPropagation()}
-              onChange={() => onToggleSelect(neg.id)}
-            />
             <div className="neg-card-header">
+              <input
+                type="checkbox"
+                className="neg-card-checkbox"
+                checked={selectedIds.has(neg.id)}
+                onClick={e => e.stopPropagation()}
+                onChange={() => onToggleSelect(neg.id)}
+              />
               <div className="neg-card-title">
                 {actIcon && <span className={`neg-paused-icon ${neg.activity_status === 'inactive' ? 'neg-icon-inactive' : 'neg-icon-paused'}`}>{actIcon}</span>}
                 {neg.product || neg.title}

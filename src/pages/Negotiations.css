@@ -61,28 +61,9 @@
   margin-bottom: 20px;
 }
 
-.neg-pipeline-card {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 14px 20px;
-  margin-bottom: 20px;
-}
-
-.neg-pipeline-block { display: flex; flex-direction: column; gap: 8px; }
-
-.neg-pipeline-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.neg-stat-card--pipeline {
+  grid-column: span 2;
+  min-width: 0;
 }
 
 .neg-pipeline-clear {
@@ -95,11 +76,12 @@
   text-transform: none;
   letter-spacing: normal;
   padding: 0;
+  margin-left: 8px;
 }
 
 .neg-pipeline-clear:hover { text-decoration: underline; }
 
-.neg-pipeline-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.neg-pipeline-row { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .neg-pipeline-empty { font-size: 13px; color: #9ca3af; }
 
@@ -110,15 +92,16 @@
   background: #ECFDF5;
   border: 1px solid #A7F3D0;
   border-radius: 8px;
-  padding: 5px 12px;
-  font-size: 16px;
+  padding: 3px 10px;
+  font-size: 15px;
   font-weight: 700;
   color: #059669;
+  white-space: nowrap;
 }
 
 .neg-pipeline-chip--negative { background: #FEF2F2; border-color: #FECACA; color: #DC2626; }
 
-.neg-pipeline-currency { font-size: 11px; font-weight: 600; opacity: 0.8; }
+.neg-pipeline-currency { font-size: 10px; font-weight: 600; opacity: 0.8; }
 
 .neg-th-check, .neg-td-check { width: 32px; text-align: center; }
 
@@ -459,7 +442,6 @@
 .neg-card-inactive:hover { background: #bae6fd; }
 
 .neg-card {
-  position: relative;
   background: #ffffff;
   border-radius: 12px;
   padding: 20px;
@@ -471,11 +453,10 @@
 .neg-card:hover { box-shadow: 0 4px 16px rgba(11,31,58,0.1); transform: translateY(-1px); }
 
 .neg-card-checkbox {
-  position: absolute;
-  top: 14px;
-  right: 14px;
   width: 15px;
   height: 15px;
+  flex-shrink: 0;
+  margin-top: 2px;
   cursor: pointer;
 }
 
