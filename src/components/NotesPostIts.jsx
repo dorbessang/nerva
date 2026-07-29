@@ -13,9 +13,10 @@ const NOTE_COLORS = [
   { bg: '#fecdd3', border: '#fda4af', date: '#9f1239' },
 ]
 
-// Notas tipo post-it, reusadas tanto en el detalle de proyecto como en el
-// de entidad — se filtran/insertan por negotiationId o por entityId,
-// exactamente uno de los dos.
+// Notas tipo post-it, reusadas en el detalle de proyecto, el de entidad, y
+// como notepad suelto del workspace personal — se filtran/insertan por
+// negotiationId, por entityId, o si no se pasa ninguno de los dos, quedan
+// sueltas (solo scoped por workspaceId).
 export default function NotesPostIts({ negotiationId, entityId, workspaceId, canEdit, onChanged }) {
   const { user } = useAuth()
   const [notes, setNotes] = useState([])
@@ -29,7 +30,9 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
 
   async function fetchNotes() {
     let query = supabase.from('negotiation_notes').select('*').order('note_date', { ascending: true })
-    query = negotiationId ? query.eq('negotiation_id', negotiationId) : query.eq('entity_id', entityId)
+    if (negotiationId) query = query.eq('negotiation_id', negotiationId)
+    else if (entityId) query = query.eq('entity_id', entityId)
+    else query = query.is('negotiation_id', null).is('entity_id', null).eq('workspace_id', workspaceId)
     const { data, error } = await query
     if (error) console.error('fetchNotes error:', error.message)
     if (data) setNotes(data)

@@ -4,6 +4,19 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-29
+
+### Feature: Agenda personal (workspace tipo `personal`)
+- El WS personal pasa de ser una fila vacía en la base a un producto distinto del WS de equipo: un planner simple (calendario + kanban + notas), no un CRM de proyectos/entidades a escala individual. Se investigó el mercado (Todoist, TickTick, Sunsama, Motion, Akiflow) antes de diseñar
+- `AuthContext` expone `activeWorkspace` — sidebar, Dashboard y Settings se ramifican por `activeWorkspace.type === 'personal'`: oculta Proyectos/tipos de entidad/Tareas/Usuarios/Estados, agrega "Agenda"
+- Página `/agenda` (3 pestañas), todo sobre `tasks` sin negotiation_id/entity_id — cero tablas nuevas:
+  - Tablero: kanban Pendiente/En curso/Completado mapeado a `tasks.status` (que ya tenía esos 3 valores), alta rápida sin modal, drag & drop nativo + botones de mover
+  - Calendario: grilla mensual por `due_date`, alta rápida por día, checkbox para completar
+  - Notas: `NotesPostIts` en modo standalone (se sacó el constraint que exigía negotiation_id o entity_id)
+- Dashboard del WS personal muestra hoy/esta semana/vencidas en vez de métricas de proyectos/pipeline
+
+---
+
 ## 2026-07-28
 
 ### Feature: Primer paso del pivot entidad-céntrico (notas/tareas/timeline)

@@ -17,6 +17,7 @@ import Negotiations from "./pages/Negotiations";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
+import Agenda from "./pages/Agenda";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -78,6 +79,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Tasks />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/agenda"
+            element={
+              <ProtectedRoute>
+                <Agenda />
               </ProtectedRoute>
             }
           />

@@ -27,7 +27,7 @@ function useIsMobile(breakpoint = 860) {
 }
 
 export default function Layout({ children }) {
-  const { user, profile, workspaces, workspaceId, setActiveWorkspace } = useAuth();
+  const { user, profile, workspaces, workspaceId, activeWorkspace, setActiveWorkspace } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -39,7 +39,7 @@ export default function Layout({ children }) {
   const [alertProjects, setAlertProjects] = useState([]);
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
-  const activeWorkspace = workspaces.find(w => w.id === workspaceId);
+  const isPersonalWorkspace = activeWorkspace?.type === 'personal';
 
   useEffect(() => {
     fetchEntityTypes();
@@ -80,7 +80,7 @@ export default function Layout({ children }) {
   }, []);
 
   async function fetchEntityTypes() {
-    if (!workspaceId) return;
+    if (!workspaceId || isPersonalWorkspace) { setEntityTypes([]); return; }
     const { data } = await supabase
       .from("entity_types")
       .select("id, name, icon, plural")
@@ -117,52 +117,77 @@ export default function Layout({ children }) {
         </svg>
       ),
     },
-    {
-      path: "/tasks",
-      label: "Tareas",
-      icon: (
-        // 3 filas con cuadrado a la izquierda y línea a la derecha
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 18 18"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <rect x="2" y="3" width="3" height="3" rx="0.5" />
-          <line x1="8" y1="4.5" x2="16" y2="4.5" />
-          <rect x="2" y="8" width="3" height="3" rx="0.5" />
-          <line x1="8" y1="9.5" x2="16" y2="9.5" />
-          <rect x="2" y="13" width="3" height="3" rx="0.5" />
-          <line x1="8" y1="14.5" x2="16" y2="14.5" />
-        </svg>
-      ),
-    },
-    {
-      path: "/negotiations",
-      label: "Proyectos",
-      icon: (
-        // Triángulo apuntando arriba con dos líneas cortas abajo como propulsores
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 18 18"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polygon points="9,2 13,10 5,10" />
-          <line x1="9" y1="10" x2="9" y2="14" />
-          <line x1="6" y1="13" x2="7.5" y2="16" />
-          <line x1="12" y1="13" x2="10.5" y2="16" />
-        </svg>
-      ),
-    },
+    ...(isPersonalWorkspace ? [
+      {
+        path: "/agenda",
+        label: "Agenda",
+        icon: (
+          // Calendario: marco con dos "anillos" arriba
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 18 18"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="2" y="3" width="14" height="12" rx="1.5" />
+            <line x1="2" y1="7" x2="16" y2="7" />
+            <line x1="5.5" y1="1.5" x2="5.5" y2="4.5" />
+            <line x1="12.5" y1="1.5" x2="12.5" y2="4.5" />
+          </svg>
+        ),
+      },
+    ] : [
+      {
+        path: "/tasks",
+        label: "Tareas",
+        icon: (
+          // 3 filas con cuadrado a la izquierda y línea a la derecha
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 18 18"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="2" y="3" width="3" height="3" rx="0.5" />
+            <line x1="8" y1="4.5" x2="16" y2="4.5" />
+            <rect x="2" y="8" width="3" height="3" rx="0.5" />
+            <line x1="8" y1="9.5" x2="16" y2="9.5" />
+            <rect x="2" y="13" width="3" height="3" rx="0.5" />
+            <line x1="8" y1="14.5" x2="16" y2="14.5" />
+          </svg>
+        ),
+      },
+      {
+        path: "/negotiations",
+        label: "Proyectos",
+        icon: (
+          // Triángulo apuntando arriba con dos líneas cortas abajo como propulsores
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 18 18"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polygon points="9,2 13,10 5,10" />
+            <line x1="9" y1="10" x2="9" y2="14" />
+            <line x1="6" y1="13" x2="7.5" y2="16" />
+            <line x1="12" y1="13" x2="10.5" y2="16" />
+          </svg>
+        ),
+      },
+    ]),
   ];
 
   const sidebarWidth = isMobile ? 0 : collapsed ? 64 : 220;

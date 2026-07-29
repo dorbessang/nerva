@@ -7,6 +7,12 @@ import { useNavigate } from "react-router-dom";
 import "./Dashboard.css";
 
 export default function Dashboard() {
+  const { activeWorkspace } = useAuth()
+  if (activeWorkspace?.type === 'personal') return <PersonalDashboard />
+  return <TeamDashboard />
+}
+
+function TeamDashboard() {
   const { user, workspaceId } = useAuth()
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -521,6 +527,95 @@ export default function Dashboard() {
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Dashboard del workspace personal — nada de proyectos/pipeline, solo un
+// resumen de las tareas sueltas de la Agenda (hoy / esta semana / vencidas)
+function PersonalDashboard() {
+  const { workspaceId } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState([]);
+
+  useEffect(() => {
+    if (workspaceId) fetchTasks();
+  }, [workspaceId]);
+
+  async function fetchTasks() {
+    setLoading(true);
+    const { data } = await supabase
+      .from("tasks")
+      .select("id, title, due_date, status")
+      .eq("workspace_id", workspaceId)
+      .is("negotiation_id", null)
+      .is("entity_id", null)
+      .neq("status", "done")
+      .order("due_date", { ascending: true, nullsFirst: false });
+    setTasks(data || []);
+    setLoading(false);
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const endOfWeek = new Date();
+  endOfWeek.setDate(endOfWeek.getDate() + (7 - endOfWeek.getDay()));
+  const endOfWeekStr = endOfWeek.toISOString().split("T")[0];
+
+  const todayTasks = tasks.filter((t) => t.due_date === today);
+  const weekTasks = tasks.filter((t) => t.due_date && t.due_date > today && t.due_date <= endOfWeekStr);
+  const overdueTasks = tasks.filter((t) => t.due_date && t.due_date < today);
+
+  if (loading) return <div className="db-loading">Cargando...</div>;
+
+  return (
+    <div className="db-container">
+      <div className="db-header">
+        <p className="db-date">
+          {new Date()
+            .toLocaleDateString("es-AR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+            .toLowerCase()
+            .replace(/^\w/, (l) => l.toUpperCase())}
+        </p>
+      </div>
+
+      <div className="db-metrics">
+        <div className="db-metric-card" style={{ cursor: "pointer" }} onClick={() => navigate("/agenda")}>
+          <p className="db-metric-label">Hoy</p>
+          <p className="db-metric-value">{todayTasks.length}</p>
+          <p className="db-metric-detail">tarea{todayTasks.length !== 1 ? "s" : ""} para hoy</p>
+        </div>
+        <div className="db-metric-card" style={{ cursor: "pointer" }} onClick={() => navigate("/agenda")}>
+          <p className="db-metric-label">Esta semana</p>
+          <p className="db-metric-value">{weekTasks.length}</p>
+          <p className="db-metric-detail">próximas</p>
+        </div>
+        <div className="db-metric-card" style={{ cursor: "pointer" }} onClick={() => navigate("/agenda")}>
+          <p className="db-metric-label">Vencidas</p>
+          <p className={`db-metric-value ${overdueTasks.length > 0 ? "danger" : ""}`}>{overdueTasks.length}</p>
+          <p className="db-metric-detail">{overdueTasks.length > 0 ? "Requieren atención" : "Todo al día"}</p>
+        </div>
+      </div>
+
+      <div className="db-section-card">
+        <p className="db-section-title">Próximas tareas</p>
+        {tasks.length === 0 ? (
+          <p className="db-empty">Sin tareas pendientes. ¡Buen trabajo!</p>
+        ) : (
+          tasks.slice(0, 10).map((task) => (
+            <div key={task.id} className="db-task-row" onClick={() => navigate("/agenda")}>
+              <div className="db-task-body">
+                <p className="db-task-title">{task.title}</p>
+              </div>
+              {task.due_date && (
+                <span className={`db-task-date ${task.due_date < today ? "overdue" : ""}`}>
+                  {task.due_date < today ? "Vencida" : new Date(task.due_date + "T00:00:00").toLocaleDateString("es-AR")}
+                </span>
+              )}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

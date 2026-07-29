@@ -50,6 +50,26 @@ Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diag
 
 ---
 
+## AGENDA PERSONAL (workspace tipo `personal`)
+
+El WS personal existía desde Etapa 1 solo como fila en la base (trigger `handle_new_user`), sin ningún tratamiento distinto al de un workspace de equipo en ningún lugar del código. Decisión explícita del usuario: en vez de replicar el modelo de proyectos/entidades para uso individual, el WS personal es **un producto totalmente distinto** — un planner simple tipo agenda (calendario + kanban + notas), sin nada de BD/licensing. Es un plus para hacer más adaptable el uso de Nerva, no compite con el WS de equipo (ese sigue siendo el producto fuerte). Se investigó el mercado (Todoist, TickTick, Sunsama, Motion, Akiflow, personal kanban) antes de diseñar — conclusión: nada de auto-scheduling con IA, alta rápida sin modal (estilo Todoist) + kanban de 3 columnas + calendario.
+
+- [x] `AuthContext` expone `activeWorkspace` (antes cada página lo derivaba a mano)
+- [x] Sidebar y Dashboard se ramifican por `activeWorkspace.type === 'personal'` — oculta Proyectos/tipos de entidad/Tareas, muestra "Agenda". Settings oculta Usuarios/Estados/Tipos de entidad (no aplican a un WS de un solo usuario sin proyectos)
+- [x] `negotiation_notes` — se sacó el constraint que exigía negotiation_id o entity_id; ahora también admite notas sueltas (solo `workspace_id`), usadas por el notepad de la Agenda
+- [x] Página `/agenda` con 3 pestañas, todo sobre `tasks` sin negotiation_id/entity_id (cero tablas nuevas):
+  - **Tablero**: kanban de 3 columnas (Pendiente/En curso/Completado) mapeado directo a `tasks.status`, que ya tenía esos 3 valores. Alta rápida con un input inline (sin modal), drag & drop nativo entre columnas (mismo patrón que el reordenamiento de columnas de Proyectos) + botones ‹/› para mover
+  - **Calendario**: grilla mensual, tareas ubicadas por `due_date`, alta rápida por día con click, checkbox para completar
+  - **Notas**: `NotesPostIts` en modo standalone
+- [x] Dashboard del WS personal reemplaza las métricas de proyectos/pipeline por hoy/esta semana/vencidas, reusando el mismo layout de cards que ya existía
+
+### Pendiente / a futuro (no ahora)
+- Vista semanal del calendario (hoy solo mensual)
+- Integración con Google Calendar y/o Microsoft 365 — pedido explícito del usuario para el futuro, pero es un desarrollo propio serio (OAuth por proveedor, sync de dos vías, resolución de conflictos), no una tarea de una sesión. El modelo de datos actual (una tarea = un `due_date`) no lo bloquea, pero no se construyó nada todavía
+- No se le puso gate al lado del servidor a la Edge Function `invite-user` para bloquear invitaciones a un WS personal — hoy es solo un gate de UI (se oculta el tab "Usuarios"). No es un problema de seguridad entre tenants (solo afecta al propio WS del usuario), pero si se quiere blindar del todo falta ese paso
+
+---
+
 ## ETAPA 1 — Prioridad 1
 
 - [x] Nuevo schema completo en Supabase (nuevo proyecto) — tablas, RLS, triggers

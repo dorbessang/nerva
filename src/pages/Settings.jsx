@@ -21,15 +21,21 @@ async function extractFunctionError(error) {
 }
 
 export default function Settings() {
-  const { workspaceId, effectiveRole } = useAuth()
+  const { workspaceId, effectiveRole, activeWorkspace } = useAuth()
+  const isPersonal = activeWorkspace?.type === 'personal'
   const isOwner = effectiveRole === 'owner'
   const isAdminOrOwner = effectiveRole === 'owner' || effectiveRole === 'admin'
-  const [activeTab, setActiveTab] = useState(isAdminOrOwner ? (isOwner ? 'usuarios' : 'estados') : 'notificaciones')
+  // Un workspace personal es de un solo usuario y no tiene proyectos/entidades —
+  // no tiene sentido invitar gente ni configurar estados/tipos de entidad ahí
+  const canInvite = isOwner && !isPersonal
+  const showModuleTabs = isAdminOrOwner && !isPersonal
+  const [activeTab, setActiveTab] = useState(canInvite ? 'usuarios' : showModuleTabs ? 'estados' : 'notificaciones')
 
   useEffect(() => {
-    if (activeTab === 'usuarios' && !isOwner) setActiveTab(isAdminOrOwner ? 'estados' : 'notificaciones')
-    if (['estados', 'entidades', 'workspace'].includes(activeTab) && !isAdminOrOwner) setActiveTab('notificaciones')
-  }, [isOwner, isAdminOrOwner, activeTab])
+    if (activeTab === 'usuarios' && !canInvite) setActiveTab(showModuleTabs ? 'estados' : 'notificaciones')
+    if (['estados', 'entidades'].includes(activeTab) && !showModuleTabs) setActiveTab(isAdminOrOwner ? 'workspace' : 'notificaciones')
+    if (activeTab === 'workspace' && !isAdminOrOwner) setActiveTab('notificaciones')
+  }, [canInvite, showModuleTabs, isAdminOrOwner, activeTab])
 
   return (
     <div className="settings-container">
@@ -37,12 +43,14 @@ export default function Settings() {
         <h1 className="settings-title">Configuración</h1>
       </div>
 
-      {/* Tabs de navegación interna */}
+      {/* Tabs de navegación interna — en un workspace personal (de un solo
+          usuario, sin proyectos/entidades) no tiene sentido invitar gente ni
+          configurar estados/tipos de entidad */}
       <div className="settings-tabs">
         {[
-          ...(isOwner ? [{ key: 'usuarios', label: 'Usuarios' }] : []),
-          ...(isAdminOrOwner ? [{ key: 'estados', label: 'Estados' }] : []),
-          ...(isAdminOrOwner ? [{ key: 'entidades', label: 'Tipos de entidad' }] : []),
+          ...(canInvite ? [{ key: 'usuarios', label: 'Usuarios' }] : []),
+          ...(showModuleTabs ? [{ key: 'estados', label: 'Estados' }] : []),
+          ...(showModuleTabs ? [{ key: 'entidades', label: 'Tipos de entidad' }] : []),
           ...(isAdminOrOwner ? [{ key: 'workspace', label: 'Workspace' }] : []),
           { key: 'notificaciones', label: 'Notificaciones' },
         ].map(tab => (
@@ -58,9 +66,9 @@ export default function Settings() {
 
       {/* Contenido según tab activo */}
       <div className="settings-content">
-        {activeTab === 'usuarios' && isOwner && <TabUsuarios workspaceId={workspaceId} />}
-        {activeTab === 'estados' && isAdminOrOwner && <TabEstados workspaceId={workspaceId} />}
-        {activeTab === 'entidades' && isAdminOrOwner && <TabEntidades workspaceId={workspaceId} />}
+        {activeTab === 'usuarios' && canInvite && <TabUsuarios workspaceId={workspaceId} />}
+        {activeTab === 'estados' && showModuleTabs && <TabEstados workspaceId={workspaceId} />}
+        {activeTab === 'entidades' && showModuleTabs && <TabEntidades workspaceId={workspaceId} />}
         {activeTab === 'workspace' && isAdminOrOwner && <TabWorkspace workspaceId={workspaceId} />}
         {activeTab === 'notificaciones' && <TabNotificaciones workspaceId={workspaceId} />}
       </div>

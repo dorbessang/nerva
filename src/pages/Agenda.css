@@ -1,0 +1,250 @@
+.agenda-container {
+  padding: 40px;
+  min-height: 100vh;
+  background-color: #f0f2f5;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.agenda-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.agenda-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0B1F3A;
+  margin: 0;
+}
+
+.agenda-loading { color: #6b7280; font-size: 14px; padding: 24px 0; }
+
+/* Tabs — mismo patrón que .settings-tabs/.entity-tabs */
+.agenda-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 20px;
+}
+
+.agenda-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.agenda-tab:hover { color: #0B1F3A; }
+.agenda-tab.active { color: #0B1F3A; border-bottom-color: #0B1F3A; }
+
+/* ==================== Kanban ==================== */
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.kanban-col {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px;
+  min-height: 200px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.kanban-col.drag-over { background: #EFF6FF; border-color: #1D4ED8; }
+
+.kanban-col-header {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kanban-col-count { color: #9ca3af; font-weight: 500; }
+
+.kanban-quick-add { margin-bottom: 10px; }
+
+.kanban-quick-add input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  padding: 8px 10px;
+  font-size: 13px;
+  outline: none;
+}
+
+.kanban-quick-add input:focus { border-color: #0B1F3A; }
+
+.kanban-col-body { display: flex; flex-direction: column; gap: 8px; }
+
+.kanban-empty { font-size: 12px; color: #9ca3af; margin: 0; }
+
+.kanban-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: grab;
+  position: relative;
+}
+
+.kanban-card:active { cursor: grabbing; }
+
+.kanban-card-title { display: block; font-size: 13px; color: #111827; }
+.kanban-card-date { display: block; font-size: 11px; color: #9ca3af; margin-top: 4px; }
+
+.kanban-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.kanban-card:hover .kanban-card-actions { opacity: 1; }
+
+.kanban-card-actions button {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 5px;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+  padding: 2px 7px;
+}
+
+.kanban-card-actions button:hover { border-color: #0B1F3A; color: #0B1F3A; }
+.kanban-card-delete:hover { border-color: #dc2626 !important; color: #dc2626 !important; }
+
+/* ==================== Calendario ==================== */
+.calendar-view { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; }
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.calendar-nav button {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #374151;
+}
+
+.calendar-nav button:hover { border-color: #0B1F3A; color: #0B1F3A; }
+
+.calendar-month-label { font-size: 15px; font-weight: 700; color: #0B1F3A; min-width: 160px; }
+.calendar-today-btn { margin-left: auto; }
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.calendar-weekday {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  text-align: center;
+  padding-bottom: 4px;
+}
+
+.calendar-cell {
+  min-height: 90px;
+  border: 1px solid #f0f2f5;
+  border-radius: 6px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-cell--empty { border: none; background: transparent; }
+.calendar-cell--today { border-color: #1D4ED8; background: #EFF6FF; }
+
+.calendar-cell-day { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px; }
+
+.calendar-cell-tasks { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+
+.calendar-task {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  background: #f9fafb;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+.calendar-task input[type="checkbox"] { width: 11px; height: 11px; flex-shrink: 0; cursor: pointer; }
+.calendar-task-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-task.done .calendar-task-title { text-decoration: line-through; color: #9ca3af; }
+
+.calendar-task-delete {
+  background: none;
+  border: none;
+  color: #d1d5db;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.calendar-task-delete:hover { color: #dc2626; }
+
+.calendar-add-btn {
+  background: none;
+  border: 1px dashed #e5e7eb;
+  border-radius: 4px;
+  color: #9ca3af;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 1px 0;
+}
+
+.calendar-add-btn:hover { border-color: #0B1F3A; color: #0B1F3A; }
+
+.calendar-add-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #1D4ED8;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 11px;
+  outline: none;
+}
+
+/* ==================== Mobile ==================== */
+@media (max-width: 860px) {
+  .agenda-container { padding: 16px; }
+
+  .kanban-board {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-cell { min-height: 60px; }
+  .calendar-month-label { min-width: 0; }
+  .calendar-task-title { font-size: 10px; }
+}

@@ -107,8 +107,10 @@ export function AuthProvider({ children }) {
     setProfile(data ?? null)
   }
 
+  const activeWorkspace = workspaces.find(w => w.id === workspaceId) || null
+
   return (
-    <AuthContext.Provider value={{ user, session, role, effectiveRole, isStaff, impersonateRole, profile, refreshProfile, workspaceId, workspaces, setActiveWorkspace, refreshWorkspaces, loading }}>
+    <AuthContext.Provider value={{ user, session, role, effectiveRole, isStaff, impersonateRole, profile, refreshProfile, workspaceId, workspaces, activeWorkspace, setActiveWorkspace, refreshWorkspaces, loading }}>
       {children}
     </AuthContext.Provider>
   )
