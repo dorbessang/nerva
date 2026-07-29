@@ -108,8 +108,12 @@ export default function Agenda() {
   )
 }
 
+const TODAY_WIDGET_MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+const TODAY_WIDGET_WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+
 function TodayWidget({ tasks }) {
-  const todayStr = toDateStr(new Date())
+  const now = new Date()
+  const todayStr = toDateStr(now)
   const todayTasks = tasks
     .filter(t => t.due_date === todayStr && t.status !== 'done')
     .sort((a, b) => {
@@ -121,15 +125,34 @@ function TodayWidget({ tasks }) {
 
   return (
     <div className="today-widget">
-      <div className="today-widget-title">Hoy</div>
+      <div className="today-widget-header">
+        <div>
+          <div className="today-widget-title">Hoy</div>
+          <div className="today-widget-date">
+            {TODAY_WIDGET_WEEKDAYS[now.getDay()]}, {now.getDate()} de {TODAY_WIDGET_MONTHS[now.getMonth()]}
+          </div>
+        </div>
+        {todayTasks.length > 0 && (
+          <span className="today-widget-count">{todayTasks.length}</span>
+        )}
+      </div>
       {todayTasks.length === 0 ? (
-        <p className="kanban-empty">Nada para hoy.</p>
+        <div className="today-widget-empty">
+          <span className="today-widget-empty-icon">✓</span>
+          <p>Nada para hoy.</p>
+        </div>
       ) : (
-        <div className="today-widget-list">
+        <div className="today-widget-timeline">
           {todayTasks.map(t => (
             <div key={t.id} className="today-widget-item">
-              {t.due_time && <span className="today-widget-time">{t.due_time.slice(0, 5)}</span>}
-              <span className="today-widget-task-title">{t.title}</span>
+              <div className="today-widget-marker">
+                <span className="today-widget-dot" />
+                <span className="today-widget-line" />
+              </div>
+              <div className="today-widget-content">
+                {t.due_time && <span className="today-widget-time">{t.due_time.slice(0, 5)}</span>}
+                <span className="today-widget-task-title">{t.title}</span>
+              </div>
             </div>
           ))}
         </div>
@@ -282,6 +305,26 @@ function layoutTimedTasks(timedTasks) {
     cluster.forEach((t, i) => positioned.push({ ...t, _col: i, _cols: cluster.length }))
   }
   return positioned
+}
+
+// Cierra un formulario inline (alta rápida de tarea/evento) al tocar Escape
+// o clickear afuera — usado por todos los "+" de la Agenda.
+function useCloseOnOutsideOrEscape(ref, active, onClose) {
+  useEffect(() => {
+    if (!active) return
+    function handleMouseDown(e) {
+      if (ref.current && !ref.current.contains(e.target)) onClose()
+    }
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [active, onClose])
 }
 
 function CalendarView({ tasks, canEdit, onAdd, onMove, onDelete }) {
@@ -489,10 +532,14 @@ function TimeColumn({ date, tasks, canEdit, onAdd, onMove, onDelete }) {
   const [addingTime, setAddingTime] = useState(null)
   const [addingTitle, setAddingTitle] = useState('')
   const [addingEnd, setAddingEnd] = useState('')
+  const formRef = useRef(null)
 
   const dStr = toDateStr(date)
   const timedTasks = tasks.filter(t => t.due_date === dStr && t.due_time)
   const positioned = layoutTimedTasks(timedTasks)
+
+  function closeAdd() { setAddingTime(null) }
+  useCloseOnOutsideOrEscape(formRef, !!addingTime, closeAdd)
 
   function handleSlotClick(e) {
     if (!canEdit) return
@@ -506,7 +553,8 @@ function TimeColumn({ date, tasks, canEdit, onAdd, onMove, onDelete }) {
     setAddingEnd(addMinutesToTime(start, 30))
   }
 
-  function submitAdd() {
+  function submitAdd(e) {
+    e?.preventDefault()
     if (!addingTitle.trim()) { setAddingTime(null); return }
     onAdd(addingTitle, dStr, addingTime, addingEnd || null)
     setAddingTime(null)
@@ -548,22 +596,25 @@ function TimeColumn({ date, tasks, canEdit, onAdd, onMove, onDelete }) {
       })}
 
       {addingTime && (
-        <div className="time-add-form" style={{ top: (timeToMinutes(addingTime) / 60) * HOUR_HEIGHT }} onClick={e => e.stopPropagation()}>
+        <form
+          className="time-add-form" ref={formRef}
+          style={{ top: (timeToMinutes(addingTime) / 60) * HOUR_HEIGHT }}
+          onClick={e => e.stopPropagation()}
+          onSubmit={submitAdd}
+        >
           <input
             type="text" autoFocus placeholder="Título..." className="time-add-title"
             value={addingTitle} onChange={e => setAddingTitle(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') submitAdd(); if (e.key === 'Escape') setAddingTime(null) }}
           />
           <div className="time-add-row">
             <span>{addingTime} –</span>
             <input
               type="time" className="time-add-end" value={addingEnd}
               onChange={e => setAddingEnd(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') submitAdd(); if (e.key === 'Escape') setAddingTime(null) }}
             />
-            <button className="time-add-ok" onClick={submitAdd}>OK</button>
+            <button type="submit" className="time-add-ok">OK</button>
           </div>
-        </div>
+        </form>
       )}
     </div>
   )
@@ -580,27 +631,30 @@ function QuickAddPanel({ defaultDate, onAdd, onClose }) {
     return minutesToTime(Math.floor((now.getHours() * 60 + now.getMinutes()) / 30) * 30)
   })
   const [end, setEnd] = useState(() => addMinutesToTime(start, 30))
+  const formRef = useRef(null)
 
-  function submit() {
+  useCloseOnOutsideOrEscape(formRef, true, onClose)
+
+  function submit(e) {
+    e?.preventDefault()
     if (!title.trim()) return
     onAdd(title, date, start, end)
     onClose()
   }
 
   return (
-    <div className="quick-add-panel">
+    <form className="quick-add-panel" ref={formRef} onSubmit={submit}>
       <input
         type="text" autoFocus placeholder="Título del evento..." className="quick-add-title"
         value={title} onChange={e => setTitle(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') onClose() }}
       />
       <input type="date" value={date} onChange={e => setDate(e.target.value)} />
       <input type="time" value={start} onChange={e => { setStart(e.target.value); setEnd(addMinutesToTime(e.target.value, 30)) }} />
       <span className="quick-add-sep">–</span>
       <input type="time" value={end} onChange={e => setEnd(e.target.value)} />
-      <button className="time-add-ok" onClick={submit}>Agregar</button>
-      <button className="quick-add-cancel" onClick={onClose}>✕</button>
-    </div>
+      <button type="submit" className="time-add-ok">Agregar</button>
+      <button type="button" className="quick-add-cancel" onClick={onClose}>✕</button>
+    </form>
   )
 }
 
