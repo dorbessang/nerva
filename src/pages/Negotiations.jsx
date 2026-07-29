@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
@@ -59,33 +60,21 @@ function getExportValue(key, neg, getEntityName) {
   }
 }
 
-// Excel en configuración regional es-AR/es-ES usa coma como separador
-// decimal, así que interpreta el CSV con ";" como separador de columna en
-// vez de ",". Si el archivo viene con comas, Excel no lo separa en columnas
-// (todo cae en una sola celda). Usamos ";" + la línea "sep=;" (una directiva
-// que Excel reconoce para fijar el separador sin depender de la config regional).
-function escapeCsvField(value) {
-  const str = String(value ?? '')
-  return /[";\n\r]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str
-}
-
-function exportNegotiationsCsv(negotiations, cols, getEntityName) {
+// Excel real (.xlsx) en vez de CSV: evita de raíz los problemas de
+// delimitador (coma vs ";" según configuración regional) y de codificación
+// de acentos que sí aparecen con texto plano tipo CSV.
+function exportNegotiationsXlsx(negotiations, cols, getEntityName) {
   const visibleCols = cols.filter(c => c.visible)
   const headers = visibleCols.map(c => ALL_COLUMNS.find(x => x.key === c.key)?.label || c.key)
-  const lines = [
+  const rows = [
     headers,
     ...negotiations.map(neg => visibleCols.map(c => getExportValue(c.key, neg, getEntityName))),
   ]
-  const csv = 'sep=;\r\n' + lines.map(line => line.map(escapeCsvField).join(';')).join('\r\n')
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `nerva-proyectos-${new Date().toISOString().slice(0, 10)}.csv`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = visibleCols.map(() => ({ wch: 22 }))
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Proyectos')
+  XLSX.writeFile(wb, `nerva-proyectos-${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
 function useColumnPrefs(userId) {
@@ -430,10 +419,10 @@ export default function Negotiations() {
         )}
         <button
           className="neg-col-btn"
-          onClick={() => exportNegotiationsCsv(selectedIds.size > 0 ? filtered.filter(n => selectedIds.has(n.id)) : filtered, cols, getEntityName)}
-          title={selectedIds.size > 0 ? `Exportar los ${selectedIds.size} seleccionados a CSV` : 'Exportar los proyectos filtrados a CSV'}
+          onClick={() => exportNegotiationsXlsx(selectedIds.size > 0 ? filtered.filter(n => selectedIds.has(n.id)) : filtered, cols, getEntityName)}
+          title={selectedIds.size > 0 ? `Exportar los ${selectedIds.size} seleccionados a Excel` : 'Exportar los proyectos filtrados a Excel'}
         >
-          ⬇ Exportar CSV
+          ⬇ Exportar Excel
         </button>
       </div>
 

@@ -28,11 +28,11 @@ Registro detallado de cambios por sesión de trabajo.
 - `useCloseOnOutsideOrEscape` se extrajo de Agenda.jsx a `src/lib/useCloseOnOutsideOrEscape.js` para reusarlo acá
 - Fix (reportado probando en real): dos proyectos con el mismo nombre de producto pero distinto proveedor no se distinguían en los resultados — se agregó el proveedor principal como subtítulo (con fallback al primer proveedor vinculado, ya que muchos proyectos no tienen `primary_entity_id` seteado), extendido también a Tareas y Notas encadenando proyecto + proveedor de ese proyecto
 
-### Feature: Export CSV de Proyectos
-- Botón "⬇ Exportar CSV" en el toolbar de `/negotiations`, junto a "⚙ Columnas" — exporta la lista ya filtrada, usando las columnas que el usuario tiene visibles; si hay filas seleccionadas, exporta solo esas
-- Generación 100% cliente, sin Edge Function — BOM UTF-8 para acentos en Excel, fechas en ISO en vez del formato relativo de la tabla
-- Fix (reportado probando en real): se abría "todo junto" en Excel con configuración regional es-AR/es-ES, que usa `;` como separador de columna en CSV (no `,`, porque la coma es el separador decimal ahí) — se cambió el delimitador a `;` + directiva `sep=;` al inicio del archivo para que Excel lo reconozca sin depender de la configuración regional
-- PDF queda como segunda entrega, después de probar el CSV en uso real (decisión explícita)
+### Feature: Export de Proyectos a Excel
+- Botón "⬇ Exportar Excel" en el toolbar de `/negotiations`, junto a "⚙ Columnas" — exporta la lista ya filtrada, usando las columnas que el usuario tiene visibles; si hay filas seleccionadas, exporta solo esas
+- Arrancó como CSV, pero probando en real salieron dos bugs seguidos propios de Excel: separador de columna (`,` vs `;` según configuración regional es-AR/es-ES) y mojibake en los acentos pese al BOM UTF-8. Se cambió a generar un `.xlsx` real con `xlsx` (SheetJS) en vez de seguir parchando CSV — sin delimitador ni codificación de texto de por medio, ambos problemas se resuelven de raíz
+- 100% cliente (sin Edge Function), fechas en ISO en vez del formato relativo de la tabla. Nota: `xlsx` tiene CVEs sin parchear del lado de lectura de archivos, no aplican acá porque solo se usa para escribir — hay que revisarlo de nuevo si algún día se lee `.xlsx` (ej. un import)
+- PDF queda como segunda entrega, después de probar esto en uso real (decisión explícita)
 
 ### Exploración: rediseño visual (sin implementar)
 - Sesión de mockups en Artifacts para explorar una identidad visual más moderna que la actual (todo en cards blancas iguales) — se investigaron 4 direcciones (suave/moderno, minimalista, bold/vívido, depth-glass), después se refinaron 3 layouts distintos (suave con acento, bento moderno, clásico profesional) con el widget "Hoy" movido a barra horizontal arriba. Se acordó una dirección final (base suave + acento bold contenido a franjas de 3px solo en las tarjetas de arriba) y quedarse con 2 temas seleccionables desde Settings (Bento moderno por defecto, Clásico como alternativa) + toggle claro/oscuro — explícitamente pausado para una próxima sesión, nada de esto se tocó en código todavía
