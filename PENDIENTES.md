@@ -42,10 +42,16 @@ Decisión explícita de **no construirlo todavía**. Se define el patrón target
 - La elección de "tipo de CRM" al crear un workspace pasa a ser, en este esquema, qué **módulos** están activos — no solo qué `entity_types` vienen precargados
 
 ### Próximo paso acordado
-Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diagnóstico quedan: ~~kanban visual~~ y ~~búsqueda global~~ (hechos, ver abajo), export/reportes, scorecard de proveedor, alertas de vencimiento de NDA/contrato, @menciones, bulk actions/import CSV, API/webhooks.
+Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diagnóstico quedan: ~~kanban visual~~, ~~búsqueda global~~ y ~~export CSV~~ (hechos, ver abajo), scorecard de proveedor, alertas de vencimiento de NDA/contrato, @menciones, bulk actions/import CSV, API/webhooks.
 
 - Alertas de vencimiento de NDA/contrato — descartado por ahora. Hoy `nda` es un campo hardcodeado en `negotiations`, pero según lo pensado para Etapa 2 (campos custom por workspace) no va a seguir siendo un campo fijo — no tiene sentido construir alertas sobre un dato que va a cambiar de modelo pronto
-- Sin export/reportes, scorecard de proveedor, @menciones, bulk actions/import CSV, API/webhooks — sin definir orden todavía
+- Sin scorecard de proveedor, @menciones, bulk actions/import CSV, API/webhooks — sin definir orden todavía
+
+### Export de Proyectos
+- [x] Botón "⬇ Exportar CSV" en el toolbar de `/negotiations`, junto a "⚙ Columnas". Exporta la lista `filtered` (respeta los filtros de búsqueda/proveedor/estado/actividad activos) usando exactamente las columnas visibles del usuario (`cols`) — si hay filas seleccionadas, exporta solo esas en vez de todo lo filtrado
+- [x] Generación 100% cliente (`exportNegotiationsCsv`, sin Edge Function): BOM UTF-8 para que Excel abra bien los acentos, escapado de comas/comillas/saltos de línea, valores de fecha en ISO (no el formato relativo "hace Nd" que usa la tabla, más útil para analizar en planilla)
+- [x] Probado con Playwright capturando la descarga real: nombre de archivo, contenido completo, y que "solo seleccionados" efectivamente filtra a 1 fila
+- PDF queda pendiente como segunda entrega (decisión explícita: CSV primero, probarlo en uso real antes de invertir en el layout de un PDF)
 
 ### Kanban visual de Proyectos
 - [x] Tercera vista en `/negotiations` (☰ tabla / ⊞ cards / ▦ kanban), toggle junto a los otros dos. Columnas = `custom_states` del workspace (mismas que ya se configuran en Settings, orden por `sort_order`) — no hace falta ningún estado nuevo, ni tabla nueva

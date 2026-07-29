@@ -36,6 +36,53 @@ const ALL_COLUMNS = [
 
 const DEFAULT_VISIBLE = ['product','entities','status','nda','territories','companies','target_date']
 
+const ACTIVITY_LABELS = { active: 'En curso', paused: 'Pausado', inactive: 'Inactivo' }
+
+// Valor de texto plano por columna para el export CSV — separado de
+// renderCell/renderCardField porque esos devuelven JSX con badges/chips.
+function getExportValue(key, neg, getEntityName) {
+  switch (key) {
+    case 'product': return neg.product || neg.title || ''
+    case 'entities': return getEntityName(neg)
+    case 'status': return neg.status || ''
+    case 'description': return neg.description || ''
+    case 'nda': return neg.nda || ''
+    case 'territories': return (neg.territories || []).join('; ')
+    case 'companies': return (neg.companies || []).join('; ')
+    case 'target_date': return neg.target_date || ''
+    case 'participants': return (neg.participants || []).join('; ')
+    case 'notes': return (neg.notes_list || []).map(n => `${n.note_date}: ${n.content}`).join(' | ')
+    case 'observations': return neg.observations || ''
+    case 'activity_status': return ACTIVITY_LABELS[neg.activity_status] || ''
+    case 'last_activity_at': return neg.last_activity_at ? neg.last_activity_at.slice(0, 10) : ''
+    default: return ''
+  }
+}
+
+function escapeCsvField(value) {
+  const str = String(value ?? '')
+  return /[",\n\r]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str
+}
+
+function exportNegotiationsCsv(negotiations, cols, getEntityName) {
+  const visibleCols = cols.filter(c => c.visible)
+  const headers = visibleCols.map(c => ALL_COLUMNS.find(x => x.key === c.key)?.label || c.key)
+  const lines = [
+    headers,
+    ...negotiations.map(neg => visibleCols.map(c => getExportValue(c.key, neg, getEntityName))),
+  ]
+  const csv = lines.map(line => line.map(escapeCsvField).join(',')).join('\r\n')
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `nerva-proyectos-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 function useColumnPrefs(userId) {
   const key = `nerva_col_prefs_${userId}`
   const [cols, setCols] = useState(() => {
@@ -376,6 +423,13 @@ export default function Negotiations() {
             ⚙ Columnas
           </button>
         )}
+        <button
+          className="neg-col-btn"
+          onClick={() => exportNegotiationsCsv(selectedIds.size > 0 ? filtered.filter(n => selectedIds.has(n.id)) : filtered, cols, getEntityName)}
+          title={selectedIds.size > 0 ? `Exportar los ${selectedIds.size} seleccionados a CSV` : 'Exportar los proyectos filtrados a CSV'}
+        >
+          ⬇ Exportar CSV
+        </button>
       </div>
 
       {showColEditor && view !== 'kanban' && (

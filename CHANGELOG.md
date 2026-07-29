@@ -28,6 +28,11 @@ Registro detallado de cambios por sesión de trabajo.
 - `useCloseOnOutsideOrEscape` se extrajo de Agenda.jsx a `src/lib/useCloseOnOutsideOrEscape.js` para reusarlo acá
 - Fix (reportado probando en real): dos proyectos con el mismo nombre de producto pero distinto proveedor no se distinguían en los resultados — se agregó el proveedor principal como subtítulo (con fallback al primer proveedor vinculado, ya que muchos proyectos no tienen `primary_entity_id` seteado), extendido también a Tareas y Notas encadenando proyecto + proveedor de ese proyecto
 
+### Feature: Export CSV de Proyectos
+- Botón "⬇ Exportar CSV" en el toolbar de `/negotiations`, junto a "⚙ Columnas" — exporta la lista ya filtrada, usando las columnas que el usuario tiene visibles; si hay filas seleccionadas, exporta solo esas
+- Generación 100% cliente, sin Edge Function — BOM UTF-8 para acentos en Excel, escapado correcto de comas/comillas/saltos de línea, fechas en ISO en vez del formato relativo de la tabla
+- PDF queda como segunda entrega, después de probar el CSV en uso real (decisión explícita)
+
 ### Exploración: rediseño visual (sin implementar)
 - Sesión de mockups en Artifacts para explorar una identidad visual más moderna que la actual (todo en cards blancas iguales) — se investigaron 4 direcciones (suave/moderno, minimalista, bold/vívido, depth-glass), después se refinaron 3 layouts distintos (suave con acento, bento moderno, clásico profesional) con el widget "Hoy" movido a barra horizontal arriba. Se acordó una dirección final (base suave + acento bold contenido a franjas de 3px solo en las tarjetas de arriba) y quedarse con 2 temas seleccionables desde Settings (Bento moderno por defecto, Clásico como alternativa) + toggle claro/oscuro — explícitamente pausado para una próxima sesión, nada de esto se tocó en código todavía
 
