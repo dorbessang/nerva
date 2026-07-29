@@ -20,6 +20,19 @@ function primaryEntityName(n) {
   return n.primary_entity?.name || n.negotiation_entities?.[0]?.entity?.name || null
 }
 
+// Subtítulo de contexto para una tarea/nota: si cuelga de un proyecto, el
+// proyecto + su proveedor (para desambiguar proyectos homónimos); si cuelga
+// directo de una entidad, el nombre de la entidad.
+function contextLabel(item) {
+  if (item.negotiation) {
+    const title = item.negotiation.product || item.negotiation.title
+    const entityName = primaryEntityName(item.negotiation)
+    return entityName ? `${title} · ${entityName}` : title
+  }
+  if (item.entity) return item.entity.name
+  return null
+}
+
 export default function GlobalSearch() {
   const { workspaceId, activeWorkspace } = useAuth()
   const navigate = useNavigate()
@@ -70,11 +83,20 @@ export default function GlobalSearch() {
       supabase.from('entities').select('id, name, entity_type_id')
         .eq('workspace_id', workspaceId)
         .ilike('name', like).limit(LIMIT),
-      supabase.from('tasks').select('id, title, negotiation_id, entity_id, entity:entity_id(entity_type_id)')
+      supabase.from('tasks')
+        .select(`
+          id, title, negotiation_id, entity_id,
+          negotiation:negotiation_id(id, product, title, primary_entity:primary_entity_id(name), negotiation_entities(entity:entity_id(name))),
+          entity:entity_id(id, name, entity_type_id)
+        `)
         .eq('workspace_id', workspaceId)
         .ilike('title', like).limit(LIMIT),
       supabase.from('negotiation_notes')
-        .select('id, content, negotiation_id, entity_id, negotiation:negotiation_id(id,product,title), entity:entity_id(id,name,entity_type_id)')
+        .select(`
+          id, content, negotiation_id, entity_id,
+          negotiation:negotiation_id(id, product, title, primary_entity:primary_entity_id(name), negotiation_entities(entity:entity_id(name))),
+          entity:entity_id(id, name, entity_type_id)
+        `)
         .eq('workspace_id', workspaceId)
         .ilike('content', like).limit(LIMIT),
     ])
@@ -182,7 +204,10 @@ export default function GlobalSearch() {
                   <div className="global-search-group-label">Tareas</div>
                   {results.tasks.map(t => (
                     <button key={t.id} className="global-search-item" onClick={() => goToTask(t)}>
-                      {t.title}
+                      <span className="global-search-item-note">{t.title}</span>
+                      {contextLabel(t) && (
+                        <span className="global-search-item-sub">en {contextLabel(t)}</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -193,8 +218,8 @@ export default function GlobalSearch() {
                   {results.notes.map(n => (
                     <button key={n.id} className="global-search-item" onClick={() => goToNote(n)}>
                       <span className="global-search-item-note">{truncate(n.content, 70)}</span>
-                      {(n.negotiation || n.entity) && (
-                        <span className="global-search-item-sub">en {n.negotiation?.product || n.negotiation?.title || n.entity?.name}</span>
+                      {contextLabel(n) && (
+                        <span className="global-search-item-sub">en {contextLabel(n)}</span>
                       )}
                     </button>
                   ))}
