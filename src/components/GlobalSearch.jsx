@@ -14,6 +14,12 @@ function truncate(text, max) {
   return text.length > max ? text.slice(0, max) + '…' : text
 }
 
+// Igual que el fallback ya usado en Negotiations.jsx: si no hay primary_entity_id
+// seteado, usa el primer proveedor vinculado.
+function primaryEntityName(n) {
+  return n.primary_entity?.name || n.negotiation_entities?.[0]?.entity?.name || null
+}
+
 export default function GlobalSearch() {
   const { workspaceId, activeWorkspace } = useAuth()
   const navigate = useNavigate()
@@ -57,7 +63,8 @@ export default function GlobalSearch() {
     }
 
     const [negRes, entRes, taskRes, noteRes] = await Promise.all([
-      supabase.from('negotiations').select('id, product, title, primary_entity:primary_entity_id(name)')
+      supabase.from('negotiations')
+        .select('id, product, title, primary_entity:primary_entity_id(name), negotiation_entities(entity:entity_id(name))')
         .eq('workspace_id', workspaceId)
         .or(`product.ilike.${like},title.ilike.${like}`).limit(LIMIT),
       supabase.from('entities').select('id, name, entity_type_id')
@@ -153,8 +160,8 @@ export default function GlobalSearch() {
                   {results.negotiations.map(n => (
                     <button key={n.id} className="global-search-item" onClick={() => goTo(`/negotiations?openNeg=${n.id}`)}>
                       <span className="global-search-item-note">{n.product || n.title}</span>
-                      {n.primary_entity?.name && (
-                        <span className="global-search-item-sub">con {n.primary_entity.name}</span>
+                      {primaryEntityName(n) && (
+                        <span className="global-search-item-sub">con {primaryEntityName(n)}</span>
                       )}
                     </button>
                   ))}
