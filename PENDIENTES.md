@@ -59,13 +59,14 @@ El WS personal existía desde Etapa 1 solo como fila en la base (trigger `handle
 - [x] `negotiation_notes` — se sacó el constraint que exigía negotiation_id o entity_id; ahora también admite notas sueltas (solo `workspace_id`), usadas por el notepad de la Agenda
 - [x] Página `/agenda` con 3 pestañas, todo sobre `tasks` sin negotiation_id/entity_id (cero tablas nuevas):
   - **Tablero**: kanban de 3 columnas (Pendiente/En curso/Completado) mapeado directo a `tasks.status`, que ya tenía esos 3 valores. Alta rápida con un input inline (sin modal), drag & drop nativo entre columnas (mismo patrón que el reordenamiento de columnas de Proyectos) + botones ‹/› para mover
-  - **Calendario**: grilla mensual, tareas ubicadas por `due_date`, alta rápida por día con click, checkbox para completar
+  - **Calendario**: toggle Mes/Día.
+    - Mes: grilla mensual, tareas ubicadas por `due_date`, alta rápida por día con click, checkbox para completar, click en el número del día salta a la vista Día de esa fecha
+    - Día: `tasks.due_time` (columna nueva, nullable, aditiva — no rompe nada de lo que ya usaba solo `due_date`) — grilla horaria tipo Google Calendar (00 a 23hs, auto-scroll a las 7am), sección "Sin horario" arriba para tareas sin hora puntual, click en una franja horaria para agregar una tarea con esa hora
   - **Notas**: `NotesPostIts` en modo standalone
 - [x] Dashboard del WS personal reemplaza las métricas de proyectos/pipeline por hoy/esta semana/vencidas, reusando el mismo layout de cards que ya existía
 
 ### Pendiente / a futuro (no ahora)
-- Vista semanal del calendario (hoy solo mensual)
-- Integración con Google Calendar y/o Microsoft 365 — pedido explícito del usuario para el futuro, pero es un desarrollo propio serio (OAuth por proveedor, sync de dos vías, resolución de conflictos), no una tarea de una sesión. El modelo de datos actual (una tarea = un `due_date`) no lo bloquea, pero no se construyó nada todavía
+- Integración con Google Calendar y/o Microsoft 365 — pedido explícito del usuario para el futuro, pero es un desarrollo propio serio (OAuth por proveedor, sync de dos vías, resolución de conflictos), no una tarea de una sesión. El modelo de datos actual (`due_date` + `due_time`) no lo bloquea, pero no se construyó nada todavía
 - No se le puso gate al lado del servidor a la Edge Function `invite-user` para bloquear invitaciones a un WS personal — hoy es solo un gate de UI (se oculta el tab "Usuarios"). No es un problema de seguridad entre tenants (solo afecta al propio WS del usuario), pero si se quiere blindar del todo falta ese paso
 
 ---

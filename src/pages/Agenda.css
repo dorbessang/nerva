@@ -184,7 +184,20 @@
 .calendar-cell--empty { border: none; background: transparent; }
 .calendar-cell--today { border-color: #1D4ED8; background: #EFF6FF; }
 
-.calendar-cell-day { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px; }
+.calendar-cell-day {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  width: fit-content;
+}
+
+.calendar-cell-day:hover { color: #1D4ED8; text-decoration: underline; }
 
 .calendar-cell-tasks { display: flex; flex-direction: column; gap: 3px; flex: 1; }
 
@@ -235,6 +248,108 @@
   font-size: 11px;
   outline: none;
 }
+
+.calendar-add-btn--wide { width: 100%; padding: 4px 0; }
+
+/* ==================== Toggle Mes/Día ==================== */
+.calendar-mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.calendar-mode-toggle button {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.calendar-mode-toggle button:hover { border-color: #0B1F3A; color: #0B1F3A; }
+.calendar-mode-toggle button.active { background: #0B1F3A; border-color: #0B1F3A; color: #ffffff; }
+
+/* ==================== Vista diaria ==================== */
+.day-view { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; }
+
+.day-allday-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f2f5;
+  margin-bottom: 8px;
+}
+
+.day-allday-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  width: 90px;
+  padding-top: 3px;
+}
+
+.day-allday-tasks { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.day-allday-tasks .calendar-task { font-size: 13px; padding: 5px 8px; }
+.day-allday-tasks .calendar-task input[type="checkbox"] { width: 13px; height: 13px; }
+
+.day-hours-scroll {
+  max-height: 60vh;
+  overflow-y: auto;
+  border: 1px solid #f0f2f5;
+  border-radius: 8px;
+}
+
+.day-hour-row {
+  display: flex;
+  min-height: 48px;
+  border-bottom: 1px solid #f5f6f8;
+  cursor: pointer;
+}
+
+.day-hour-row:hover { background: #fafbfc; }
+.day-hour-row:last-child { border-bottom: none; }
+
+.day-hour-label {
+  width: 60px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #9ca3af;
+  padding: 4px 8px;
+  border-right: 1px solid #f0f2f5;
+}
+
+.day-hour-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 8px;
+}
+
+.day-task-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #EFF6FF;
+  border: 1px solid #bfdbfe;
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 12px;
+  cursor: default;
+}
+
+.day-task-chip input[type="checkbox"] { width: 12px; height: 12px; flex-shrink: 0; cursor: pointer; }
+.day-task-time { font-weight: 700; color: #1D4ED8; flex-shrink: 0; }
+.day-task-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.day-task-chip.done { opacity: 0.5; }
+.day-task-chip.done .day-task-title { text-decoration: line-through; }
 
 /* ==================== Mobile ==================== */
 @media (max-width: 860px) {

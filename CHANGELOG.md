@@ -11,7 +11,7 @@ Registro detallado de cambios por sesión de trabajo.
 - `AuthContext` expone `activeWorkspace` — sidebar, Dashboard y Settings se ramifican por `activeWorkspace.type === 'personal'`: oculta Proyectos/tipos de entidad/Tareas/Usuarios/Estados, agrega "Agenda"
 - Página `/agenda` (3 pestañas), todo sobre `tasks` sin negotiation_id/entity_id — cero tablas nuevas:
   - Tablero: kanban Pendiente/En curso/Completado mapeado a `tasks.status` (que ya tenía esos 3 valores), alta rápida sin modal, drag & drop nativo + botones de mover
-  - Calendario: grilla mensual por `due_date`, alta rápida por día, checkbox para completar
+  - Calendario: toggle Mes/Día. Mes: grilla mensual por `due_date`, alta rápida por día, checkbox para completar. Día (`tasks.due_time`, columna nueva): grilla horaria tipo Google Calendar con auto-scroll, sección "Sin horario", alta rápida por franja horaria
   - Notas: `NotesPostIts` en modo standalone (se sacó el constraint que exigía negotiation_id o entity_id)
 - Dashboard del WS personal muestra hoy/esta semana/vencidas en vez de métricas de proyectos/pipeline
 
