@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import EntityModal from '../components/EntityModal'
@@ -31,6 +31,8 @@ function getAvatarColor(name) {
 
 export default function Entities({ entityTypeId, entityTypeName, entityTypeSingular }) {
   const { workspaceId } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [entities, setEntities] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -43,6 +45,17 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     fetchEntities()
     fetchNegotiationStates()
   }, [entityTypeId])
+
+  // Si viene de la búsqueda global (u otra pantalla), abre directo el detalle
+  useEffect(() => {
+    const openEntityId = new URLSearchParams(location.search).get('openEntity')
+    if (!openEntityId || entities.length === 0) return
+    const found = entities.find(e => e.id === openEntityId)
+    if (found) {
+      setSelectedEntity(found)
+      navigate(`/entities/${entityTypeId}`, { replace: true })
+    }
+  }, [location.search, entities])
 
   async function fetchEntities() {
     setLoading(true)

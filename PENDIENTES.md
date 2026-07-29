@@ -42,7 +42,10 @@ Decisión explícita de **no construirlo todavía**. Se define el patrón target
 - La elección de "tipo de CRM" al crear un workspace pasa a ser, en este esquema, qué **módulos** están activos — no solo qué `entity_types` vienen precargados
 
 ### Próximo paso acordado
-Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diagnóstico quedan: ~~kanban visual~~ (hecho, ver abajo), búsqueda global, export/reportes, scorecard de proveedor, alertas de vencimiento de NDA/contrato, @menciones, bulk actions/import CSV, API/webhooks. Sin próximo paso todavía acordado entre esos — a definir.
+Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diagnóstico quedan: ~~kanban visual~~ y ~~búsqueda global~~ (hechos, ver abajo), export/reportes, scorecard de proveedor, alertas de vencimiento de NDA/contrato, @menciones, bulk actions/import CSV, API/webhooks.
+
+- Alertas de vencimiento de NDA/contrato — descartado por ahora. Hoy `nda` es un campo hardcodeado en `negotiations`, pero según lo pensado para Etapa 2 (campos custom por workspace) no va a seguir siendo un campo fijo — no tiene sentido construir alertas sobre un dato que va a cambiar de modelo pronto
+- Sin export/reportes, scorecard de proveedor, @menciones, bulk actions/import CSV, API/webhooks — sin definir orden todavía
 
 ### Kanban visual de Proyectos
 - [x] Tercera vista en `/negotiations` (☰ tabla / ⊞ cards / ▦ kanban), toggle junto a los otros dos. Columnas = `custom_states` del workspace (mismas que ya se configuran en Settings, orden por `sort_order`) — no hace falta ningún estado nuevo, ni tabla nueva
@@ -51,13 +54,13 @@ Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diag
 - [x] El editor de columnas (⚙ Columnas) se oculta en la vista kanban, no aplica ahí
 - [x] Probado con Playwright: columnas correctas, cards correctas, click abre detalle, drag&drop nativo y botones ‹/› ambos mueven y actualizan el status en el servidor, notificación y activity log generados
 
+### Búsqueda global
+- [x] **Búsqueda global** — buscador en el header (`GlobalSearch.jsx`), input fijo (no overlay/atajo) + versión colapsada a ícono en mobile que expande a barra full-width. Busca con `ilike` en paralelo (sin Edge Function ni full-text search, no se justifica con el volumen actual): en WS de equipo, Proyectos (`product`/`title`), Entidades (`name`) y Tareas (`title`); en WS personal, Tareas y Notas sueltas. Los resultados de notas navegan al proyecto/entidad que las contiene, no a la nota en sí (pedido explícito). Deep-links reusando el patrón `?openNeg=`/`?openTask=` que ya usaban las notificaciones; se sumó `?openEntity=` a `Entities.jsx` (no existía). El hook `useCloseOnOutsideOrEscape` (antes solo en Agenda.jsx) se extrajo a `src/lib/useCloseOnOutsideOrEscape.js` para reusarlo acá también
+
 ### Pendientes estéticos (UI polish, no bloqueantes)
 - Card de "Valor de pipeline"/"Seleccionados" en Proyectos — funciona bien, pero el diseño se puede pulir más (usuario: "podría mejorar, pero dejalo como pendiente")
-- Rediseño estético más amplio (sesión 2026-07-29): se definió con el usuario una nueva identidad visual para toda la app — base "suave y moderno" ya aplicada al widget "Hoy" de la Agenda, con toque bold (títulos en negrita, franja de color de 3px solo en tarjetas de datos/métricas, no en el resto) y el widget "Hoy" como barra horizontal arriba en vez de panel lateral. Se evaluaron 4 identidades estructurales (no solo de color) en un artifact de exploración; el usuario eligió avanzar con **2 temas seleccionables desde Settings**: "Bento moderno" (default) y "Clásico profesional" (alternativa), descartando "Robusto". Incluye también el toggle de modo claro/oscuro (ícono en el header + reflejado en Settings), mismo mecanismo de variables CSS que los temas. Explícitamente pausado — "no nos enrosquemos en eso ahora" — para retomar en una sesión dedicada a estética
+- **Rediseño visual completo** (sesión 2026-07-29, explorado con mockups pero sin construir nada todavía): base "suave y moderno" (sombras suaves, degradés sutiles) + un toque bold — títulos en negrita, franjas de color de 3px SOLO en las tarjetas de datos de arriba (Hoy/Semana/Vencidas), nada de franjas ni cards coloreadas en el resto. El widget "Hoy" pasa a ser una barra horizontal arriba de todo (no lateral). Se acordó quedarse con **2 temas visuales** seleccionables desde Settings — "Bento moderno" (por defecto: rompe la grilla uniforme de cards, números grandes con cifra fantasma de fondo, tablero como carriles sin caja) y "Clásico profesional" (esquinas casi rectas, sin sombras, todo separado por líneas finas tipo reporte, serif en títulos de sección), descartando "Robusto" — más el toggle claro/oscuro (ícono en el header + reflejado en Settings), ambos en una sección "Apariencia" de Settings, mismo mecanismo de variables CSS. Requiere armar primero una capa de tokens de diseño ya que hoy cada CSS hardcodea sus propios colores. Explícitamente pausado — "no nos enrosquemos en eso ahora", retomar en una sesión dedicada a estética
 - Seguramente vayan sumándose más a medida que se usa la app en el día a día — no priorizar hasta después de la próxima tanda de funcionalidad
-
-### Pendiente funcional (anotado, no implementado)
-- En la Agenda personal: las tareas en Pendiente/En curso sin `due_date` deberían aparecer siempre en el widget "Hoy" (sea cual sea el día) hasta que se completen, en vez de no aparecer nunca por no tener fecha. Implica separar el concepto de "tarea" (sin fecha, vigente hasta completarse) del de "evento" (con fecha/hora, asociado a un día puntual) — hoy `tasks` no distingue ambos casos explícitamente. El usuario lo marcó como próximo tema funcional a definir, no estético
 
 ---
 
@@ -81,6 +84,7 @@ El WS personal existía desde Etapa 1 solo como fila en la base (trigger `handle
 - Integración con Google Calendar y/o Microsoft 365 — pedido explícito del usuario para el futuro, pero es un desarrollo propio serio (OAuth por proveedor, sync de dos vías, resolución de conflictos), no una tarea de una sesión. El modelo de datos actual (`due_date`/`due_time`/`due_time_end`) no lo bloquea, pero no se construyó nada todavía
 - No se le puso gate al lado del servidor a la Edge Function `invite-user` para bloquear invitaciones a un WS personal — hoy es solo un gate de UI (se oculta el tab "Usuarios"). No es un problema de seguridad entre tenants (solo afecta al propio WS del usuario), pero si se quiere blindar del todo falta ese paso
 - Sin drag-to-resize de eventos (cambiar la duración arrastrando el borde del bloque, como Google Calendar) — hoy la duración solo se define al crear, editando la hora de fin en el form
+- Separar el concepto de tarea vs evento en el widget "Hoy": una tarea en Pendiente/En curso sin fecha debería aparecer siempre en "Hoy" (sea el día que sea) hasta completarse, en vez de no aparecer nunca por no tener `due_date`. Solo desaparece al completarse, o si tiene fecha propia (eso sí es "de ese día"). Pedido explícito del usuario, para más adelante
 
 ---
 

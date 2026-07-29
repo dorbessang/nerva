@@ -21,6 +21,15 @@ Registro detallado de cambios por sesión de trabajo.
 - `KanbanView`: cards con producto, proveedor + bandera, NDA, fecha objetivo e ícono de pausado/inactivo. Drag & drop nativo (mismo patrón que el Kanban de la Agenda personal) + botones ‹/› de fallback
 - Mover una card dispara el mismo efecto que cambiar el estado desde el detalle del proyecto: notifica a los asignados de las tareas del proyecto y deja entrada en el timeline de actividad (`handleKanbanMove`, mismo camino que `saveInlineField`)
 
+### Feature: Búsqueda global
+- Buscador en el header (`GlobalSearch.jsx`/`.css`), input fijo siempre visible (no overlay + atajo) que en mobile colapsa a un ícono y expande a barra full-width al tocarlo
+- Cruza `ilike` en paralelo (sin Edge Function ni full-text search): en WS de equipo busca Proyectos, Entidades y Tareas; en WS personal, Tareas y Notas sueltas. Resultados agrupados por tipo, máximo 5 por grupo
+- Click en un resultado navega directo al detalle, reusando el patrón de deep-link `?openNeg=`/`?openTask=` que ya usaban las notificaciones — se sumó `?openEntity=` a `Entities.jsx`, que no lo tenía. Los resultados de notas llevan al proyecto o entidad que las contiene, no a la nota en sí (decisión explícita del usuario)
+- `useCloseOnOutsideOrEscape` se extrajo de Agenda.jsx a `src/lib/useCloseOnOutsideOrEscape.js` para reusarlo acá
+
+### Exploración: rediseño visual (sin implementar)
+- Sesión de mockups en Artifacts para explorar una identidad visual más moderna que la actual (todo en cards blancas iguales) — se investigaron 4 direcciones (suave/moderno, minimalista, bold/vívido, depth-glass), después se refinaron 3 layouts distintos (suave con acento, bento moderno, clásico profesional) con el widget "Hoy" movido a barra horizontal arriba. Se acordó una dirección final (base suave + acento bold contenido a franjas de 3px solo en las tarjetas de arriba) y quedarse con 2 temas seleccionables desde Settings (Bento moderno por defecto, Clásico como alternativa) + toggle claro/oscuro — explícitamente pausado para una próxima sesión, nada de esto se tocó en código todavía
+
 ---
 
 ## 2026-07-28

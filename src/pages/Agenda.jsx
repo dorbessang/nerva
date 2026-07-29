@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import NotesPostIts from '../components/NotesPostIts'
+import { useCloseOnOutsideOrEscape } from '../lib/useCloseOnOutsideOrEscape'
 import './Agenda.css'
 
 const COLUMNS = [
@@ -305,26 +306,6 @@ function layoutTimedTasks(timedTasks) {
     cluster.forEach((t, i) => positioned.push({ ...t, _col: i, _cols: cluster.length }))
   }
   return positioned
-}
-
-// Cierra un formulario inline (alta rápida de tarea/evento) al tocar Escape
-// o clickear afuera — usado por todos los "+" de la Agenda.
-function useCloseOnOutsideOrEscape(ref, active, onClose) {
-  useEffect(() => {
-    if (!active) return
-    function handleMouseDown(e) {
-      if (ref.current && !ref.current.contains(e.target)) onClose()
-    }
-    function handleKeyDown(e) {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('mousedown', handleMouseDown)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [active, onClose])
 }
 
 function CalendarView({ tasks, canEdit, onAdd, onMove, onDelete }) {

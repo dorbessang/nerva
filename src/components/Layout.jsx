@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import * as LucideIcons from "lucide-react";
 import RoleImpersonator from "./RoleImpersonator";
 import NotificationBell from "./NotificationBell";
+import GlobalSearch from "./GlobalSearch";
 import "./Layout.css";
 
 function EntityIcon({ name, size = 18 }) {
@@ -245,6 +246,8 @@ export default function Layout({ children }) {
             )}
           </div>
         )}
+
+        <GlobalSearch />
 
         <div className="nerva-header-right">
           <div className="nerva-status-dot" />
