@@ -1207,6 +1207,126 @@
   flex-shrink: 0;
 }
 
+/* ==================== Vista Kanban ==================== */
+.neg-kanban-board {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.neg-kanban-col {
+  flex: 0 0 260px;
+  width: 260px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.neg-kanban-col.drag-over { background: #EFF6FF; border-color: #1D4ED8; }
+
+.neg-kanban-col-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0B1F3A;
+  margin-bottom: 12px;
+  padding: 0 2px;
+}
+
+.neg-kanban-col-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.neg-kanban-col-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+.neg-kanban-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.neg-kanban-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 11px 12px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.neg-kanban-card:hover { box-shadow: 0 4px 14px rgba(11,31,58,0.1); transform: translateY(-1px); }
+
+.neg-kanban-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0B1F3A;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.neg-kanban-card-icon { margin-right: 4px; }
+
+.neg-kanban-card-entity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+.neg-kanban-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.neg-kanban-card-date { font-size: 11px; color: #9ca3af; }
+
+.neg-kanban-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.neg-kanban-card-actions button {
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #6b7280;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.neg-kanban-card-actions button:hover { background: #EFF6FF; color: #1D4ED8; border-color: #1D4ED8; }
+
+.neg-kanban-empty {
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: center;
+  padding: 12px 0;
+}
+
 /* ==================== Mobile (<=860px) ==================== */
 @media (max-width: 860px) {
   .neg-container {

@@ -42,11 +42,22 @@ Decisión explícita de **no construirlo todavía**. Se define el patrón target
 - La elección de "tipo de CRM" al crear un workspace pasa a ser, en este esquema, qué **módulos** están activos — no solo qué `entity_types` vienen precargados
 
 ### Próximo paso acordado
-Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diagnóstico quedan: kanban visual, búsqueda global, export/reportes, scorecard de proveedor, alertas de vencimiento de NDA/contrato, @menciones, bulk actions/import CSV, API/webhooks. Sin próximo paso todavía acordado entre esos — a definir.
+Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diagnóstico quedan: ~~kanban visual~~ (hecho, ver abajo), búsqueda global, export/reportes, scorecard de proveedor, alertas de vencimiento de NDA/contrato, @menciones, bulk actions/import CSV, API/webhooks. Sin próximo paso todavía acordado entre esos — a definir.
+
+### Kanban visual de Proyectos
+- [x] Tercera vista en `/negotiations` (☰ tabla / ⊞ cards / ▦ kanban), toggle junto a los otros dos. Columnas = `custom_states` del workspace (mismas que ya se configuran en Settings, orden por `sort_order`) — no hace falta ningún estado nuevo, ni tabla nueva
+- [x] `KanbanView` — cards con producto/título, proveedor principal (+ bandera), NDA, fecha objetivo e ícono de pausado/inactivo, mismo criterio visual que `CardsView`. Drag & drop nativo (mismo patrón que el Kanban de la Agenda personal) + botones ‹/› como fallback accesible/testeable, moviendo a la columna anterior/siguiente según el orden de `custom_states`
+- [x] Mover una card dispara exactamente el mismo efecto secundario que cambiar el estado desde el detalle: `notifyNegotiationStatusChanged` (notifica a los asignados de las tareas del proyecto) + `logActivity` (entrada en el timeline de actividad) — se extrajo a `handleKanbanMove` en vez de duplicar lógica
+- [x] El editor de columnas (⚙ Columnas) se oculta en la vista kanban, no aplica ahí
+- [x] Probado con Playwright: columnas correctas, cards correctas, click abre detalle, drag&drop nativo y botones ‹/› ambos mueven y actualizan el status en el servidor, notificación y activity log generados
 
 ### Pendientes estéticos (UI polish, no bloqueantes)
 - Card de "Valor de pipeline"/"Seleccionados" en Proyectos — funciona bien, pero el diseño se puede pulir más (usuario: "podría mejorar, pero dejalo como pendiente")
+- Rediseño estético más amplio (sesión 2026-07-29): se definió con el usuario una nueva identidad visual para toda la app — base "suave y moderno" ya aplicada al widget "Hoy" de la Agenda, con toque bold (títulos en negrita, franja de color de 3px solo en tarjetas de datos/métricas, no en el resto) y el widget "Hoy" como barra horizontal arriba en vez de panel lateral. Se evaluaron 4 identidades estructurales (no solo de color) en un artifact de exploración; el usuario eligió avanzar con **2 temas seleccionables desde Settings**: "Bento moderno" (default) y "Clásico profesional" (alternativa), descartando "Robusto". Incluye también el toggle de modo claro/oscuro (ícono en el header + reflejado en Settings), mismo mecanismo de variables CSS que los temas. Explícitamente pausado — "no nos enrosquemos en eso ahora" — para retomar en una sesión dedicada a estética
 - Seguramente vayan sumándose más a medida que se usa la app en el día a día — no priorizar hasta después de la próxima tanda de funcionalidad
+
+### Pendiente funcional (anotado, no implementado)
+- En la Agenda personal: las tareas en Pendiente/En curso sin `due_date` deberían aparecer siempre en el widget "Hoy" (sea cual sea el día) hasta que se completen, en vez de no aparecer nunca por no tener fecha. Implica separar el concepto de "tarea" (sin fecha, vigente hasta completarse) del de "evento" (con fecha/hora, asociado a un día puntual) — hoy `tasks` no distingue ambos casos explícitamente. El usuario lo marcó como próximo tema funcional a definir, no estético
 
 ---
 

@@ -16,6 +16,11 @@ Registro detallado de cambios por sesión de trabajo.
   - Los formularios inline de alta (`QuickAddPanel`, franja horaria de `TimeColumn`) se cierran con Escape o click afuera, y guardan con Enter en cualquier campo u OK/Agregar — hook compartido `useCloseOnOutsideOrEscape`, markup pasado a `<form>` para que el submit nativo cubra todos los campos
 - Dashboard del WS personal muestra hoy/esta semana/vencidas en vez de métricas de proyectos/pipeline, cards centradas
 
+### Feature: Kanban visual de Proyectos (WS de equipo)
+- Tercera vista en `/negotiations` junto a tabla y cards (☰ / ⊞ / ▦), columnas = `custom_states` del workspace ya configurables en Settings (mismo orden por `sort_order`) — cero estados ni tablas nuevas
+- `KanbanView`: cards con producto, proveedor + bandera, NDA, fecha objetivo e ícono de pausado/inactivo. Drag & drop nativo (mismo patrón que el Kanban de la Agenda personal) + botones ‹/› de fallback
+- Mover una card dispara el mismo efecto que cambiar el estado desde el detalle del proyecto: notifica a los asignados de las tareas del proyecto y deja entrada en el timeline de actividad (`handleKanbanMove`, mismo camino que `saveInlineField`)
+
 ---
 
 ## 2026-07-28

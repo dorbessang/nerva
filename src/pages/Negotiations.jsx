@@ -253,6 +253,27 @@ export default function Negotiations() {
     })
   }
 
+  async function handleKanbanMove(negId, newStatus) {
+    const neg = negotiations.find(n => n.id === negId)
+    if (!neg || neg.status === newStatus) return
+    const prevStatus = neg.status
+    setNegotiations(prev => prev.map(n => n.id === negId ? { ...n, status: newStatus } : n))
+    await supabase.from('negotiations').update({ status: newStatus }).eq('id', negId)
+    const { data: negTasks } = await supabase.from('tasks').select('assigned_to').eq('negotiation_id', negId)
+    await notifyNegotiationStatusChanged(supabase, {
+      workspaceId: neg.workspace_id || workspaceId,
+      negotiationId: negId,
+      negotiationTitle: neg.product || neg.title,
+      newStatus,
+      recipients: (negTasks || []).map(t => t.assigned_to),
+      actingUserId: user?.id,
+    })
+    await logActivity(supabase, {
+      workspaceId: neg.workspace_id || workspaceId, negotiationId: negId, type: 'status_changed',
+      title: `Estado cambió de "${prevStatus}" a "${newStatus}"`, actorId: user?.id,
+    })
+  }
+
   return (
     <div className="neg-container">
       <div className="neg-header">
@@ -344,17 +365,20 @@ export default function Negotiations() {
         <div className="neg-view-toggle">
           <button className={`neg-view-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')} title="Vista tabla">☰</button>
           <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Vista cards">⊞</button>
+          <button className={`neg-view-btn ${view === 'kanban' ? 'active' : ''}`} onClick={() => setView('kanban')} title="Vista kanban">▦</button>
         </div>
-        <button
-          className={`neg-col-btn ${showColEditor ? 'active' : ''}`}
-          onClick={() => setShowColEditor(v => !v)}
-          title="Configurar columnas"
-        >
-          ⚙ Columnas
-        </button>
+        {view !== 'kanban' && (
+          <button
+            className={`neg-col-btn ${showColEditor ? 'active' : ''}`}
+            onClick={() => setShowColEditor(v => !v)}
+            title="Configurar columnas"
+          >
+            ⚙ Columnas
+          </button>
+        )}
       </div>
 
-      {showColEditor && (
+      {showColEditor && view !== 'kanban' && (
         <ColumnEditor cols={cols} onChange={saveCols} onClose={() => setShowColEditor(false)} />
       )}
 
@@ -365,9 +389,12 @@ export default function Negotiations() {
       ) : view === 'table' ? (
         <TableView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} allVisibleSelected={allVisibleSelected} onToggleSelectAll={toggleSelectAllVisible} />
-      ) : (
+      ) : view === 'cards' ? (
         <CardsView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} />
+      ) : (
+        <KanbanView negotiations={filtered} customStates={customStates} getEntityName={getEntityName} getEntityFlag={getEntityFlag}
+          onSelect={setSelectedNeg} canEdit={canCreateProject} onMove={handleKanbanMove} />
       )}
 
       {showModal && (
@@ -697,6 +724,80 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
                 <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>
               </div>
               {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function KanbanView({ negotiations, customStates, getEntityName, getEntityFlag, onSelect, canEdit, onMove }) {
+  const [dragOverCol, setDragOverCol] = useState(null)
+
+  return (
+    <div className="neg-kanban-board">
+      {customStates.map((state, colIdx) => {
+        const colNegs = negotiations.filter(n => n.status === state.name)
+        return (
+          <div
+            key={state.name}
+            className={`neg-kanban-col ${dragOverCol === state.name ? 'drag-over' : ''}`}
+            onDragOver={e => { e.preventDefault(); setDragOverCol(state.name) }}
+            onDragLeave={() => setDragOverCol(null)}
+            onDrop={e => {
+              e.preventDefault()
+              setDragOverCol(null)
+              const negId = e.dataTransfer.getData('text/plain')
+              if (negId) onMove(negId, state.name)
+            }}
+          >
+            <div className="neg-kanban-col-header">
+              <span className="neg-kanban-col-dot" style={{ backgroundColor: state.color || '#64748B' }} />
+              {state.name}
+              <span className="neg-kanban-col-count">{colNegs.length}</span>
+            </div>
+            <div className="neg-kanban-col-body">
+              {colNegs.map(neg => {
+                const flag = getEntityFlag(neg)
+                const entityName = getEntityName(neg)
+                const actIcon = neg.activity_status === 'inactive' ? '💤' : neg.activity_status === 'paused' ? '⏸' : null
+                return (
+                  <div
+                    key={neg.id}
+                    className="neg-kanban-card"
+                    draggable={canEdit}
+                    onDragStart={e => e.dataTransfer.setData('text/plain', neg.id)}
+                    onClick={() => onSelect(neg)}
+                  >
+                    <div className="neg-kanban-card-title">
+                      {actIcon && <span className="neg-kanban-card-icon">{actIcon}</span>}
+                      {neg.product || neg.title}
+                    </div>
+                    {entityName !== '—' && (
+                      <div className="neg-kanban-card-entity">
+                        {flag && <img src={flag} alt="" className="neg-flag" />}
+                        {entityName}
+                      </div>
+                    )}
+                    <div className="neg-kanban-card-meta">
+                      {neg.nda && neg.nda !== '—' && <span className="neg-nda-badge">{neg.nda}</span>}
+                      {neg.target_date && <span className="neg-kanban-card-date">{neg.target_date}</span>}
+                    </div>
+                    {canEdit && (
+                      <div className="neg-kanban-card-actions" onClick={e => e.stopPropagation()}>
+                        {colIdx > 0 && (
+                          <button title="Mover a la izquierda" onClick={() => onMove(neg.id, customStates[colIdx - 1].name)}>‹</button>
+                        )}
+                        {colIdx < customStates.length - 1 && (
+                          <button title="Mover a la derecha" onClick={() => onMove(neg.id, customStates[colIdx + 1].name)}>›</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              {colNegs.length === 0 && <p className="neg-kanban-empty">Sin proyectos.</p>}
             </div>
           </div>
         )
