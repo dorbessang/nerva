@@ -47,10 +47,10 @@ function getExportValue(key, neg, getEntityName) {
     case 'status': return neg.status || ''
     case 'description': return neg.description || ''
     case 'nda': return neg.nda || ''
-    case 'territories': return (neg.territories || []).join('; ')
-    case 'companies': return (neg.companies || []).join('; ')
+    case 'territories': return (neg.territories || []).join(', ')
+    case 'companies': return (neg.companies || []).join(', ')
     case 'target_date': return neg.target_date || ''
-    case 'participants': return (neg.participants || []).join('; ')
+    case 'participants': return (neg.participants || []).join(', ')
     case 'notes': return (neg.notes_list || []).map(n => `${n.note_date}: ${n.content}`).join(' | ')
     case 'observations': return neg.observations || ''
     case 'activity_status': return ACTIVITY_LABELS[neg.activity_status] || ''
@@ -59,9 +59,14 @@ function getExportValue(key, neg, getEntityName) {
   }
 }
 
+// Excel en configuración regional es-AR/es-ES usa coma como separador
+// decimal, así que interpreta el CSV con ";" como separador de columna en
+// vez de ",". Si el archivo viene con comas, Excel no lo separa en columnas
+// (todo cae en una sola celda). Usamos ";" + la línea "sep=;" (una directiva
+// que Excel reconoce para fijar el separador sin depender de la config regional).
 function escapeCsvField(value) {
   const str = String(value ?? '')
-  return /[",\n\r]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str
+  return /[";\n\r]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str
 }
 
 function exportNegotiationsCsv(negotiations, cols, getEntityName) {
@@ -71,7 +76,7 @@ function exportNegotiationsCsv(negotiations, cols, getEntityName) {
     headers,
     ...negotiations.map(neg => visibleCols.map(c => getExportValue(c.key, neg, getEntityName))),
   ]
-  const csv = lines.map(line => line.map(escapeCsvField).join(',')).join('\r\n')
+  const csv = 'sep=;\r\n' + lines.map(line => line.map(escapeCsvField).join(';')).join('\r\n')
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

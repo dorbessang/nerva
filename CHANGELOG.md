@@ -30,7 +30,8 @@ Registro detallado de cambios por sesión de trabajo.
 
 ### Feature: Export CSV de Proyectos
 - Botón "⬇ Exportar CSV" en el toolbar de `/negotiations`, junto a "⚙ Columnas" — exporta la lista ya filtrada, usando las columnas que el usuario tiene visibles; si hay filas seleccionadas, exporta solo esas
-- Generación 100% cliente, sin Edge Function — BOM UTF-8 para acentos en Excel, escapado correcto de comas/comillas/saltos de línea, fechas en ISO en vez del formato relativo de la tabla
+- Generación 100% cliente, sin Edge Function — BOM UTF-8 para acentos en Excel, fechas en ISO en vez del formato relativo de la tabla
+- Fix (reportado probando en real): se abría "todo junto" en Excel con configuración regional es-AR/es-ES, que usa `;` como separador de columna en CSV (no `,`, porque la coma es el separador decimal ahí) — se cambió el delimitador a `;` + directiva `sep=;` al inicio del archivo para que Excel lo reconozca sin depender de la configuración regional
 - PDF queda como segunda entrega, después de probar el CSV en uso real (decisión explícita)
 
 ### Exploración: rediseño visual (sin implementar)
