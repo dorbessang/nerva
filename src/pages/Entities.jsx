@@ -30,7 +30,7 @@ function getAvatarColor(name) {
 }
 
 export default function Entities({ entityTypeId, entityTypeName, entityTypeSingular }) {
-  const { workspaceId } = useAuth()
+  const { workspaceId, activeWorkspace } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [entities, setEntities] = useState([])
@@ -40,6 +40,23 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [showModal, setShowModal] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [negotiationStates, setNegotiationStates] = useState([])
+  const [exportingPdf, setExportingPdf] = useState(false)
+
+  async function handleExportEntitiesPdf() {
+    setExportingPdf(true)
+    try {
+      const { exportEntitiesPdf } = await import('../lib/exportEntitiesPdf')
+      await exportEntitiesPdf({
+        entities: filtered,
+        customStates: negotiationStates,
+        entityLabelPlural: entityTypeName || 'Proveedores',
+        entityLabelSingular: entityTypeSingular || 'Proveedor',
+        workspaceName: activeWorkspace?.name,
+      })
+    } finally {
+      setExportingPdf(false)
+    }
+  }
 
   useEffect(() => {
     fetchEntities()
@@ -152,6 +169,14 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
             </svg>
           </button>
         </div>
+        <button
+          className="entities-export-btn"
+          onClick={handleExportEntitiesPdf}
+          disabled={exportingPdf}
+          title={`Exportar ${entityTypeName?.toLowerCase() || 'proveedores'} a PDF`}
+        >
+          {exportingPdf ? 'Generando…' : '⬇ Exportar PDF'}
+        </button>
       </div>
 
       {loading ? (

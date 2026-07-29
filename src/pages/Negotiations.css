@@ -192,20 +192,25 @@
 
 .neg-view-toggle {
   display: flex;
+  align-items: stretch;
+  height: 36px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   overflow: hidden;
   margin-left: auto;
+  box-sizing: border-box;
 }
 
 .neg-col-btn {
+  height: 36px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 5px;
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 8px 13px;
+  padding: 0 13px;
   font-size: 13px;
   color: #374151;
   cursor: pointer;
@@ -361,11 +366,14 @@
 .neg-view-btn {
   background: #ffffff;
   border: none;
-  padding: 8px 14px;
+  padding: 0 14px;
   font-size: 16px;
+  line-height: 1;
   cursor: pointer;
   color: #9ca3af;
   transition: all 0.15s;
+  display: flex;
+  align-items: center;
 }
 
 .neg-view-btn.active { background: #0B1F3A; color: #ffffff; }

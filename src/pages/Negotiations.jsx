@@ -445,15 +445,13 @@ export default function Negotiations() {
           <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Vista cards">⊞</button>
           <button className={`neg-view-btn ${view === 'kanban' ? 'active' : ''}`} onClick={() => setView('kanban')} title="Vista kanban">▦</button>
         </div>
-        {view !== 'kanban' && (
-          <button
-            className={`neg-col-btn ${showColEditor ? 'active' : ''}`}
-            onClick={() => setShowColEditor(v => !v)}
-            title="Configurar columnas"
-          >
-            ⚙ Columnas
-          </button>
-        )}
+        <button
+          className={`neg-col-btn ${showColEditor ? 'active' : ''}`}
+          onClick={() => setShowColEditor(v => !v)}
+          title="Elegir qué campos mostrar (aplica a las 3 vistas)"
+        >
+          ⚙ Vista
+        </button>
         <div className="neg-export-menu" ref={exportMenuRef}>
           <button
             className="neg-col-btn"
@@ -484,7 +482,7 @@ export default function Negotiations() {
         </div>
       </div>
 
-      {showColEditor && view !== 'kanban' && (
+      {showColEditor && (
         <ColumnEditor cols={cols} onChange={saveCols} onClose={() => setShowColEditor(false)} />
       )}
 
@@ -499,7 +497,7 @@ export default function Negotiations() {
         <CardsView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} />
       ) : (
-        <KanbanView negotiations={filtered} customStates={customStates} getEntityName={getEntityName} getEntityFlag={getEntityFlag}
+        <KanbanView negotiations={filtered} customStates={customStates} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} cols={cols}
           onSelect={setSelectedNeg} canEdit={canCreateProject} onMove={handleKanbanMove} />
       )}
 
@@ -580,8 +578,8 @@ function ColumnEditor({ cols, onChange, onClose }) {
   return (
     <div className="col-editor">
       <div className="col-editor-header">
-        <span className="col-editor-title">Configurar columnas</span>
-        <span className="col-editor-hint">Arrastrá para reordenar · Clic para mostrar/ocultar</span>
+        <span className="col-editor-title">Campos visibles</span>
+        <span className="col-editor-hint">Arrastrá para reordenar · Clic para mostrar/ocultar · Aplica a las 3 vistas</span>
         <button className="col-editor-close" onClick={onClose}>✕</button>
       </div>
       <div className="col-editor-list">
@@ -838,8 +836,11 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
   )
 }
 
-function KanbanView({ negotiations, customStates, getEntityName, getEntityFlag, onSelect, canEdit, onMove }) {
+function KanbanView({ negotiations, customStates, getStateConfig, getEntityName, getEntityFlag, onSelect, canEdit, onMove, cols }) {
   const [dragOverCol, setDragOverCol] = useState(null)
+  // Mismos campos configurables que Tabla/Cards ("⚙ Vista"), product y status
+  // van hardcodeados en el título de la card / la columna en la que cae.
+  const visibleFields = cols.filter(c => c.visible && c.key !== 'product' && c.key !== 'status')
 
   return (
     <div className="neg-kanban-board">
@@ -865,8 +866,6 @@ function KanbanView({ negotiations, customStates, getEntityName, getEntityFlag, 
             </div>
             <div className="neg-kanban-col-body">
               {colNegs.map(neg => {
-                const flag = getEntityFlag(neg)
-                const entityName = getEntityName(neg)
                 const actIcon = neg.activity_status === 'inactive' ? '💤' : neg.activity_status === 'paused' ? '⏸' : null
                 return (
                   <div
@@ -880,16 +879,7 @@ function KanbanView({ negotiations, customStates, getEntityName, getEntityFlag, 
                       {actIcon && <span className="neg-kanban-card-icon">{actIcon}</span>}
                       {neg.product || neg.title}
                     </div>
-                    {entityName !== '—' && (
-                      <div className="neg-kanban-card-entity">
-                        {flag && <img src={flag} alt="" className="neg-flag" />}
-                        {entityName}
-                      </div>
-                    )}
-                    <div className="neg-kanban-card-meta">
-                      {neg.nda && neg.nda !== '—' && <span className="neg-nda-badge">{neg.nda}</span>}
-                      {neg.target_date && <span className="neg-kanban-card-date">{neg.target_date}</span>}
-                    </div>
+                    {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag))}
                     {canEdit && (
                       <div className="neg-kanban-card-actions" onClick={e => e.stopPropagation()}>
                         {colIdx > 0 && (

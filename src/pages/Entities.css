@@ -105,14 +105,17 @@
 
 .entities-view-toggle {
   display: flex;
+  align-items: stretch;
+  height: 36px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   overflow: hidden;
   background: #fff;
+  box-sizing: border-box;
 }
 
 .entities-view-toggle button {
-  padding: 8px 11px;
+  padding: 0 11px;
   background: transparent;
   border: none;
   color: #9ca3af;
@@ -128,6 +131,26 @@
 }
 
 .entities-view-toggle button:hover:not(.active) { background: #f3f4f6; color: #374151; }
+
+.entities-export-btn {
+  height: 36px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0 13px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.entities-export-btn:hover { border-color: #0B1F3A; color: #0B1F3A; }
+.entities-export-btn:disabled { opacity: 0.6; cursor: default; }
 
 .entities-loading,
 .entities-empty {
