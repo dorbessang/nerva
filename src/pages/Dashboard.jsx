@@ -580,7 +580,7 @@ function PersonalDashboard() {
         </p>
       </div>
 
-      <div className="db-metrics">
+      <div className="db-metrics db-metrics--personal">
         <div className="db-metric-card" style={{ cursor: "pointer" }} onClick={() => navigate("/agenda")}>
           <p className="db-metric-label">Hoy</p>
           <p className="db-metric-value">{todayTasks.length}</p>

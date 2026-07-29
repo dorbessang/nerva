@@ -10,10 +10,10 @@ Registro detallado de cambios por sesión de trabajo.
 - El WS personal pasa de ser una fila vacía en la base a un producto distinto del WS de equipo: un planner simple (calendario + kanban + notas), no un CRM de proyectos/entidades a escala individual. Se investigó el mercado (Todoist, TickTick, Sunsama, Motion, Akiflow) antes de diseñar
 - `AuthContext` expone `activeWorkspace` — sidebar, Dashboard y Settings se ramifican por `activeWorkspace.type === 'personal'`: oculta Proyectos/tipos de entidad/Tareas/Usuarios/Estados, agrega "Agenda"
 - Página `/agenda` (3 pestañas), todo sobre `tasks` sin negotiation_id/entity_id — cero tablas nuevas:
-  - Tablero: kanban Pendiente/En curso/Completado mapeado a `tasks.status` (que ya tenía esos 3 valores), alta rápida sin modal, drag & drop nativo + botones de mover
-  - Calendario: toggle Mes/Día. Mes: grilla mensual por `due_date`, alta rápida por día, checkbox para completar. Día (`tasks.due_time`, columna nueva): grilla horaria tipo Google Calendar con auto-scroll, sección "Sin horario", alta rápida por franja horaria
+  - Tablero: kanban Pendiente/En curso/Completado mapeado a `tasks.status` (que ya tenía esos 3 valores), alta rápida sin modal, drag & drop nativo + botones de mover, panel "Hoy" al costado de solo lectura
+  - Calendario: toggle Día/Semana/Mes. Mes: grilla mensual por `due_date`. Día/Semana: grilla horaria tipo Google Calendar (`tasks.due_time`/`due_time_end`, columnas nuevas) — eventos como bloques con alto según duración (default 30min), click en franja de :00/:30 para agregar con hora de fin editable, botón "+ Nuevo evento" como entrada alternativa, solapamientos agrupados en clusters con ancho repartido parejo
   - Notas: `NotesPostIts` en modo standalone (se sacó el constraint que exigía negotiation_id o entity_id)
-- Dashboard del WS personal muestra hoy/esta semana/vencidas en vez de métricas de proyectos/pipeline
+- Dashboard del WS personal muestra hoy/esta semana/vencidas en vez de métricas de proyectos/pipeline, cards centradas
 
 ---
 

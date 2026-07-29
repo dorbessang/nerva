@@ -41,7 +41,7 @@ export default function Agenda() {
     setLoading(false)
   }
 
-  async function handleAdd(title, dueDate, dueTime) {
+  async function handleAdd(title, dueDate, dueTime, dueTimeEnd) {
     if (!title.trim()) return
     const { data, error } = await supabase.from('tasks').insert({
       workspace_id: workspaceId,
@@ -50,6 +50,7 @@ export default function Agenda() {
       priority: 'medium',
       due_date: dueDate || null,
       due_time: dueTime || null,
+      due_time_end: dueTime ? (dueTimeEnd || addMinutesToTime(dueTime, 30)) : null,
       assigned_to: user?.id,
       created_by: user?.id,
     }).select().single()
@@ -107,6 +108,36 @@ export default function Agenda() {
   )
 }
 
+function TodayWidget({ tasks }) {
+  const todayStr = toDateStr(new Date())
+  const todayTasks = tasks
+    .filter(t => t.due_date === todayStr && t.status !== 'done')
+    .sort((a, b) => {
+      if (a.due_time && b.due_time) return a.due_time.localeCompare(b.due_time)
+      if (a.due_time) return -1
+      if (b.due_time) return 1
+      return 0
+    })
+
+  return (
+    <div className="today-widget">
+      <div className="today-widget-title">Hoy</div>
+      {todayTasks.length === 0 ? (
+        <p className="kanban-empty">Nada para hoy.</p>
+      ) : (
+        <div className="today-widget-list">
+          {todayTasks.map(t => (
+            <div key={t.id} className="today-widget-item">
+              {t.due_time && <span className="today-widget-time">{t.due_time.slice(0, 5)}</span>}
+              <span className="today-widget-task-title">{t.title}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function KanbanBoard({ tasks, canEdit, onAdd, onMove, onDelete }) {
   const [newTitle, setNewTitle] = useState('')
   const [dragOverCol, setDragOverCol] = useState(null)
@@ -118,6 +149,7 @@ function KanbanBoard({ tasks, canEdit, onAdd, onMove, onDelete }) {
   }
 
   return (
+    <div className="tablero-layout">
     <div className="kanban-board">
       {COLUMNS.map((col, idx) => {
         const colTasks = tasks.filter(t => t.status === col.key)
@@ -184,6 +216,8 @@ function KanbanBoard({ tasks, canEdit, onAdd, onMove, onDelete }) {
         )
       })}
     </div>
+    <TodayWidget tasks={tasks} />
+    </div>
   )
 }
 
@@ -197,6 +231,59 @@ function addDays(d, n) {
   return nd
 }
 
+// Lunes de la semana que contiene la fecha dada
+function startOfWeek(d) {
+  const offset = (d.getDay() + 6) % 7
+  return addDays(d, -offset)
+}
+
+const HOUR_HEIGHT = 56 // px por hora en las vistas Día/Semana
+const MIN_BLOCK_HEIGHT = 18
+
+function timeToMinutes(t) {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+
+function minutesToTime(mins) {
+  const m = ((mins % 1440) + 1440) % 1440
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+}
+
+function addMinutesToTime(t, delta) {
+  return minutesToTime(timeToMinutes(t) + delta)
+}
+
+// Agrupa tareas con horario que se solapan en "clusters" y les asigna
+// columna + cantidad de columnas del cluster, para dibujarlas lado a lado
+// (mismo criterio visual que Google Calendar, sin el algoritmo completo).
+function layoutTimedTasks(timedTasks) {
+  const sorted = [...timedTasks]
+    .map(t => ({ ...t, _end: t.due_time_end || addMinutesToTime(t.due_time, 30) }))
+    .sort((a, b) => a.due_time.localeCompare(b.due_time) || a._end.localeCompare(b._end))
+
+  const clusters = []
+  let current = []
+  let currentEnd = null
+  for (const t of sorted) {
+    if (current.length === 0 || t.due_time < currentEnd) {
+      current.push(t)
+      currentEnd = !currentEnd || t._end > currentEnd ? t._end : currentEnd
+    } else {
+      clusters.push(current)
+      current = [t]
+      currentEnd = t._end
+    }
+  }
+  if (current.length) clusters.push(current)
+
+  const positioned = []
+  for (const cluster of clusters) {
+    cluster.forEach((t, i) => positioned.push({ ...t, _col: i, _cols: cluster.length }))
+  }
+  return positioned
+}
+
 function CalendarView({ tasks, canEdit, onAdd, onMove, onDelete }) {
   const [viewMode, setViewMode] = useState('mes')
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -204,16 +291,24 @@ function CalendarView({ tasks, canEdit, onAdd, onMove, onDelete }) {
   return (
     <div>
       <div className="calendar-mode-toggle">
-        <button className={viewMode === 'mes' ? 'active' : ''} onClick={() => setViewMode('mes')}>Mes</button>
         <button className={viewMode === 'dia' ? 'active' : ''} onClick={() => setViewMode('dia')}>Día</button>
+        <button className={viewMode === 'semana' ? 'active' : ''} onClick={() => setViewMode('semana')}>Semana</button>
+        <button className={viewMode === 'mes' ? 'active' : ''} onClick={() => setViewMode('mes')}>Mes</button>
       </div>
-      {viewMode === 'mes' ? (
+      {viewMode === 'mes' && (
         <MonthView
           tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete}
           onSelectDay={(d) => { setSelectedDate(d); setViewMode('dia') }}
         />
-      ) : (
+      )}
+      {viewMode === 'dia' && (
         <DayView
+          tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete}
+          selectedDate={selectedDate} onChangeDate={setSelectedDate}
+        />
+      )}
+      {viewMode === 'semana' && (
+        <WeekView
           tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete}
           selectedDate={selectedDate} onChangeDate={setSelectedDate}
         />
@@ -324,42 +419,192 @@ function MonthView({ tasks, canEdit, onAdd, onMove, onDelete, onSelectDay }) {
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
-function DayView({ tasks, canEdit, onAdd, onMove, onDelete, selectedDate, onChangeDate }) {
-  const [addingHour, setAddingHour] = useState(null) // número 0-23, 'allday', o null
+function AllDayRow({ dates, tasks, canEdit, onAdd, onDelete, onMove }) {
+  const [addingDate, setAddingDate] = useState(null)
   const [addingTitle, setAddingTitle] = useState('')
+
+  function submitAdd(dStr) {
+    if (!addingTitle.trim()) { setAddingDate(null); return }
+    onAdd(addingTitle, dStr, null, null)
+    setAddingTitle('')
+    setAddingDate(null)
+  }
+
+  return (
+    <div className="allday-row" style={{ gridTemplateColumns: `70px repeat(${dates.length}, 1fr)` }}>
+      <span className="day-allday-label">Sin horario</span>
+      {dates.map(date => {
+        const dStr = toDateStr(date)
+        const dayTasks = tasks.filter(t => t.due_date === dStr && !t.due_time)
+        return (
+          <div key={dStr} className="allday-cell">
+            {dayTasks.map(task => (
+              <div key={task.id} className={`calendar-task ${task.status === 'done' ? 'done' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={task.status === 'done'}
+                  onChange={() => onMove(task.id, task.status === 'done' ? 'pending' : 'done')}
+                  disabled={!canEdit}
+                />
+                <span className="calendar-task-title">{task.title}</span>
+                {canEdit && <button className="calendar-task-delete" onClick={() => onDelete(task.id)}>✕</button>}
+              </div>
+            ))}
+            {canEdit && (addingDate === dStr ? (
+              <input
+                type="text" autoFocus className="calendar-add-input"
+                value={addingTitle} onChange={e => setAddingTitle(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') submitAdd(dStr); if (e.key === 'Escape') setAddingDate(null) }}
+                onBlur={() => submitAdd(dStr)}
+              />
+            ) : (
+              <button className="calendar-add-btn calendar-add-btn--wide" onClick={() => { setAddingDate(dStr); setAddingTitle('') }}>+</button>
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function HourGutter() {
+  return (
+    <div className="hour-gutter" style={{ height: HOUR_HEIGHT * 24 }}>
+      {HOURS.map(h => (
+        <div key={h} className="hour-gutter-label" style={{ top: h * HOUR_HEIGHT }}>{String(h).padStart(2, '0')}:00</div>
+      ))}
+    </div>
+  )
+}
+
+// Columna de un día en la grilla horaria — se reusa tal cual en Día (una
+// sola, ancha) y en Semana (7, angostas, una al lado de la otra).
+function TimeColumn({ date, tasks, canEdit, onAdd, onMove, onDelete }) {
+  const [addingTime, setAddingTime] = useState(null)
+  const [addingTitle, setAddingTitle] = useState('')
+  const [addingEnd, setAddingEnd] = useState('')
+
+  const dStr = toDateStr(date)
+  const timedTasks = tasks.filter(t => t.due_date === dStr && t.due_time)
+  const positioned = layoutTimedTasks(timedTasks)
+
+  function handleSlotClick(e) {
+    if (!canEdit) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const offsetY = e.clientY - rect.top
+    const totalMinutes = Math.max(0, Math.floor((offsetY / HOUR_HEIGHT) * 60))
+    const snapped = Math.floor(totalMinutes / 30) * 30
+    const start = minutesToTime(snapped)
+    setAddingTime(start)
+    setAddingTitle('')
+    setAddingEnd(addMinutesToTime(start, 30))
+  }
+
+  function submitAdd() {
+    if (!addingTitle.trim()) { setAddingTime(null); return }
+    onAdd(addingTitle, dStr, addingTime, addingEnd || null)
+    setAddingTime(null)
+    setAddingTitle('')
+  }
+
+  return (
+    <div className="time-col" style={{ height: HOUR_HEIGHT * 24 }} onClick={handleSlotClick}>
+      {HOURS.map(h => (
+        <div key={h} className="time-col-hourline" style={{ top: h * HOUR_HEIGHT }} />
+      ))}
+
+      {positioned.map(task => {
+        const top = (timeToMinutes(task.due_time) / 60) * HOUR_HEIGHT
+        const height = Math.max(((timeToMinutes(task._end) - timeToMinutes(task.due_time)) / 60) * HOUR_HEIGHT, MIN_BLOCK_HEIGHT)
+        const widthPct = 100 / task._cols
+        const leftPct = widthPct * task._col
+        return (
+          <div
+            key={task.id}
+            className={`time-block ${task.status === 'done' ? 'done' : ''}`}
+            style={{ top, height, left: `${leftPct}%`, width: `calc(${widthPct}% - 3px)` }}
+            onClick={e => e.stopPropagation()}
+            title={`${task.due_time.slice(0, 5)}–${task._end.slice(0, 5)} · ${task.title}`}
+          >
+            <input
+              type="checkbox"
+              checked={task.status === 'done'}
+              onChange={() => onMove(task.id, task.status === 'done' ? 'pending' : 'done')}
+              disabled={!canEdit}
+            />
+            <span className="time-block-body">
+              <span className="time-block-time">{task.due_time.slice(0, 5)}</span>
+              <span className="time-block-title">{task.title}</span>
+            </span>
+            {canEdit && <button className="time-block-delete" onClick={() => onDelete(task.id)}>✕</button>}
+          </div>
+        )
+      })}
+
+      {addingTime && (
+        <div className="time-add-form" style={{ top: (timeToMinutes(addingTime) / 60) * HOUR_HEIGHT }} onClick={e => e.stopPropagation()}>
+          <input
+            type="text" autoFocus placeholder="Título..." className="time-add-title"
+            value={addingTitle} onChange={e => setAddingTitle(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') submitAdd(); if (e.key === 'Escape') setAddingTime(null) }}
+          />
+          <div className="time-add-row">
+            <span>{addingTime} –</span>
+            <input
+              type="time" className="time-add-end" value={addingEnd}
+              onChange={e => setAddingEnd(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') submitAdd(); if (e.key === 'Escape') setAddingTime(null) }}
+            />
+            <button className="time-add-ok" onClick={submitAdd}>OK</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Botón "+ Nuevo evento" — entrada alternativa a "click en la grilla" para
+// cuando la franja deseada ya está ocupada por otro evento (el bloque tapa
+// el click) o simplemente para no tener que ubicarlo a ojo.
+function QuickAddPanel({ defaultDate, onAdd, onClose }) {
+  const [title, setTitle] = useState('')
+  const [date, setDate] = useState(toDateStr(defaultDate))
+  const [start, setStart] = useState(() => {
+    const now = new Date()
+    return minutesToTime(Math.floor((now.getHours() * 60 + now.getMinutes()) / 30) * 30)
+  })
+  const [end, setEnd] = useState(() => addMinutesToTime(start, 30))
+
+  function submit() {
+    if (!title.trim()) return
+    onAdd(title, date, start, end)
+    onClose()
+  }
+
+  return (
+    <div className="quick-add-panel">
+      <input
+        type="text" autoFocus placeholder="Título del evento..." className="quick-add-title"
+        value={title} onChange={e => setTitle(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') onClose() }}
+      />
+      <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+      <input type="time" value={start} onChange={e => { setStart(e.target.value); setEnd(addMinutesToTime(e.target.value, 30)) }} />
+      <span className="quick-add-sep">–</span>
+      <input type="time" value={end} onChange={e => setEnd(e.target.value)} />
+      <button className="time-add-ok" onClick={submit}>Agregar</button>
+      <button className="quick-add-cancel" onClick={onClose}>✕</button>
+    </div>
+  )
+}
+
+function DayView({ tasks, canEdit, onAdd, onMove, onDelete, selectedDate, onChangeDate }) {
   const scrollRef = useRef(null)
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = 7 * 48 // arranca mostrando ~7am
+    if (scrollRef.current) scrollRef.current.scrollTop = 7 * HOUR_HEIGHT // arranca mostrando ~7am
   }, [])
-
-  const dStr = toDateStr(selectedDate)
-  const dayTasks = tasks.filter(t => t.due_date === dStr)
-  const timedTasks = dayTasks.filter(t => t.due_time).sort((a, b) => a.due_time.localeCompare(b.due_time))
-  const allDayTasks = dayTasks.filter(t => !t.due_time)
-
-  function submitAdd(hour) {
-    if (!addingTitle.trim()) { setAddingHour(null); return }
-    const dueTime = hour === 'allday' ? null : `${String(hour).padStart(2, '0')}:00`
-    onAdd(addingTitle, dStr, dueTime)
-    setAddingTitle('')
-    setAddingHour(null)
-  }
-
-  function renderTaskRow(task) {
-    return (
-      <div key={task.id} className={`calendar-task ${task.status === 'done' ? 'done' : ''}`} onClick={e => e.stopPropagation()}>
-        <input
-          type="checkbox"
-          checked={task.status === 'done'}
-          onChange={() => onMove(task.id, task.status === 'done' ? 'pending' : 'done')}
-          disabled={!canEdit}
-        />
-        <span className="calendar-task-title">{task.title}</span>
-        {canEdit && <button className="calendar-task-delete" onClick={() => onDelete(task.id)}>✕</button>}
-      </div>
-    )
-  }
 
   return (
     <div className="day-view">
@@ -370,55 +615,75 @@ function DayView({ tasks, canEdit, onAdd, onMove, onDelete, selectedDate, onChan
         </span>
         <button onClick={() => onChangeDate(addDays(selectedDate, 1))}>›</button>
         <button className="calendar-today-btn" onClick={() => onChangeDate(new Date())}>Hoy</button>
+        {canEdit && <button className="quick-add-trigger" onClick={() => setShowQuickAdd(v => !v)}>+ Nuevo evento</button>}
       </div>
 
-      <div className="day-allday-row">
-        <span className="day-allday-label">Sin horario</span>
-        <div className="day-allday-tasks">
-          {allDayTasks.map(renderTaskRow)}
-          {canEdit && (addingHour === 'allday' ? (
-            <input
-              type="text" autoFocus className="calendar-add-input"
-              value={addingTitle} onChange={e => setAddingTitle(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') submitAdd('allday'); if (e.key === 'Escape') setAddingHour(null) }}
-              onBlur={() => submitAdd('allday')}
-            />
-          ) : (
-            <button className="calendar-add-btn calendar-add-btn--wide" onClick={() => { setAddingHour('allday'); setAddingTitle('') }}>+ Agregar sin horario</button>
-          ))}
+      {showQuickAdd && (
+        <QuickAddPanel defaultDate={selectedDate} onAdd={onAdd} onClose={() => setShowQuickAdd(false)} />
+      )}
+
+      <AllDayRow dates={[selectedDate]} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onDelete={onDelete} onMove={onMove} />
+
+      <div className="time-grid-scroll" ref={scrollRef}>
+        <div className="time-grid-inner">
+          <HourGutter />
+          <TimeColumn date={selectedDate} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete} />
         </div>
       </div>
+    </div>
+  )
+}
 
-      <div className="day-hours-scroll" ref={scrollRef}>
-        {HOURS.map(hour => (
-          <div key={hour} className="day-hour-row" onClick={() => canEdit && setAddingHour(hour)}>
-            <div className="day-hour-label">{String(hour).padStart(2, '0')}:00</div>
-            <div className="day-hour-body">
-              {timedTasks.filter(t => parseInt(t.due_time.slice(0, 2), 10) === hour).map(task => (
-                <div key={task.id} className={`day-task-chip ${task.status === 'done' ? 'done' : ''}`} onClick={e => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    checked={task.status === 'done'}
-                    onChange={() => onMove(task.id, task.status === 'done' ? 'pending' : 'done')}
-                    disabled={!canEdit}
-                  />
-                  <span className="day-task-time">{task.due_time.slice(0, 5)}</span>
-                  <span className="day-task-title">{task.title}</span>
-                  {canEdit && <button className="calendar-task-delete" onClick={() => onDelete(task.id)}>✕</button>}
-                </div>
-              ))}
-              {canEdit && addingHour === hour && (
-                <input
-                  type="text" autoFocus className="calendar-add-input"
-                  value={addingTitle} onChange={e => setAddingTitle(e.target.value)}
-                  onClick={e => e.stopPropagation()}
-                  onKeyDown={e => { if (e.key === 'Enter') submitAdd(hour); if (e.key === 'Escape') setAddingHour(null) }}
-                  onBlur={() => submitAdd(hour)}
-                />
-              )}
-            </div>
+const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+
+function WeekView({ tasks, canEdit, onAdd, onMove, onDelete, selectedDate, onChangeDate }) {
+  const scrollRef = useRef(null)
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
+  const weekStart = startOfWeek(selectedDate)
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  const todayStr = toDateStr(new Date())
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 7 * HOUR_HEIGHT
+  }, [])
+
+  const weekEnd = addDays(weekStart, 6)
+  const label = `${weekStart.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })} – ${weekEnd.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}`
+
+  return (
+    <div className="day-view">
+      <div className="calendar-nav">
+        <button onClick={() => onChangeDate(addDays(selectedDate, -7))}>‹</button>
+        <span className="calendar-month-label">{label}</span>
+        <button onClick={() => onChangeDate(addDays(selectedDate, 7))}>›</button>
+        <button className="calendar-today-btn" onClick={() => onChangeDate(new Date())}>Hoy</button>
+        {canEdit && <button className="quick-add-trigger" onClick={() => setShowQuickAdd(v => !v)}>+ Nuevo evento</button>}
+      </div>
+
+      {showQuickAdd && (
+        <QuickAddPanel defaultDate={selectedDate} onAdd={onAdd} onClose={() => setShowQuickAdd(false)} />
+      )}
+
+      <div className="week-day-headers" style={{ gridTemplateColumns: `70px repeat(7, 1fr)` }}>
+        <span />
+        {days.map((d, i) => (
+          <div key={i} className={`week-day-header ${toDateStr(d) === todayStr ? 'today' : ''}`}>
+            {WEEKDAY_LABELS[i]} <strong>{d.getDate()}</strong>
           </div>
         ))}
+      </div>
+
+      <AllDayRow dates={days} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onDelete={onDelete} onMove={onMove} />
+
+      <div className="time-grid-scroll" ref={scrollRef}>
+        <div className="time-grid-inner">
+          <HourGutter />
+          <div className="time-grid-week-cols">
+            {days.map((d, i) => (
+              <TimeColumn key={i} date={d} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete} />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -94,6 +94,16 @@
   margin-bottom: 20px;
 }
 
+.db-metrics--personal {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.db-metrics--personal .db-metric-card { flex: 0 1 220px; }
+
 .db-metric-card {
   background: #ffffff;
   border: 1px solid #e5e7eb;

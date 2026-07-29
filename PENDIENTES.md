@@ -58,16 +58,17 @@ El WS personal existía desde Etapa 1 solo como fila en la base (trigger `handle
 - [x] Sidebar y Dashboard se ramifican por `activeWorkspace.type === 'personal'` — oculta Proyectos/tipos de entidad/Tareas, muestra "Agenda". Settings oculta Usuarios/Estados/Tipos de entidad (no aplican a un WS de un solo usuario sin proyectos)
 - [x] `negotiation_notes` — se sacó el constraint que exigía negotiation_id o entity_id; ahora también admite notas sueltas (solo `workspace_id`), usadas por el notepad de la Agenda
 - [x] Página `/agenda` con 3 pestañas, todo sobre `tasks` sin negotiation_id/entity_id (cero tablas nuevas):
-  - **Tablero**: kanban de 3 columnas (Pendiente/En curso/Completado) mapeado directo a `tasks.status`, que ya tenía esos 3 valores. Alta rápida con un input inline (sin modal), drag & drop nativo entre columnas (mismo patrón que el reordenamiento de columnas de Proyectos) + botones ‹/› para mover
-  - **Calendario**: toggle Mes/Día.
+  - **Tablero**: kanban de 3 columnas (Pendiente/En curso/Completado) mapeado directo a `tasks.status`, que ya tenía esos 3 valores. Alta rápida con un input inline (sin modal), drag & drop nativo entre columnas (mismo patrón que el reordenamiento de columnas de Proyectos) + botones ‹/› para mover. Panel "Hoy" al costado (solo lectura, tareas de hoy en orden cronológico) — decidido explícitamente en vez de una 4ª columna kanban, para no mezclar el modelo por-estado con el modelo por-fecha
+  - **Calendario**: toggle Día/Semana/Mes.
     - Mes: grilla mensual, tareas ubicadas por `due_date`, alta rápida por día con click, checkbox para completar, click en el número del día salta a la vista Día de esa fecha
-    - Día: `tasks.due_time` (columna nueva, nullable, aditiva — no rompe nada de lo que ya usaba solo `due_date`) — grilla horaria tipo Google Calendar (00 a 23hs, auto-scroll a las 7am), sección "Sin horario" arriba para tareas sin hora puntual, click en una franja horaria para agregar una tarea con esa hora
+    - Día/Semana: motor de grilla horaria compartido (`TimeColumn`), tipo Google Calendar — `tasks.due_time` + `tasks.due_time_end` (columnas nuevas, nullable, aditivas), eventos dibujados como bloques con alto proporcional a la duración (default 30min si no se especifica fin), click en una franja de :00/:30 para agregar con hora de fin editable ahí mismo, más un botón "+ Nuevo evento" para cuando la franja deseada ya está tapada por otro bloque. Solapamientos: se agrupan en clusters (todo lo que se toca en el tiempo) y se reparte el ancho parejo entre ellos — no se replicó el algoritmo completo de Google Calendar para casos de solapamiento parcial encadenado, decisión explícita por ser un planner simple
   - **Notas**: `NotesPostIts` en modo standalone
-- [x] Dashboard del WS personal reemplaza las métricas de proyectos/pipeline por hoy/esta semana/vencidas, reusando el mismo layout de cards que ya existía
+- [x] Dashboard del WS personal reemplaza las métricas de proyectos/pipeline por hoy/esta semana/vencidas, reusando el mismo layout de cards que ya existía (centradas con `.db-metrics--personal`, son solo 3 en vez de 4)
 
 ### Pendiente / a futuro (no ahora)
-- Integración con Google Calendar y/o Microsoft 365 — pedido explícito del usuario para el futuro, pero es un desarrollo propio serio (OAuth por proveedor, sync de dos vías, resolución de conflictos), no una tarea de una sesión. El modelo de datos actual (`due_date` + `due_time`) no lo bloquea, pero no se construyó nada todavía
+- Integración con Google Calendar y/o Microsoft 365 — pedido explícito del usuario para el futuro, pero es un desarrollo propio serio (OAuth por proveedor, sync de dos vías, resolución de conflictos), no una tarea de una sesión. El modelo de datos actual (`due_date`/`due_time`/`due_time_end`) no lo bloquea, pero no se construyó nada todavía
 - No se le puso gate al lado del servidor a la Edge Function `invite-user` para bloquear invitaciones a un WS personal — hoy es solo un gate de UI (se oculta el tab "Usuarios"). No es un problema de seguridad entre tenants (solo afecta al propio WS del usuario), pero si se quiere blindar del todo falta ese paso
+- Sin drag-to-resize de eventos (cambiar la duración arrastrando el borde del bloque, como Google Calendar) — hoy la duración solo se define al crear, editando la hora de fin en el form
 
 ---
 
