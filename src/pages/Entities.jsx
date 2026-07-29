@@ -45,12 +45,10 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   async function handleExportEntitiesPdf() {
     setExportingPdf(true)
     try {
-      const { exportEntitiesPdf } = await import('../lib/exportEntitiesPdf')
-      await exportEntitiesPdf({
-        entities: filtered,
+      const { exportAllEntitiesPdf } = await import('../lib/exportEntitiesPdf')
+      await exportAllEntitiesPdf({
+        workspaceId,
         customStates: negotiationStates,
-        entityLabelPlural: entityTypeName || 'Proveedores',
-        entityLabelSingular: entityTypeSingular || 'Proveedor',
         workspaceName: activeWorkspace?.name,
       })
     } finally {
@@ -173,7 +171,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           className="entities-export-btn"
           onClick={handleExportEntitiesPdf}
           disabled={exportingPdf}
-          title={`Exportar ${entityTypeName?.toLowerCase() || 'proveedores'} a PDF`}
+          title="Exportar todas las entidades (todos los tipos) a PDF"
         >
           {exportingPdf ? 'Generando…' : '⬇ Exportar PDF'}
         </button>

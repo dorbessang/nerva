@@ -11,42 +11,32 @@ import {
 
 const MARGIN = 20
 
-// Todo lo que la lista de Entidades no trae ya cargado (territorios, tareas
-// pendientes por proyecto, hitos de pago) se busca acá con queries puntuales,
-// solo cuando se genera el PDF — mismo patrón que exportPdf.js.
+// Tareas pendientes e hitos de pago no vienen precargados en ningún lado —
+// se buscan acá con queries puntuales, solo cuando se genera el PDF.
 async function fetchExtraData(negIds) {
-  if (negIds.length === 0) return { territoriesByNeg: {}, pendingByNeg: {}, milestones: [] }
-  const [{ data: negs }, { data: tasks }, { data: milestones }] = await Promise.all([
-    supabase.from('negotiations').select('id, territories, currency').in('id', negIds),
+  if (negIds.length === 0) return { pendingByNeg: {}, milestones: [] }
+  const [{ data: tasks }, { data: milestones }] = await Promise.all([
     supabase.from('tasks').select('id, status, negotiation_id').in('negotiation_id', negIds),
     supabase.from('deal_milestones').select('negotiation_id, amount').in('negotiation_id', negIds),
   ])
-  const territoriesByNeg = {}
-  const currencyByNeg = {}
-  for (const n of negs || []) {
-    territoriesByNeg[n.id] = n.territories || []
-    currencyByNeg[n.id] = n.currency || 'USD'
-  }
   const pendingByNeg = {}
   for (const t of tasks || []) {
     if (t.status === 'done') continue
     pendingByNeg[t.negotiation_id] = (pendingByNeg[t.negotiation_id] || 0) + 1
   }
-  return { territoriesByNeg, pendingByNeg, milestones: milestones || [], currencyByNeg }
+  return { pendingByNeg, milestones: milestones || [] }
 }
 
-function pipelineByCurrency(negIds, milestones, currencyByNeg) {
-  const idSet = new Set(negIds)
+function pipelineByCurrency(milestones, currencyByNeg) {
   const totals = {}
   for (const m of milestones) {
-    if (!idSet.has(m.negotiation_id)) continue
     const cur = currencyByNeg[m.negotiation_id] || 'USD'
     totals[cur] = (totals[cur] || 0) + Number(m.amount)
   }
   return Object.entries(totals).map(([currency, total]) => ({ currency, total })).sort((a, b) => b.total - a.total)
 }
 
-function drawSummary(doc, { entities, negotiations, customStates, pipeline, entityLabelPlural }) {
+function drawSummary(doc, { entities, negotiations, customStates, pipeline, typeBreakdown }) {
   setText(doc, NAVY)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
@@ -55,7 +45,7 @@ function drawSummary(doc, { entities, negotiations, customStates, pipeline, enti
   const completedCount = negotiations.filter(n => n.status === 'Completado').length
 
   let y = drawStatCards(doc, [
-    { value: entities.length, label: entityLabelPlural, color: NAVY },
+    { value: entities.length, label: 'Entidades', color: NAVY },
     { value: negotiations.length, label: 'Proyectos', color: [29, 78, 216] },
     { value: completedCount, label: 'Completados', color: [5, 150, 105] },
     { value: negotiations.length - completedCount, label: 'En curso', color: [217, 119, 6] },
@@ -79,10 +69,18 @@ function drawSummary(doc, { entities, negotiations, customStates, pipeline, enti
   y += 8
 
   const counts = customStates.map(s => ({ ...s, count: negotiations.filter(n => n.status === s.name).length }))
-  drawStateBarChart(doc, counts, y)
+  y = drawStateBarChart(doc, counts, y) + 10
+
+  if (typeBreakdown.length > 0) {
+    const str = typeBreakdown.map(t => `${t.count} ${t.plural}`).join('   ·   ')
+    setText(doc, GRAY_TEXT)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    doc.text(`ENTIDADES POR TIPO:   ${str}`, MARGIN, y)
+  }
 }
 
-function drawProviderPage(doc, entity, { index, customStates, negotiations, territoriesByNeg, pendingByNeg, entityLabelSingular }) {
+function drawEntityPage(doc, entity, { index, customStates, negotiations, pendingByNeg, typeLabelSingular }) {
   const countryName = entity.country_code ? getCountryName(entity.country_code) : ''
 
   setFill(doc, NAVY)
@@ -95,7 +93,7 @@ function drawProviderPage(doc, entity, { index, customStates, negotiations, terr
   setText(doc, ACCENT)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
-  doc.text(countryName || entityLabelSingular, MARGIN, 21)
+  doc.text(countryName || typeLabelSingular, MARGIN, 21)
 
   let y = 36
 
@@ -134,7 +132,7 @@ function drawProviderPage(doc, entity, { index, customStates, negotiations, terr
     n.product || n.title || 'Sin nombre',
     n.status || '—',
     n.nda || '—',
-    (territoriesByNeg[n.id] || []).join(', ') || '—',
+    (n.territories || []).join(', ') || '—',
     pendingByNeg[n.id] ? String(pendingByNeg[n.id]) : '—',
   ])
 
@@ -160,51 +158,91 @@ function drawProviderPage(doc, entity, { index, customStates, negotiations, terr
   })
 }
 
-export async function exportEntitiesPdf({ entities, customStates, entityLabelPlural, entityLabelSingular, workspaceName }) {
-  const negByEntity = {}
-  const negIndex = {}
-  entities.forEach(entity => {
-    const negs = (entity.negotiation_entities || []).map(ne => ne.negotiation).filter(Boolean)
-    negByEntity[entity.id] = negs
-    negs.forEach(n => { negIndex[n.id] = n })
-  })
-  const allNegotiations = Object.values(negIndex)
-  const negIds = allNegotiations.map(n => n.id)
+// Un único PDF con TODAS las entidades del workspace, agrupadas por tipo
+// (Proveedores, Clientes, etc.) — accesible desde cualquier pestaña de
+// Entidades, no un archivo separado por tipo.
+export async function exportAllEntitiesPdf({ workspaceId, customStates, workspaceName }) {
+  const [{ data: entityTypes }, { data: entities }] = await Promise.all([
+    supabase.from('entity_types').select('id, name, plural').eq('workspace_id', workspaceId).order('sort_order'),
+    supabase.from('entities').select(`*, contacts ( id, name, role, email, phone, notes, is_primary )`).eq('workspace_id', workspaceId).order('name'),
+  ])
 
-  const { territoriesByNeg, pendingByNeg, milestones, currencyByNeg } = await fetchExtraData(negIds)
-  const pipeline = pipelineByCurrency(negIds, milestones, currencyByNeg)
+  const entityIds = (entities || []).map(e => e.id)
+  const { data: negEntities } = entityIds.length > 0
+    ? await supabase.from('negotiation_entities').select('entity_id, negotiation_id').in('entity_id', entityIds)
+    : { data: [] }
+
+  const negIds = [...new Set((negEntities || []).map(ne => ne.negotiation_id))]
+  const { data: negsData } = negIds.length > 0
+    ? await supabase.from('negotiations').select('id, product, title, status, nda, territories, currency').in('id', negIds)
+    : { data: [] }
+
+  const negIndex = {}
+  for (const n of negsData || []) negIndex[n.id] = n
+
+  const negByEntity = {}
+  for (const ne of negEntities || []) {
+    const neg = negIndex[ne.negotiation_id]
+    if (!neg) continue
+    if (!negByEntity[ne.entity_id]) negByEntity[ne.entity_id] = []
+    negByEntity[ne.entity_id].push(neg)
+  }
+
+  const currencyByNeg = {}
+  for (const n of negsData || []) currencyByNeg[n.id] = n.currency || 'USD'
+
+  const { pendingByNeg, milestones } = await fetchExtraData(negIds)
+  const pipeline = pipelineByCurrency(milestones, currencyByNeg)
+  const allNegotiations = Object.values(negIndex)
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
 
-  const pluralLower = entityLabelPlural.toLowerCase()
+  const typeBreakdown = (entityTypes || [])
+    .map(t => ({ ...t, count: (entities || []).filter(e => e.entity_type_id === t.id).length }))
+    .filter(t => t.count > 0)
+
   drawCover(doc, {
-    title: `Resumen de ${pluralLower}`,
-    subtitle: workspaceName ? `Pipeline de licencias y negociaciones — ${workspaceName}` : `Pipeline de licencias y negociaciones con ${pluralLower}`,
-    statsLine: `${entities.length} ${pluralLower}  ·  ${allNegotiations.length} proyectos`,
+    title: 'Resumen de entidades',
+    subtitle: workspaceName ? `Pipeline de licencias y negociaciones — ${workspaceName}` : 'Pipeline de licencias y negociaciones',
+    statsLine: `${(entities || []).length} entidades  ·  ${allNegotiations.length} proyectos`,
   })
 
   doc.addPage()
-  drawSummary(doc, { entities, negotiations: allNegotiations, customStates, pipeline, entityLabelPlural })
+  drawSummary(doc, { entities: entities || [], negotiations: allNegotiations, customStates, pipeline, typeBreakdown })
+  const footerPages = [doc.internal.getNumberOfPages()]
 
-  const sorted = [...entities].sort((a, b) => a.name.localeCompare(b.name, 'es'))
-  sorted.forEach((entity, idx) => {
+  for (const type of typeBreakdown) {
+    const typeEntities = (entities || [])
+      .filter(e => e.entity_type_id === type.id)
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+
+    // Página divisoria navy (mismo estilo que la portada) — no lleva pie de
+    // página, el texto gris del footer no se leería sobre fondo navy.
     doc.addPage()
-    drawProviderPage(doc, entity, {
-      index: idx + 1,
-      customStates,
-      negotiations: negByEntity[entity.id] || [],
-      territoriesByNeg,
-      pendingByNeg,
-      entityLabelSingular,
+    drawCover(doc, {
+      title: type.plural || type.name,
+      subtitle: workspaceName ? `Nerva — ${workspaceName}` : 'Nerva',
+      statsLine: `${typeEntities.length} ${(type.plural || type.name).toLowerCase()}`,
     })
-  })
 
-  const pageCount = doc.internal.getNumberOfPages()
-  const footerLabel = `NERVA${workspaceName ? ' · ' + workspaceName : ''} · Resumen de ${pluralLower}`
-  for (let i = 2; i <= pageCount; i++) {
-    doc.setPage(i)
-    drawFooter(doc, { label: footerLabel, page: i - 1, total: pageCount - 1 })
+    typeEntities.forEach((entity, idx) => {
+      doc.addPage()
+      drawEntityPage(doc, entity, {
+        index: idx + 1,
+        customStates,
+        negotiations: negByEntity[entity.id] || [],
+        pendingByNeg,
+        typeLabelSingular: type.name,
+      })
+      footerPages.push(doc.internal.getNumberOfPages())
+    })
   }
 
-  doc.save(`nerva-${pluralLower.replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.pdf`)
+  const footerLabel = `NERVA${workspaceName ? ' · ' + workspaceName : ''} · Resumen de entidades`
+  footerPages.forEach((pageNum, i) => {
+    doc.setPage(pageNum)
+    drawFooter(doc, { label: footerLabel, page: i + 1, total: footerPages.length })
+  })
+
+  doc.save(`nerva-entidades-${new Date().toISOString().slice(0, 10)}.pdf`)
 }
