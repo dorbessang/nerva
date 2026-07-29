@@ -56,6 +56,7 @@ Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diag
 
 ### Búsqueda global
 - [x] **Búsqueda global** — buscador en el header (`GlobalSearch.jsx`), input fijo (no overlay/atajo) + versión colapsada a ícono en mobile que expande a barra full-width. Busca con `ilike` en paralelo (sin Edge Function ni full-text search, no se justifica con el volumen actual): en WS de equipo, Proyectos (`product`/`title`), Entidades (`name`) y Tareas (`title`); en WS personal, Tareas y Notas sueltas. Los resultados de notas navegan al proyecto/entidad que las contiene, no a la nota en sí (pedido explícito). Deep-links reusando el patrón `?openNeg=`/`?openTask=` que ya usaban las notificaciones; se sumó `?openEntity=` a `Entities.jsx` (no existía). El hook `useCloseOnOutsideOrEscape` (antes solo en Agenda.jsx) se extrajo a `src/lib/useCloseOnOutsideOrEscape.js` para reusarlo acá también
+- [x] Ajuste post-uso (reportado por el usuario probando en real): dos proyectos con el mismo `product` (ej. mismo producto negociado con 2 proveedores distintos) no se podían diferenciar en los resultados. Se agregó el proveedor principal (`primary_entity_id`) como subtítulo del resultado, mismo patrón visual que ya usaban las notas ("en Proyecto X")
 
 ### Pendientes estéticos (UI polish, no bloqueantes)
 - Card de "Valor de pipeline"/"Seleccionados" en Proyectos — funciona bien, pero el diseño se puede pulir más (usuario: "podría mejorar, pero dejalo como pendiente")

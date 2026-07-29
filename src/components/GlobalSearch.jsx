@@ -57,7 +57,7 @@ export default function GlobalSearch() {
     }
 
     const [negRes, entRes, taskRes, noteRes] = await Promise.all([
-      supabase.from('negotiations').select('id, product, title')
+      supabase.from('negotiations').select('id, product, title, primary_entity:primary_entity_id(name)')
         .eq('workspace_id', workspaceId)
         .or(`product.ilike.${like},title.ilike.${like}`).limit(LIMIT),
       supabase.from('entities').select('id, name, entity_type_id')
@@ -152,7 +152,10 @@ export default function GlobalSearch() {
                   <div className="global-search-group-label">Proyectos</div>
                   {results.negotiations.map(n => (
                     <button key={n.id} className="global-search-item" onClick={() => goTo(`/negotiations?openNeg=${n.id}`)}>
-                      {n.product || n.title}
+                      <span className="global-search-item-note">{n.product || n.title}</span>
+                      {n.primary_entity?.name && (
+                        <span className="global-search-item-sub">con {n.primary_entity.name}</span>
+                      )}
                     </button>
                   ))}
                 </div>
