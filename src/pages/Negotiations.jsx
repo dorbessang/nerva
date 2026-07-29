@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { useCloseOnOutsideOrEscape } from '../lib/useCloseOnOutsideOrEscape'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import NotesPostIts from '../components/NotesPostIts'
 import ActivityTimeline from '../components/ActivityTimeline'
@@ -63,7 +63,11 @@ function getExportValue(key, neg, getEntityName) {
 // Excel real (.xlsx) en vez de CSV: evita de raíz los problemas de
 // delimitador (coma vs ";" según configuración regional) y de codificación
 // de acentos que sí aparecen con texto plano tipo CSV.
-function exportNegotiationsXlsx(negotiations, cols, getEntityName) {
+// xlsx/jspdf se cargan bajo demanda (import dinámico) para no sumarlos al
+// bundle inicial de /negotiations — son acciones ocasionales, no parte del
+// flujo principal de la página.
+async function exportNegotiationsXlsx(negotiations, cols, getEntityName) {
+  const XLSX = await import('xlsx')
   const visibleCols = cols.filter(c => c.visible)
   const headers = visibleCols.map(c => ALL_COLUMNS.find(x => x.key === c.key)?.label || c.key)
   const rows = [
@@ -105,10 +109,13 @@ function useColumnPrefs(userId) {
 }
 
 export default function Negotiations() {
-  const { user, workspaceId, effectiveRole } = useAuth()
+  const { user, workspaceId, effectiveRole, activeWorkspace } = useAuth()
   const canCreateProject = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
   const location = useLocation()
   const navigate = useNavigate()
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
+  const exportMenuRef = useRef(null)
   const [negotiations, setNegotiations] = useState([])
   const [entities, setEntities] = useState([])
   const [members, setMembers] = useState([])
@@ -294,6 +301,36 @@ export default function Negotiations() {
     })
   }
 
+  useCloseOnOutsideOrEscape(exportMenuRef, showExportMenu, () => setShowExportMenu(false))
+
+  function exportRows() {
+    return selectedIds.size > 0 ? filtered.filter(n => selectedIds.has(n.id)) : filtered
+  }
+
+  function handleExportExcel() {
+    setShowExportMenu(false)
+    exportNegotiationsXlsx(exportRows(), cols, getEntityName)
+  }
+
+  async function handleExportPdf() {
+    setShowExportMenu(false)
+    setExportingPdf(true)
+    const rows = exportRows()
+    try {
+      const { exportNegotiationsPdf } = await import('../lib/exportPdf')
+      await exportNegotiationsPdf({
+        negotiations: rows,
+        customStates,
+        getPrimaryEntity,
+        getEntityName,
+        pipeline: selectedIds.size > 0 ? selectedPipeline : totalPipeline,
+        workspaceName: activeWorkspace?.name,
+      })
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
   async function handleKanbanMove(negId, newStatus) {
     const neg = negotiations.find(n => n.id === negId)
     if (!neg || neg.status === newStatus) return
@@ -417,13 +454,34 @@ export default function Negotiations() {
             ⚙ Columnas
           </button>
         )}
-        <button
-          className="neg-col-btn"
-          onClick={() => exportNegotiationsXlsx(selectedIds.size > 0 ? filtered.filter(n => selectedIds.has(n.id)) : filtered, cols, getEntityName)}
-          title={selectedIds.size > 0 ? `Exportar los ${selectedIds.size} seleccionados a Excel` : 'Exportar los proyectos filtrados a Excel'}
-        >
-          ⬇ Exportar Excel
-        </button>
+        <div className="neg-export-menu" ref={exportMenuRef}>
+          <button
+            className="neg-col-btn"
+            onClick={() => setShowExportMenu(v => !v)}
+            disabled={exportingPdf}
+            title={selectedIds.size > 0 ? `Exportar los ${selectedIds.size} seleccionados` : 'Exportar los proyectos filtrados'}
+          >
+            {exportingPdf ? 'Generando PDF…' : '⬇ Exportar'}
+          </button>
+          {showExportMenu && (
+            <div className="neg-export-dropdown">
+              <button className="neg-export-option" onClick={handleExportExcel}>
+                <span className="neg-export-option-icon">📊</span>
+                <span>
+                  <span className="neg-export-option-title">Excel (.xlsx)</span>
+                  <span className="neg-export-option-sub">Para analizar en planilla</span>
+                </span>
+              </button>
+              <button className="neg-export-option" onClick={handleExportPdf}>
+                <span className="neg-export-option-icon">📄</span>
+                <span>
+                  <span className="neg-export-option-title">PDF</span>
+                  <span className="neg-export-option-sub">Presentación completa, lista para compartir</span>
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {showColEditor && view !== 'kanban' && (

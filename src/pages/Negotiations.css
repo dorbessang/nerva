@@ -215,6 +215,54 @@
 
 .neg-col-btn:hover { border-color: #0B1F3A; color: #0B1F3A; }
 .neg-col-btn.active { background: #0B1F3A; color: #fff; border-color: #0B1F3A; }
+.neg-col-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* Menú de export (Excel / PDF) */
+.neg-export-menu { position: relative; }
+
+.neg-export-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 260px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px -8px rgba(11, 31, 58, 0.25);
+  padding: 6px;
+  z-index: 50;
+}
+
+.neg-export-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.neg-export-option:hover { background: #f4f6fb; }
+
+.neg-export-option-icon { font-size: 17px; line-height: 1.2; }
+
+.neg-export-option-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+  color: #16181d;
+}
+
+.neg-export-option-sub {
+  display: block;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 1px;
+}
 
 /* Editor de columnas */
 .col-editor {
