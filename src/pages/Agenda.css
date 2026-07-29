@@ -418,9 +418,9 @@
 }
 
 .time-block input[type="checkbox"] { width: 11px; height: 11px; flex-shrink: 0; margin-top: 2px; cursor: pointer; }
-.time-block-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.time-block-time { font-weight: 700; color: #1D4ED8; font-size: 10px; }
-.time-block-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.time-block-body { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 5px; }
+.time-block-time { font-weight: 700; color: #1D4ED8; font-size: 10px; flex-shrink: 0; }
+.time-block-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .time-block.done { opacity: 0.5; }
 .time-block.done .time-block-title { text-decoration: line-through; }
 

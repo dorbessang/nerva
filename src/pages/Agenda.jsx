@@ -324,6 +324,7 @@ function MonthView({ tasks, canEdit, onAdd, onMove, onDelete, onSelectDay }) {
   })
   const [addingDay, setAddingDay] = useState(null)
   const [addingTitle, setAddingTitle] = useState('')
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
 
   const todayStr = new Date().toISOString().split('T')[0]
 
@@ -366,7 +367,12 @@ function MonthView({ tasks, canEdit, onAdd, onMove, onDelete, onSelectDay }) {
         </span>
         <button onClick={() => setMonth(new Date(year, monthIdx + 1, 1))}>›</button>
         <button className="calendar-today-btn" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Hoy</button>
+        {canEdit && <button className="quick-add-trigger" onClick={() => setShowQuickAdd(v => !v)}>+ Nuevo evento</button>}
       </div>
+
+      {showQuickAdd && (
+        <QuickAddPanel defaultDate={new Date(year, monthIdx, 1)} onAdd={onAdd} onClose={() => setShowQuickAdd(false)} />
+      )}
 
       <div className="calendar-grid">
         {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => (
