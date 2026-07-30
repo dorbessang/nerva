@@ -197,6 +197,9 @@ El WS personal existía desde Etapa 1 solo como fila en la base (trigger `handle
 ## FASE 2 — Producto comercial
 
 - [ ] Constructor de formularios custom por workspace
+  - Primer caso concreto pedido por el usuario (sesión 2026-07-30): el campo **"Tipo de empresa"** de Entidades (`entities.custom_fields.company_type`, hoy un `<textarea>` de texto libre en `EntityModal` — "Ej: Laboratorio multinacional, Distribuidor regional...") tiene que pasar a ser una **lista de clases configurable desde Settings**, no texto libre. Aclaración explícita del usuario: esto es un campo *dentro* de cada entidad, no confundir con el **tipo de entidad** (Proveedor/Cliente/etc., tabla `entity_types`) — aplica igual sin importar el tipo de entidad, no es una lista distinta por tipo
+  - Motivo: hoy no se puede filtrar por tipo de empresa porque cada quien lo tipea distinto (mismo problema que ya se resolvió para `negotiations.status` con `custom_states`) — el usuario pidió explícitamente que quede "bien armado" porque el objetivo final es habilitarlo como filtro en Entidades, así que la lista de clases tiene que vivir en una tabla propia (mismo patrón que `custom_states`/`entity_types`: nombre + `sort_order` + `workspace_id`, gestionada desde una pestaña nueva de Settings) en vez de seguir siendo una entrada más de un JSON de texto libre
+  - Migración de datos pendiente de diseñar: las entidades que ya tienen `custom_fields.company_type` como texto libre necesitan mapearse a la clase nueva más parecida (o quedar sin clasificar) al activar esto — no se puede simplemente convertir el campo de tipo sin perder o tener que reconciliar los valores existentes
 - [ ] Multi-workspace completo con selector al login
 - [ ] Subentidades / Líneas de negocio dentro de entidades
 - [ ] Vista calendario para tareas y proyectos
