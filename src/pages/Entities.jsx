@@ -13,6 +13,7 @@ import Documents from '../components/Documents'
 import { notifyTaskAssigned } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { formatAmount } from '../components/DealMilestones'
+import { renderCustomFieldDisplay, getCustomFieldValue } from '../lib/customFields'
 import './Entities.css'
 
 const AVATAR_COLORS = [
@@ -45,6 +46,8 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [showImportModal, setShowImportModal] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [negotiationStates, setNegotiationStates] = useState([])
+  const [entityFieldDefs, setEntityFieldDefs] = useState([])
+  const [negotiationFieldDefs, setNegotiationFieldDefs] = useState([])
   const [exportingPdf, setExportingPdf] = useState(false)
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
@@ -84,8 +87,19 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   useEffect(() => {
     fetchEntities()
     fetchNegotiationStates()
+    fetchCustomFieldDefs()
     setSelectedIds(new Set())
   }, [entityTypeId])
+
+  async function fetchCustomFieldDefs() {
+    const { data } = await supabase
+      .from('custom_field_definitions')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .order('sort_order')
+    setEntityFieldDefs((data || []).filter(d => d.object_type === 'entity'))
+    setNegotiationFieldDefs((data || []).filter(d => d.object_type === 'negotiation'))
+  }
 
   // Si viene de la búsqueda global (u otra pantalla), abre directo el detalle
   useEffect(() => {
@@ -317,6 +331,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           onClose={() => setShowModal(false)}
           onCreated={fetchEntities}
           entityTypeSingular={entityTypeSingular}
+          customFieldDefs={entityFieldDefs}
         />
       )}
 
@@ -330,6 +345,8 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           entityTypeName={entityTypeName}
           entityTypeSingular={entityTypeSingular}
           getStateConfig={getStateConfig}
+          entityFieldDefs={entityFieldDefs}
+          negotiationFieldDefs={negotiationFieldDefs}
         />
       )}
     </div>
@@ -395,7 +412,7 @@ function EntitiesTable({ entities, negotiationStates, getStateConfig, getStateCo
   )
 }
 
-function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpdated, entityTypeName, entityTypeSingular, getStateConfig }) {
+function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpdated, entityTypeName, entityTypeSingular, getStateConfig, entityFieldDefs = [], negotiationFieldDefs = [] }) {
   const { workspaceId, user, effectiveRole } = useAuth()
   const canDelete = effectiveRole === 'owner'
   const canCreateProject = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
@@ -594,6 +611,12 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
                   <span className="entity-info-val">{entity.custom_fields.company_type}</span>
                 </div>
               )}
+              {entityFieldDefs.map(def => (
+                <div key={def.key} className="entity-info-row">
+                  <span className="entity-info-label">{def.label}</span>
+                  <span className="entity-info-val">{renderCustomFieldDisplay(def, getCustomFieldValue(entity.custom_fields, def.key))}</span>
+                </div>
+              ))}
             </div>
 
             {entity.contacts?.length > 0 && (
@@ -853,6 +876,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
           onClose={() => setShowEditModal(false)}
           onCreated={() => { onUpdated(); onClose() }}
           entityTypeSingular={entityTypeSingular}
+          customFieldDefs={entityFieldDefs}
         />
       )}
 
@@ -863,6 +887,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
           entities={entities}
           members={[]}
           customStates={customStates}
+          customFieldDefs={negotiationFieldDefs}
           onClose={() => { setShowNegModal(false); setSelectedNeg(null) }}
           onCancel={async () => {
             setShowNegModal(false)
@@ -889,6 +914,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
           neg={selectedNeg}
           entities={entities}
           customStates={customStates}
+          customFieldDefs={negotiationFieldDefs}
           getStateConfig={getStateConfig}
           getEntityFlag={getEntityFlagForNeg}
           onClose={() => setSelectedNeg(null)}

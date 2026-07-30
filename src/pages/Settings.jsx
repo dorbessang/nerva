@@ -33,7 +33,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (activeTab === 'usuarios' && !canInvite) setActiveTab(showModuleTabs ? 'estados' : 'notificaciones')
-    if (['estados', 'entidades'].includes(activeTab) && !showModuleTabs) setActiveTab(isAdminOrOwner ? 'workspace' : 'notificaciones')
+    if (['estados', 'entidades', 'campos'].includes(activeTab) && !showModuleTabs) setActiveTab(isAdminOrOwner ? 'workspace' : 'notificaciones')
     if (activeTab === 'workspace' && !isAdminOrOwner) setActiveTab('notificaciones')
   }, [canInvite, showModuleTabs, isAdminOrOwner, activeTab])
 
@@ -51,6 +51,7 @@ export default function Settings() {
           ...(canInvite ? [{ key: 'usuarios', label: 'Usuarios' }] : []),
           ...(showModuleTabs ? [{ key: 'estados', label: 'Estados' }] : []),
           ...(showModuleTabs ? [{ key: 'entidades', label: 'Tipos de entidad' }] : []),
+          ...(showModuleTabs ? [{ key: 'campos', label: 'Campos personalizados' }] : []),
           ...(isAdminOrOwner ? [{ key: 'workspace', label: 'Workspace' }] : []),
           { key: 'notificaciones', label: 'Notificaciones' },
         ].map(tab => (
@@ -69,6 +70,7 @@ export default function Settings() {
         {activeTab === 'usuarios' && canInvite && <TabUsuarios workspaceId={workspaceId} />}
         {activeTab === 'estados' && showModuleTabs && <TabEstados workspaceId={workspaceId} />}
         {activeTab === 'entidades' && showModuleTabs && <TabEntidades workspaceId={workspaceId} />}
+        {activeTab === 'campos' && showModuleTabs && <TabCamposPersonalizados workspaceId={workspaceId} />}
         {activeTab === 'workspace' && isAdminOrOwner && <TabWorkspace workspaceId={workspaceId} />}
         {activeTab === 'notificaciones' && <TabNotificaciones workspaceId={workspaceId} />}
       </div>
@@ -745,6 +747,311 @@ function TabEntidades({ workspaceId }) {
   )
 }
 
+// ─── TAB CAMPOS PERSONALIZADOS ────────────────────────────────────────────────
+
+const FIELD_TYPES = [
+  { key: 'text', label: 'Texto libre' },
+  { key: 'textarea', label: 'Texto largo' },
+  { key: 'number', label: 'Numérico' },
+  { key: 'date', label: 'Fecha' },
+  { key: 'boolean', label: 'Casilla (sí/no)' },
+  { key: 'select', label: 'Lista desplegable' },
+  { key: 'multiselect', label: 'Selección múltiple' },
+  { key: 'tracked', label: 'Campo con seguimiento' },
+]
+
+function fieldTypeLabel(key) {
+  return FIELD_TYPES.find(t => t.key === key)?.label || key
+}
+
+function genFieldKey() {
+  return `cf_${Math.random().toString(36).slice(2, 10)}`
+}
+
+function genChoiceId() {
+  return `opt_${Math.random().toString(36).slice(2, 8)}`
+}
+
+// Editor de opciones (para select/multiselect, y para tracked con
+// underlying_type='select') — reusado en el alta y en la edición inline.
+function ChoicesEditor({ choices, onChange }) {
+  const [input, setInput] = useState('')
+
+  function add() {
+    const label = input.trim()
+    if (!label) return
+    onChange([...(choices || []), { id: genChoiceId(), label }])
+    setInput('')
+  }
+
+  function remove(id) {
+    onChange(choices.filter(c => c.id !== id))
+  }
+
+  function rename(id, label) {
+    onChange(choices.map(c => c.id === id ? { ...c, label } : c))
+  }
+
+  return (
+    <div className="cf-choices-editor">
+      {(choices || []).map(c => (
+        <div key={c.id} className="cf-choice-row">
+          <input className="state-name-input" value={c.label} onChange={e => rename(c.id, e.target.value)} />
+          <button type="button" className="cf-choice-remove" onClick={() => remove(c.id)}>✕</button>
+        </div>
+      ))}
+      <div className="cf-choice-row">
+        <input
+          className="state-name-input"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="Nueva opción..."
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
+        />
+        <button type="button" className="settings-btn-secondary" onClick={add}>+ Agregar</button>
+      </div>
+    </div>
+  )
+}
+
+function TabCamposPersonalizados({ workspaceId }) {
+  const [objectType, setObjectType] = useState('negotiation')
+  const [fields, setFields] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  const [newLabel, setNewLabel] = useState('')
+  const [newType, setNewType] = useState('text')
+  const [newChoices, setNewChoices] = useState([])
+  const [newUnderlyingType, setNewUnderlyingType] = useState('select')
+  const [newTriggerMode, setNewTriggerMode] = useState('deadline')
+  const [newAlertDays, setNewAlertDays] = useState(30)
+
+  useEffect(() => { fetchFields() }, [objectType, workspaceId])
+
+  async function fetchFields() {
+    setLoading(true)
+    const { data } = await supabase
+      .from('custom_field_definitions')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .eq('object_type', objectType)
+      .order('sort_order')
+    if (data) setFields(data)
+    setLoading(false)
+  }
+
+  function resetForm() {
+    setNewLabel(''); setNewType('text'); setNewChoices([])
+    setNewUnderlyingType('select'); setNewTriggerMode('deadline'); setNewAlertDays(30)
+  }
+
+  function buildOptions(type, underlyingType, choices, triggerMode, alertDays) {
+    if (type === 'select' || type === 'multiselect') return { choices }
+    if (type === 'tracked') {
+      const opts = { underlying_type: underlyingType, trigger_mode: triggerMode, alert_days: Number(alertDays) || 30 }
+      if (underlyingType === 'select') opts.choices = choices
+      return opts
+    }
+    return {}
+  }
+
+  async function handleAdd() {
+    if (!newLabel.trim()) return
+    setSaving(true)
+    await supabase.from('custom_field_definitions').insert({
+      workspace_id: workspaceId,
+      object_type: objectType,
+      key: genFieldKey(),
+      label: newLabel.trim(),
+      field_type: newType,
+      options: buildOptions(newType, newUnderlyingType, newChoices, newTriggerMode, newAlertDays),
+      sort_order: fields.length,
+    })
+    resetForm()
+    setSaving(false)
+    fetchFields()
+  }
+
+  async function handleSaveEdit() {
+    if (!editing?.label?.trim()) return
+    await supabase.from('custom_field_definitions').update({
+      label: editing.label.trim(),
+      options: editing.options,
+    }).eq('id', editing.id)
+    setEditing(null)
+    fetchFields()
+  }
+
+  async function handleDelete(id) {
+    await supabase.from('custom_field_definitions').delete().eq('id', id)
+    setConfirmDelete(null)
+    fetchFields()
+  }
+
+  return (
+    <div className="settings-section">
+      <div className="settings-block">
+        <div className="settings-block-header">
+          <h2 className="settings-block-title">Campos personalizados</h2>
+          <div className="settings-type-toggle">
+            {[
+              { key: 'negotiation', label: 'Proyectos' },
+              { key: 'entity', label: 'Entidades' },
+            ].map(t => (
+              <button
+                key={t.key}
+                className={`settings-toggle-btn ${objectType === t.key ? 'active' : ''}`}
+                onClick={() => setObjectType(t.key)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <p className="settings-hint">
+          El nombre de cada campo es libre — vos decidís cómo llamarlo, el tipo define cómo se guarda y se muestra.
+          Eliminar un campo no borra los valores ya cargados, solo deja de mostrarlo.
+        </p>
+
+        {loading ? <div className="settings-loading">Cargando...</div> : (
+          <div className="settings-table">
+            {fields.length === 0 && <p className="settings-hint">Todavía no hay campos personalizados acá.</p>}
+            {fields.map(f => {
+              const isEditing = editing?.id === f.id
+              return (
+                <div key={f.id} className="settings-row" style={{ flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }}>
+                  {isEditing ? (
+                    <>
+                      <div className="settings-row-info" style={{ flex: 1, flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+                        <input
+                          className="state-name-input"
+                          value={editing.label}
+                          onChange={e => setEditing(ed => ({ ...ed, label: e.target.value }))}
+                          autoFocus
+                        />
+                        {(f.field_type === 'select' || f.field_type === 'multiselect') && (
+                          <ChoicesEditor
+                            choices={editing.options.choices || []}
+                            onChange={choices => setEditing(ed => ({ ...ed, options: { ...ed.options, choices } }))}
+                          />
+                        )}
+                        {f.field_type === 'tracked' && (
+                          <>
+                            {editing.options.underlying_type === 'select' && (
+                              <ChoicesEditor
+                                choices={editing.options.choices || []}
+                                onChange={choices => setEditing(ed => ({ ...ed, options: { ...ed.options, choices } }))}
+                              />
+                            )}
+                            <div className="cf-tracked-row">
+                              <label>Avisar con</label>
+                              <input
+                                type="number" min="1" className="state-name-input" style={{ maxWidth: 80 }}
+                                value={editing.options.alert_days}
+                                onChange={e => setEditing(ed => ({ ...ed, options: { ...ed.options, alert_days: e.target.value } }))}
+                              />
+                              <span>días de {editing.options.trigger_mode === 'deadline' ? 'anticipación' : 'inactividad'}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="settings-btn-primary" onClick={handleSaveEdit}>Guardar</button>
+                        <button className="settings-btn-secondary" onClick={() => setEditing(null)}>Cancelar</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="settings-row-info">
+                        <div>
+                          <div className="settings-row-name">{f.label}</div>
+                          <div className="settings-row-email">
+                            {fieldTypeLabel(f.field_type)}
+                            {f.field_type === 'tracked' && ` · ${f.options.trigger_mode === 'deadline' ? 'fecha límite' : 'inactividad'}, ${f.options.alert_days} días`}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="settings-btn-secondary" onClick={() => setEditing({ id: f.id, label: f.label, options: f.options })}>
+                          Editar
+                        </button>
+                        {confirmDelete === f.id ? (
+                          <div className="delete-confirm-inline">
+                            <span>¿Seguro?</span>
+                            <button className="settings-btn-danger" onClick={() => handleDelete(f.id)}>Sí</button>
+                            <button className="settings-btn-secondary" onClick={() => setConfirmDelete(null)}>No</button>
+                          </div>
+                        ) : (
+                          <button className="settings-btn-danger" onClick={() => setConfirmDelete(f.id)}>Eliminar</button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <div className="state-add-form" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              value={newLabel}
+              onChange={e => setNewLabel(e.target.value)}
+              placeholder="Nombre del campo..."
+              className="state-name-input"
+            />
+            <select className="neg-select" value={newType} onChange={e => setNewType(e.target.value)}>
+              {FIELD_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+            </select>
+          </div>
+
+          {(newType === 'select' || newType === 'multiselect') && (
+            <ChoicesEditor choices={newChoices} onChange={setNewChoices} />
+          )}
+
+          {newType === 'tracked' && (
+            <div className="cf-tracked-config">
+              <div className="cf-tracked-row">
+                <label>Valor del campo</label>
+                <select className="neg-select" value={newUnderlyingType} onChange={e => setNewUnderlyingType(e.target.value)}>
+                  <option value="select">Lista desplegable</option>
+                  <option value="text">Texto</option>
+                  <option value="date">Fecha</option>
+                </select>
+              </div>
+              {newUnderlyingType === 'select' && (
+                <ChoicesEditor choices={newChoices} onChange={setNewChoices} />
+              )}
+              <div className="cf-tracked-row">
+                <label>Disparador</label>
+                <select className="neg-select" value={newTriggerMode} onChange={e => setNewTriggerMode(e.target.value)}>
+                  <option value="deadline">Fecha límite (avisa antes de vencer)</option>
+                  <option value="inactivity">Inactividad (avisa si no cambia)</option>
+                </select>
+              </div>
+              <div className="cf-tracked-row">
+                <label>Avisar con</label>
+                <input type="number" min="1" className="state-name-input" style={{ maxWidth: 80 }} value={newAlertDays} onChange={e => setNewAlertDays(e.target.value)} />
+                <span>días de {newTriggerMode === 'deadline' ? 'anticipación' : 'inactividad'}</span>
+              </div>
+            </div>
+          )}
+
+          <button className="settings-btn-primary" style={{ alignSelf: 'flex-start' }} onClick={handleAdd} disabled={saving}>
+            + Agregar campo
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── TAB WORKSPACE ────────────────────────────────────────────────────────────
 
 function TabWorkspace({ workspaceId }) {
@@ -816,6 +1123,7 @@ const NOTIF_TYPES = [
   { key: 'task_due_soon', label: 'Una tarea mía vence mañana' },
   { key: 'task_overdue', label: 'Una tarea mía está vencida' },
   { key: 'negotiation_inactive', label: 'Un proyecto con tareas mías se marca inactivo' },
+  { key: 'custom_field_due', label: 'Un campo con seguimiento necesita atención' },
   { key: 'mentioned', label: 'Me mencionan con @ en una nota' },
 ]
 

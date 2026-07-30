@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import CountrySelector from './CountrySelector'
 import { logActivity } from '../lib/activity'
+import { mergeCustomFieldValues } from '../lib/customFields'
+import { CustomFieldsFormSection } from './CustomFieldInput'
 import './EntityModal.css'
 
 const emptyContact = () => ({
@@ -15,12 +17,15 @@ const emptyContact = () => ({
   is_primary: false,
 })
 
-export default function EntityModal({ onClose, onCreated, initial = null, entityTypeSingular = 'proveedor' }) {
+export default function EntityModal({ onClose, onCreated, initial = null, entityTypeSingular = 'proveedor', customFieldDefs = [] }) {
   const { workspaceId, user } = useAuth()
   const [name, setName] = useState(initial?.name || '')
   const [countryCode, setCountryCode] = useState(initial?.country_code || '')
   const [companyType, setCompanyType] = useState(initial?.custom_fields?.company_type || '')
   const [website, setWebsite] = useState(initial?.website || '')
+  const [customFieldValues, setCustomFieldValues] = useState(() =>
+    Object.fromEntries(customFieldDefs.map(def => [def.key, initial?.custom_fields?.[def.key]?.value]))
+  )
   const [contacts, setContacts] = useState(
     initial?.contacts?.length > 0 ? initial.contacts.map(c => ({ ...c, tempId: Date.now() + Math.random() })) : [emptyContact()]
   )
@@ -64,6 +69,13 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
 
     setLoading(true)
 
+    // Nunca reemplazar custom_fields entero — mergear preserva cualquier
+    // campo personalizado ya cargado que este formulario no conoce.
+    const customFields = mergeCustomFieldValues(
+      { ...(initial?.custom_fields || {}), company_type: companyType.trim() },
+      Object.fromEntries(customFieldDefs.map(def => [def.key, customFieldValues[def.key]]))
+    )
+
     if (initial?.id) {
       const { error: entityError } = await supabase
         .from('entities')
@@ -71,7 +83,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
           name: name.trim(),
           country_code: countryCode || null,
           website: website.trim() || null,
-          custom_fields: { company_type: companyType.trim() },
+          custom_fields: customFields,
         })
         .eq('id', initial.id)
 
@@ -106,7 +118,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
           name: name.trim(),
           country_code: countryCode || null,
           website: website.trim() || null,
-          custom_fields: { company_type: companyType.trim() },
+          custom_fields: customFields,
           status: 'active',
         })
         .select()
@@ -188,6 +200,12 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
               <label>TIPO DE EMPRESA</label>
               <textarea value={companyType} onChange={e => setCompanyType(e.target.value)} placeholder="Ej: Laboratorio multinacional, Distribuidor regional..." rows={2} />
             </div>
+
+            <CustomFieldsFormSection
+              defs={customFieldDefs}
+              values={customFieldValues}
+              onChange={(key, v) => setCustomFieldValues(prev => ({ ...prev, [key]: v }))}
+            />
           </div>
 
           <div className="entity-form-section">

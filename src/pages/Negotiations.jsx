@@ -12,6 +12,8 @@ import Documents from '../components/Documents'
 import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
+import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues } from '../lib/customFields'
+import { CustomFieldInput, CustomFieldsFormSection } from '../components/CustomFieldInput'
 import './Negotiations.css'
 
 const TERRITORIES = ['ARG','BOL','BRA','CEAM','CHI','COL','ECU','MEX','PAR','PER','URU','VEN']
@@ -42,7 +44,7 @@ const ACTIVITY_LABELS = { active: 'En curso', paused: 'Pausado', inactive: 'Inac
 
 // Valor de texto plano por columna para el export CSV — separado de
 // renderCell/renderCardField porque esos devuelven JSX con badges/chips.
-function getExportValue(key, neg, getEntityName) {
+function getExportValue(key, neg, getEntityName, customFieldDefs) {
   switch (key) {
     case 'product': return neg.product || neg.title || ''
     case 'entities': return getEntityName(neg)
@@ -57,7 +59,12 @@ function getExportValue(key, neg, getEntityName) {
     case 'observations': return neg.observations || ''
     case 'activity_status': return ACTIVITY_LABELS[neg.activity_status] || ''
     case 'last_activity_at': return neg.last_activity_at ? neg.last_activity_at.slice(0, 10) : ''
-    default: return ''
+    default: {
+      const def = customFieldDefs?.find(d => d.key === key)
+      if (!def) return ''
+      const val = renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key))
+      return val === '—' ? '' : val
+    }
   }
 }
 
@@ -67,13 +74,13 @@ function getExportValue(key, neg, getEntityName) {
 // xlsx/jspdf se cargan bajo demanda (import dinámico) para no sumarlos al
 // bundle inicial de /negotiations — son acciones ocasionales, no parte del
 // flujo principal de la página.
-async function exportNegotiationsXlsx(negotiations, cols, getEntityName) {
+async function exportNegotiationsXlsx(negotiations, cols, getEntityName, customFieldDefs) {
   const XLSX = await import('xlsx')
   const visibleCols = cols.filter(c => c.visible)
-  const headers = visibleCols.map(c => ALL_COLUMNS.find(x => x.key === c.key)?.label || c.key)
+  const headers = visibleCols.map(c => ALL_COLUMNS.find(x => x.key === c.key)?.label || customFieldDefs.find(d => d.key === c.key)?.label || c.key)
   const rows = [
     headers,
-    ...negotiations.map(neg => visibleCols.map(c => getExportValue(c.key, neg, getEntityName))),
+    ...negotiations.map(neg => visibleCols.map(c => getExportValue(c.key, neg, getEntityName, customFieldDefs))),
   ]
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = visibleCols.map(() => ({ wch: 22 }))
@@ -82,24 +89,28 @@ async function exportNegotiationsXlsx(negotiations, cols, getEntityName) {
   XLSX.writeFile(wb, `nerva-proyectos-${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
-function useColumnPrefs(userId) {
+function useColumnPrefs(userId, customFieldDefs) {
   const key = `nerva_col_prefs_${userId}`
   const [cols, setCols] = useState(() => {
     try {
       const saved = localStorage.getItem(key)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        // Mergeamos por si hay columnas nuevas que no estaban guardadas
-        const savedKeys = parsed.map(c => c.key)
-        const merged = [
-          ...parsed,
-          ...ALL_COLUMNS.filter(c => !savedKeys.includes(c.key)).map(c => ({ key: c.key, visible: false }))
-        ]
-        return merged
-      }
+      if (saved) return JSON.parse(saved)
     } catch {}
     return ALL_COLUMNS.map(c => ({ key: c.key, visible: DEFAULT_VISIBLE.includes(c.key) }))
   })
+
+  // Mergea cualquier columna que falte en las prefs guardadas — tanto las
+  // estáticas de ALL_COLUMNS como los campos custom fetcheados del
+  // workspace (que llegan async, después del primer render) — como oculta
+  // por defecto.
+  useEffect(() => {
+    const allKnown = [...ALL_COLUMNS, ...customFieldDefs.map(d => ({ key: d.key }))]
+    setCols(prev => {
+      const known = new Set(prev.map(c => c.key))
+      const missing = allKnown.filter(c => !known.has(c.key)).map(c => ({ key: c.key, visible: false }))
+      return missing.length > 0 ? [...prev, ...missing] : prev
+    })
+  }, [customFieldDefs])
 
   function saveCols(newCols) {
     setCols(newCols)
@@ -122,6 +133,7 @@ export default function Negotiations() {
   const [entities, setEntities] = useState([])
   const [members, setMembers] = useState([])
   const [customStates, setCustomStates] = useState([])
+  const [customFieldDefs, setCustomFieldDefs] = useState([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 860) ? 'cards' : 'table')
   const [filterStatus, setFilterStatus] = useState('')
@@ -132,7 +144,8 @@ export default function Negotiations() {
   const [selectedNeg, setSelectedNeg] = useState(null)
   const [editingNeg, setEditingNeg] = useState(null)
   const [showColEditor, setShowColEditor] = useState(false)
-  const [cols, saveCols] = useColumnPrefs(user?.id)
+  const [cols, saveCols] = useColumnPrefs(user?.id, customFieldDefs)
+  const allColumns = [...ALL_COLUMNS, ...customFieldDefs.map(d => ({ key: d.key, label: d.label }))]
   const [highlightTaskId, setHighlightTaskId] = useState(null)
   const [milestones, setMilestones] = useState([])
   const [selectedIds, setSelectedIds] = useState(() => new Set())
@@ -163,13 +176,15 @@ export default function Negotiations() {
 
   async function fetchAll() {
     setLoading(true)
-    const [negsRes, entitiesRes, membersRes, statesRes, milestonesRes] = await Promise.all([
+    const [negsRes, entitiesRes, membersRes, statesRes, milestonesRes, customFieldsRes] = await Promise.all([
       supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code)').order('created_at', { ascending: false }),
       supabase.from('entities').select('id, name, country_code').order('name'),
       supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`).eq('workspace_id', workspaceId),
       supabase.from('custom_states').select('*').eq('object_type', 'negotiation').order('sort_order'),
       supabase.from('deal_milestones').select('negotiation_id, amount').eq('workspace_id', workspaceId),
+      supabase.from('custom_field_definitions').select('*').eq('workspace_id', workspaceId).eq('object_type', 'negotiation').order('sort_order'),
     ])
+    setCustomFieldDefs(customFieldsRes.data || [])
 
     if (negsRes.error) { setLoading(false); return }
     setMilestones(milestonesRes.data || [])
@@ -314,7 +329,7 @@ export default function Negotiations() {
 
   function handleExportExcel() {
     setShowExportMenu(false)
-    exportNegotiationsXlsx(exportRows(), cols, getEntityName)
+    exportNegotiationsXlsx(exportRows(), cols, getEntityName, customFieldDefs)
   }
 
   async function handleExportPdf() {
@@ -560,7 +575,7 @@ export default function Negotiations() {
       </div>
 
       {showColEditor && (
-        <ColumnEditor cols={cols} onChange={saveCols} onClose={() => setShowColEditor(false)} />
+        <ColumnEditor cols={cols} allColumns={allColumns} onChange={saveCols} onClose={() => setShowColEditor(false)} />
       )}
 
       {showImportModal && (
@@ -578,13 +593,13 @@ export default function Negotiations() {
       ) : filtered.length === 0 ? (
         <div className="neg-empty">No hay proyectos todavía.</div>
       ) : view === 'table' ? (
-        <TableView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols}
+        <TableView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} allColumns={allColumns} customFieldDefs={customFieldDefs}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} allVisibleSelected={allVisibleSelected} onToggleSelectAll={toggleSelectAllVisible} />
       ) : view === 'cards' ? (
-        <CardsView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols}
+        <CardsView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} customFieldDefs={customFieldDefs}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} />
       ) : (
-        <KanbanView negotiations={filtered} customStates={customStates} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} cols={cols}
+        <KanbanView negotiations={filtered} customStates={customStates} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} cols={cols} customFieldDefs={customFieldDefs}
           onSelect={setSelectedNeg} canEdit={canCreateProject} onMove={handleKanbanMove} />
       )}
 
@@ -594,6 +609,7 @@ export default function Negotiations() {
           entities={entities}
           members={members}
           customStates={customStates}
+          customFieldDefs={customFieldDefs}
           onClose={() => { setShowModal(false); setSelectedNeg(null) }}
           onCancel={() => {
             if (editingNeg) setSelectedNeg(editingNeg)
@@ -617,6 +633,7 @@ export default function Negotiations() {
           neg={selectedNeg}
           entities={entities}
           customStates={customStates}
+          customFieldDefs={customFieldDefs}
           getStateConfig={getStateConfig}
           getEntityFlag={getEntityFlag}
           highlightTaskId={highlightTaskId}
@@ -632,12 +649,12 @@ export default function Negotiations() {
 }
 
 // Editor de columnas — drag & drop para reordenar, toggle para mostrar/ocultar
-function ColumnEditor({ cols, onChange, onClose }) {
+function ColumnEditor({ cols, allColumns, onChange, onClose }) {
   const [dragSrc, setDragSrc] = useState(null)
   const [dragOver, setDragOver] = useState(null)
 
   function toggleVisible(key) {
-    const col = ALL_COLUMNS.find(c => c.key === key)
+    const col = allColumns.find(c => c.key === key)
     if (col?.alwaysVisible) return
     onChange(cols.map(c => c.key === key ? { ...c, visible: !c.visible } : c))
   }
@@ -671,7 +688,7 @@ function ColumnEditor({ cols, onChange, onClose }) {
       </div>
       <div className="col-editor-list">
         {cols.map((c, idx) => {
-          const def = ALL_COLUMNS.find(x => x.key === c.key)
+          const def = allColumns.find(x => x.key === c.key)
           if (!def) return null
           return (
             <div
@@ -701,7 +718,7 @@ function ColumnEditor({ cols, onChange, onClose }) {
 }
 
 // Render de una celda según el key de columna
-function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag) {
+function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs) {
   const cfg = getStateConfig(neg.status)
   const flag = getEntityFlag(neg)
 
@@ -777,12 +794,15 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag) {
       const label = days === 0 ? 'hoy' : days === 1 ? 'ayer' : `hace ${days}d`
       return <td key={key} className="neg-td-date">{label}</td>
     }
-    default:
-      return <td key={key}>—</td>
+    default: {
+      const def = customFieldDefs?.find(d => d.key === key)
+      if (!def) return <td key={key}>—</td>
+      return <td key={key} className="neg-td-text">{renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key))}</td>
+    }
   }
 }
 
-function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll }) {
+function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll }) {
   const visibleCols = cols.filter(c => c.visible)
 
   return (
@@ -794,7 +814,7 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
               <input type="checkbox" checked={allVisibleSelected} onChange={onToggleSelectAll} title="Seleccionar todos los visibles" />
             </th>
             {visibleCols.map(c => {
-              const def = ALL_COLUMNS.find(x => x.key === c.key)
+              const def = allColumns.find(x => x.key === c.key)
               return <th key={c.key}>{def?.label}</th>
             })}
           </tr>
@@ -807,7 +827,7 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
                 <td className="neg-td-check" onClick={e => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedIds.has(neg.id)} onChange={() => onToggleSelect(neg.id)} />
                 </td>
-                {visibleCols.map(c => renderCell(c.key, neg, getStateConfig, getEntityName, getEntityFlag))}
+                {visibleCols.map(c => renderCell(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs))}
               </tr>
             )
           })}
@@ -817,7 +837,7 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
   )
 }
 
-function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag) {
+function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs) {
   const flag = getEntityFlag(neg)
   switch (key) {
     case 'entities': {
@@ -882,11 +902,17 @@ function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag)
       const label = days === 0 ? 'hoy' : days === 1 ? 'ayer' : `hace ${days}d`
       return <div key={key} className="neg-card-date neg-card-field">{label}</div>
     }
-    default: return null
+    default: {
+      const def = customFieldDefs?.find(d => d.key === key)
+      if (!def) return null
+      const rendered = renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key))
+      if (rendered === '—') return null
+      return <div key={key} className="neg-card-text neg-card-field">{rendered}</div>
+    }
   }
 }
 
-function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, selectedIds, onToggleSelect }) {
+function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, customFieldDefs, selectedIds, onToggleSelect }) {
   // Columnas visibles excluyendo product y status (que van hardcodeados en el header)
   const visibleFields = cols.filter(c => c.visible && c.key !== 'product' && c.key !== 'status')
 
@@ -914,7 +940,7 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
                 </div>
                 <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>
               </div>
-              {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag))}
+              {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs))}
             </div>
           </div>
         )
@@ -923,7 +949,7 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
   )
 }
 
-function KanbanView({ negotiations, customStates, getStateConfig, getEntityName, getEntityFlag, onSelect, canEdit, onMove, cols }) {
+function KanbanView({ negotiations, customStates, getStateConfig, getEntityName, getEntityFlag, onSelect, canEdit, onMove, cols, customFieldDefs }) {
   const [dragOverCol, setDragOverCol] = useState(null)
   // Mismos campos configurables que Tabla/Cards ("⚙ Vista"), product y status
   // van hardcodeados en el título de la card / la columna en la que cae.
@@ -966,7 +992,7 @@ function KanbanView({ negotiations, customStates, getStateConfig, getEntityName,
                       {actIcon && <span className="neg-kanban-card-icon">{actIcon}</span>}
                       {neg.product || neg.title}
                     </div>
-                    {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag))}
+                    {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs))}
                     {canEdit && (
                       <div className="neg-kanban-card-actions" onClick={e => e.stopPropagation()}>
                         {colIdx > 0 && (
@@ -1051,14 +1077,14 @@ function ChipsCombobox({ options, selected, onChange, placeholder, allowSelectAl
   )
 }
 
-export function NegotiationModal({ initial, presetEntity, entities, members, customStates, onClose, onCancel, onSaved, workspaceId, userId }) {
+export function NegotiationModal({ initial, presetEntity, entities, members, customStates, customFieldDefs = [], onClose, onCancel, onSaved, workspaceId, userId }) {
   const empty = {
     title: '', product: '', status: customStates[0]?.name || 'Contactado',
     nda: '—', target_date: '', description: '', observations: '',
     territories: [], companies: [], participants: [],
     entity_ids: presetEntity ? [{ id: presetEntity.id, role: '' }] : [], // [{ id, role }]
     tasks: [],
-    currency: 'USD', milestones: []
+    currency: 'USD', milestones: [], custom_fields: {}
   }
   const [form, setForm] = useState(initial ? {
     ...empty, ...initial,
@@ -1068,7 +1094,8 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
       return primaryIdx > 0 ? [ids[primaryIdx], ...ids.filter((_, i) => i !== primaryIdx)] : ids
     })(),
     tasks: [],
-    currency: initial.currency || 'USD', milestones: []
+    currency: initial.currency || 'USD', milestones: [],
+    custom_fields: Object.fromEntries(Object.entries(initial.custom_fields || {}).map(([k, v]) => [k, v?.value])),
   } : empty)
   const [entitySearch, setEntitySearch] = useState('')
   const [entityDropdownOpen, setEntityDropdownOpen] = useState(false)
@@ -1098,6 +1125,7 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
       participants: form.participants, created_by: userId,
       primary_entity_id: form.entity_ids[0]?.id || null,
       currency: form.currency,
+      custom_fields: mergeCustomFieldValues(initial?.custom_fields, form.custom_fields),
     }
     let negId = initial?.id
     if (initial?.id) {
@@ -1333,6 +1361,11 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
               allowSelectAll
             />
           </div>
+          <CustomFieldsFormSection
+            defs={customFieldDefs}
+            values={form.custom_fields}
+            onChange={(key, v) => set('custom_fields', { ...form.custom_fields, [key]: v })}
+          />
           <div className="form-group">
             <label>OBSERVACIONES INTERNAS</label>
             <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={3} placeholder="Notas internas del equipo..." />
@@ -1401,7 +1434,7 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
   )
 }
 
-export function NegotiationDetail({ neg, entities, customStates, getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
+export function NegotiationDetail({ neg, entities, customStates, customFieldDefs = [], getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
   const { effectiveRole, role, user, isStaff, workspaceId } = useAuth()
   const canDelete = effectiveRole === 'owner'
   const canPause = effectiveRole === 'owner' || effectiveRole === 'admin'
@@ -1430,6 +1463,7 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
   const [inlineObs, setInlineObs] = useState(neg.observations || '')
   const [inlineDescription, setInlineDescription] = useState(neg.description || '')
   const [inlineCurrency, setInlineCurrency] = useState(neg.currency || 'USD')
+  const [customFieldValues, setCustomFieldValues] = useState(neg.custom_fields || {})
   const cfg = getStateConfig(neg.status)
   const flag = getEntityFlag(neg)
   const primaryEntity = neg.primary_entity || neg.negotiation_entities?.map(ne => ne.entity).filter(Boolean)[0] || null
@@ -1444,6 +1478,12 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
       .eq('negotiation_id', neg.id)
       .order('created_at', { ascending: false })
     if (data) setTasks(data)
+  }
+
+  async function saveCustomField(key, value) {
+    const merged = mergeCustomFieldValue(customFieldValues, key, value)
+    setCustomFieldValues(merged)
+    await supabase.from('negotiations').update({ custom_fields: merged }).eq('id', neg.id)
   }
 
   async function saveInlineField(field, value) {
@@ -1641,6 +1681,23 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
             <div className="neg-detail-section">
               <div className="detail-section-title">TERRITORIOS</div>
               <div className="neg-chips">{neg.territories.map(t => <span key={t} className="neg-chip neg-chip-green">{t}</span>)}</div>
+            </div>
+          )}
+          {customFieldDefs.length > 0 && (
+            <div className="neg-detail-section">
+              <div className="detail-section-title">CAMPOS PERSONALIZADOS</div>
+              <div className="cf-form-fields">
+                {customFieldDefs.map(def => (
+                  <div key={def.key} className="cf-form-field">
+                    <label className="cf-form-field-label">{def.label}</label>
+                    {canEditInline ? (
+                      <CustomFieldInput def={def} value={getCustomFieldValue(customFieldValues, def.key)} onChange={v => saveCustomField(def.key, v)} />
+                    ) : (
+                      <p className="detail-empty">{renderCustomFieldDisplay(def, getCustomFieldValue(customFieldValues, def.key))}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           <div className="neg-detail-section">

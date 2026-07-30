@@ -377,6 +377,55 @@
   color: #ffffff;
 }
 
+/* Campos personalizados */
+.cf-choices-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.cf-choice-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cf-choice-remove {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+}
+
+.cf-choice-remove:hover { color: #dc2626; }
+
+.cf-tracked-config {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.cf-tracked-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.cf-tracked-row label {
+  font-weight: 600;
+  min-width: 100px;
+}
+
 /* Estado — agregar form */
 .state-add-form {
   display: flex;
