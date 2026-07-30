@@ -42,6 +42,19 @@ export function getCountryName(code) {
   return COUNTRIES.find(c => c.code === code)?.name || ''
 }
 
+// Reverso de getCountryName — acepta tanto el código de 2 letras como el
+// nombre en español (usado al importar entidades desde una planilla, donde
+// el país viene tipeado a mano). Devuelve null si no matchea nada.
+export function getCountryCode(nameOrCode) {
+  if (!nameOrCode) return null
+  const v = String(nameOrCode).trim()
+  if (v.length === 2) {
+    const byCode = COUNTRIES.find(c => c.code.toLowerCase() === v.toLowerCase())
+    if (byCode) return byCode.code
+  }
+  return COUNTRIES.find(c => c.name.toLowerCase() === v.toLowerCase())?.code || null
+}
+
 export default function CountrySelector({ value, onChange }) {
   const selected = COUNTRIES.find(c => c.code === value)
 

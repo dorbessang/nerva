@@ -27,6 +27,17 @@ Registro detallado de cambios por sesión de trabajo.
 ### Fix: exploración de chat interno descartada
 - El usuario preguntó si convenía sumar un chat grupal/individual dentro del workspace. Evaluado y descartado: técnicamente viable (Supabase Realtime está pensado para esto, "contactos" ni siquiera sería un concepto nuevo — cualquier miembro activo del workspace ya es candidato), pero no aporta frente a Slack/WhatsApp/Teams que el equipo ya usa a diario, y las @menciones recién agregadas ya cubren el caso real que motivó la pregunta ("avisar cosas puntuales sobre la app", no conversar). No se construyó nada
 
+### Feature: Selección múltiple + acciones en lote
+- Proyectos (tabla y mosaico) y Entidades (nuevo, ambas vistas) permiten tildar varias filas y aplicarles una acción en conjunto — antes esto solo existía para calcular el pipeline de la selección
+- Proyectos: cambiar estado en lote (mismo efecto secundario que un cambio individual — notifica a los asignados de cada proyecto y deja entrada en el timeline, no un atajo silencioso) y eliminar en lote. Entidades: eliminar en lote. Ambos borrados gateados a owner, reusan `DeleteConfirmModal` pidiendo escribir "ELIMINAR" en vez de un nombre específico (no aplica cuando son varios elementos distintos)
+
+### Feature: Import de Proyectos y Entidades desde Excel/CSV
+- Botón "⬆ Importar" en el toolbar de ambas páginas: subir archivo → preview con validación fila por fila (✓ ok, ⚠ advertencia pero se importa igual, ✗ error y se excluye) → confirmar. Con botón de plantilla vacía descargable para no dejar al usuario adivinando las columnas
+- Entidades: `Nombre*` / `País` / `Sitio web` / `Tipo de empresa`, país resuelto por nombre o código (`getCountryCode`, reverso nuevo de `getCountryName`). Proyectos: `Producto*` / `Proveedor` / `Estado` / `NDA` / `Territorios` / `Fecha objetivo` — proveedor resuelto por nombre exacto contra las entidades del workspace, estado contra los `custom_states` reales (si no matchea, usa el primero de la lista y avisa)
+- `src/lib/importXlsx.js` reusa `xlsx` (SheetJS) con `import()` dinámico, mismo patrón que los exports — sin peso extra en el bundle inicial
+- Bug real encontrado y corregido en las pruebas: al parsear `.csv`, las fechas se convertían al número de serie de Excel en vez de una fecha real — faltaba `cellDates: true` en esa rama del parser, y aparte el helper que lee columnas convertía todo a string antes de que el parser de fechas pudiera ver el objeto `Date` ya bien parseado. Se sumó `getCellRaw()` para leer esa columna sin stringificar
+- Deliberadamente sin remapeo de columnas por UI (headers fijos) y sin loguear una entrada de actividad por cada fila importada (ruido innecesario para un import de decenas de filas)
+
 ## 2026-07-29
 
 ### Feature: Agenda personal (workspace tipo `personal`)

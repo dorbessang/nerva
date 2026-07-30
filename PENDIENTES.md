@@ -42,10 +42,24 @@ Decisión explícita de **no construirlo todavía**. Se define el patrón target
 - La elección de "tipo de CRM" al crear un workspace pasa a ser, en este esquema, qué **módulos** están activos — no solo qué `entity_types` vienen precargados
 
 ### Próximo paso acordado
-Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diagnóstico quedan: ~~kanban visual~~, ~~búsqueda global~~, ~~export a Excel/PDF~~, ~~scorecard de proveedor~~ y ~~@menciones~~ (hechos, ver abajo), alertas de vencimiento de NDA/contrato, bulk actions/import CSV, API/webhooks.
+Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diagnóstico quedan: ~~kanban visual~~, ~~búsqueda global~~, ~~export a Excel/PDF~~, ~~scorecard de proveedor~~, ~~@menciones~~ y ~~bulk actions/import~~ (hechos, ver abajo), alertas de vencimiento de NDA/contrato, API/webhooks.
 
 - Alertas de vencimiento de NDA/contrato — descartado por ahora. Hoy `nda` es un campo hardcodeado en `negotiations`, pero según lo pensado para Etapa 2 (campos custom por workspace) no va a seguir siendo un campo fijo — no tiene sentido construir alertas sobre un dato que va a cambiar de modelo pronto
-- Sin bulk actions/import CSV, API/webhooks — sin definir orden todavía
+- Sin API/webhooks — sin definir fecha todavía, tiene sentido cuando haya una necesidad concreta de integración externa
+
+### Bulk actions y import desde Excel/CSV
+- [x] **Selección múltiple + acciones en lote** — en Proyectos (tabla y mosaico, ya existían los checkboxes para la card de pipeline) y en Entidades (nuevo, checkboxes agregados a ambas vistas). Al tildar filas aparece una barra/card con la cantidad seleccionada
+  - Proyectos: cambiar estado en lote (dispara el mismo efecto secundario que un cambio individual — `notifyNegotiationStatusChanged` + `logActivity` por cada proyecto afectado, no un atajo que se salte las notificaciones) y eliminar en lote, gateado a owner (mismo permiso que el borrado individual)
+  - Entidades: eliminar en lote, mismo gate de owner. Tildar un checkbox no abre el detalle (`stopPropagation`)
+  - El borrado en lote reusa `DeleteConfirmModal` con `itemName="ELIMINAR"` en vez de un nombre específico — no tiene sentido pedir que escriban el nombre exacto cuando son varios elementos distintos, pero se mantiene la fricción de "escribir para confirmar" antes de un borrado irreversible
+- [x] **Import desde Excel/CSV** — botón "⬆ Importar" en el toolbar de Proyectos y de Entidades (gateado a owner/admin/editor). Mismo componente `parseSpreadsheet()` (`src/lib/importXlsx.js`) para ambos, reusa `xlsx` (SheetJS) con `import()` dinámico igual que los exports — nada de esto suma peso al bundle inicial
+  - Flujo en 2 pasos: subir archivo → preview con validación fila por fila (✓ ok / ⚠ advertencia, se importa igual / ✗ error, se excluye) → confirmar. Nunca se importa a ciegas
+  - Botón "Descargar plantilla vacía" en el paso de subida (genera un `.xlsx` con solo los headers esperados) — para no dejar al usuario adivinando qué columnas poner
+  - Entidades: columnas `Nombre*` / `País` / `Sitio web` / `Tipo de empresa`. País se resuelve por nombre o código de 2 letras (`getCountryCode`, reverso nuevo de `getCountryName` en `CountrySelector.jsx`) — si no matchea, advertencia y se importa sin país
+  - Proyectos: columnas `Producto*` / `Proveedor` / `Estado` / `NDA` / `Territorios` (separados por coma) / `Fecha objetivo`. Proveedor se resuelve por nombre exacto contra las entidades ya cargadas del workspace (cualquier tipo, no solo Proveedores) — si no matchea, advertencia y el proyecto se crea igual sin vincular. Estado se resuelve contra los `custom_states` reales del workspace — si no matchea o viene vacío, usa el primero de la lista y avisa
+  - Bug real encontrado y corregido durante las pruebas: al parsear `.csv` las fechas se convertían al número de serie de Excel en vez de una fecha (`cellDates: true` solo estaba puesto en la rama de parseo de `.xlsx`, faltaba en la de `.csv`) — y aparte, el helper genérico `getCell()` volvía todo `String()` antes de llegar al parser de fechas, lo que rompía el objeto `Date` ya bien parseado. Se sumó `getCellRaw()` (sin stringificar) específicamente para la columna de fecha
+  - Deliberadamente sin remapeo de columnas por UI (los headers son fijos, documentados en el modal + la plantilla descargable) y sin registrar una entrada de `activity_log` por cada fila importada (sería puro ruido en el timeline para un import de decenas de filas) — si hace falta más adelante, se puede sumar un tipo de evento "import" que loguee un resumen en vez de una entrada por fila
+  - Probado con Playwright en ambos flujos (selección+lote y import), con archivos `.xlsx` y `.csv` reales generados para el test, incluyendo filas con error/advertencia a propósito para validar que el preview las marca bien
 
 ### @menciones
 - [x] Se pueden mencionar compañeros de equipo escribiendo "@Nombre" en cualquier nota (`NotesPostIts` — cubre notas de proyecto, de entidad, y las sueltas del workspace personal, es un único componente reusado en los 3 lugares). Autocompletado al tipear "@" con los miembros activos del workspace (excepto uno mismo), navegable con click; `Escape` cierra el dropdown sin insertar nada

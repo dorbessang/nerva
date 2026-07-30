@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import EntityModal from '../components/EntityModal'
+import ImportEntitiesModal from '../components/ImportEntitiesModal'
 import { NegotiationDetail, NegotiationModal } from './Negotiations'
 import { getFlagUrl, getCountryName } from '../components/CountrySelector'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
@@ -31,7 +32,9 @@ function getAvatarColor(name) {
 }
 
 export default function Entities({ entityTypeId, entityTypeName, entityTypeSingular }) {
-  const { workspaceId, activeWorkspace } = useAuth()
+  const { workspaceId, activeWorkspace, effectiveRole } = useAuth()
+  const canBulkDelete = effectiveRole === 'owner'
+  const canImport = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
   const location = useLocation()
   const navigate = useNavigate()
   const [entities, setEntities] = useState([])
@@ -39,9 +42,30 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [search, setSearch] = useState('')
   const [view, setView] = useState('cards')
   const [showModal, setShowModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [negotiationStates, setNegotiationStates] = useState([])
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
+  const [bulkWorking, setBulkWorking] = useState(false)
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  async function handleBulkDelete() {
+    setBulkWorking(true)
+    await supabase.from('entities').delete().in('id', [...selectedIds])
+    setSelectedIds(new Set())
+    setShowBulkDeleteConfirm(false)
+    setBulkWorking(false)
+    fetchEntities()
+  }
 
   async function handleExportEntitiesPdf() {
     setExportingPdf(true)
@@ -60,6 +84,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   useEffect(() => {
     fetchEntities()
     fetchNegotiationStates()
+    setSelectedIds(new Set())
   }, [entityTypeId])
 
   // Si viene de la búsqueda global (u otra pantalla), abre directo el detalle
@@ -168,6 +193,15 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
             </svg>
           </button>
         </div>
+        {canImport && (
+          <button
+            className="entities-export-btn"
+            onClick={() => setShowImportModal(true)}
+            title={`Importar ${entityTypeName?.toLowerCase() || 'proveedores'} desde Excel/CSV`}
+          >
+            ⬆ Importar
+          </button>
+        )}
         <button
           className="entities-export-btn"
           onClick={handleExportEntitiesPdf}
@@ -177,6 +211,38 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           {exportingPdf ? 'Generando…' : '⬇ Exportar PDF'}
         </button>
       </div>
+
+      {showImportModal && (
+        <ImportEntitiesModal
+          entityTypeId={entityTypeId}
+          entityTypeSingular={entityTypeSingular}
+          entityTypeName={entityTypeName}
+          workspaceId={workspaceId}
+          onClose={() => setShowImportModal(false)}
+          onImported={fetchEntities}
+        />
+      )}
+
+      {canBulkDelete && selectedIds.size > 0 && (
+        <div className="entities-bulk-bar">
+          <span className="entities-bulk-count">
+            {selectedIds.size} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+            <button className="neg-pipeline-clear" onClick={() => setSelectedIds(new Set())}>Deseleccionar</button>
+          </span>
+          <button className="neg-bulk-delete-btn" disabled={bulkWorking} onClick={() => setShowBulkDeleteConfirm(true)}>
+            🗑 Eliminar ({selectedIds.size})
+          </button>
+        </div>
+      )}
+
+      {showBulkDeleteConfirm && (
+        <DeleteConfirmModal
+          itemName="ELIMINAR"
+          itemType={`${selectedIds.size} ${selectedIds.size === 1 ? (entityTypeSingular?.toLowerCase() || 'entidad') : (entityTypeName?.toLowerCase() || 'entidades')}`}
+          onConfirm={handleBulkDelete}
+          onCancel={() => setShowBulkDeleteConfirm(false)}
+        />
+      )}
 
       {loading ? (
         <div className="entities-loading">Cargando...</div>
@@ -189,6 +255,9 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           getStateConfig={getStateConfig}
           getStateCounts={getStateCounts}
           onSelect={setSelectedEntity}
+          canBulkDelete={canBulkDelete}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
         />
       ) : (
         <div className="entities-grid">
@@ -197,6 +266,15 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
             const counts = getStateCounts(entity.negotiation_entities)
             return (
               <div key={entity.id} className="entity-card" onClick={() => setSelectedEntity(entity)}>
+                {canBulkDelete && (
+                  <input
+                    type="checkbox"
+                    className="entity-card-checkbox"
+                    checked={selectedIds.has(entity.id)}
+                    onClick={e => e.stopPropagation()}
+                    onChange={() => toggleSelect(entity.id)}
+                  />
+                )}
                 <div className="entity-card-header">
                   <div className="entity-avatar" style={{ backgroundColor: bgColor, color: textColor }}>
                     {getInitials(entity.name)}
@@ -258,7 +336,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   )
 }
 
-function EntitiesTable({ entities, negotiationStates, getStateConfig, getStateCounts, onSelect }) {
+function EntitiesTable({ entities, negotiationStates, getStateConfig, getStateCounts, onSelect, canBulkDelete, selectedIds, onToggleSelect }) {
   return (
     <div className="entities-list">
       {entities.map(entity => {
@@ -272,6 +350,15 @@ function EntitiesTable({ entities, negotiationStates, getStateConfig, getStateCo
         ].filter(Boolean)
         return (
           <div key={entity.id} className="entities-list-row" onClick={() => onSelect(entity)}>
+            {canBulkDelete && (
+              <input
+                type="checkbox"
+                className="entities-list-checkbox"
+                checked={selectedIds.has(entity.id)}
+                onClick={e => e.stopPropagation()}
+                onChange={() => onToggleSelect(entity.id)}
+              />
+            )}
             <div className="entities-tbl-entity">
               <div className="entity-avatar" style={{ width: 32, height: 32, fontSize: 11, backgroundColor: bgColor, color: textColor, flexShrink: 0 }}>
                 {getInitials(entity.name)}

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { useCloseOnOutsideOrEscape } from '../lib/useCloseOnOutsideOrEscape'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import ImportNegotiationsModal from '../components/ImportNegotiationsModal'
 import NotesPostIts from '../components/NotesPostIts'
 import ActivityTimeline from '../components/ActivityTimeline'
 import DealMilestones, { formatAmount } from '../components/DealMilestones'
@@ -111,6 +112,7 @@ function useColumnPrefs(userId) {
 export default function Negotiations() {
   const { user, workspaceId, effectiveRole, activeWorkspace } = useAuth()
   const canCreateProject = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
+  const canBulkDelete = effectiveRole === 'owner'
   const location = useLocation()
   const navigate = useNavigate()
   const [showExportMenu, setShowExportMenu] = useState(false)
@@ -134,6 +136,9 @@ export default function Negotiations() {
   const [highlightTaskId, setHighlightTaskId] = useState(null)
   const [milestones, setMilestones] = useState([])
   const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
+  const [bulkWorking, setBulkWorking] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
 
   // Si viene del banner del dashboard, pre-filtra por baja actividad
   useEffect(() => {
@@ -352,6 +357,44 @@ export default function Negotiations() {
     })
   }
 
+  // Mismo efecto secundario que un cambio de estado individual
+  // (notifyNegotiationStatusChanged + logActivity), aplicado a cada
+  // proyecto seleccionado.
+  async function handleBulkStatusChange(newStatus) {
+    if (!newStatus || selectedIds.size === 0) return
+    const ids = [...selectedIds]
+    const targets = negotiations.filter(n => ids.includes(n.id) && n.status !== newStatus)
+    if (targets.length === 0) return
+    setBulkWorking(true)
+    setNegotiations(prev => prev.map(n => ids.includes(n.id) ? { ...n, status: newStatus } : n))
+    await supabase.from('negotiations').update({ status: newStatus }).in('id', targets.map(n => n.id))
+    await Promise.all(targets.map(async (neg) => {
+      const { data: negTasks } = await supabase.from('tasks').select('assigned_to').eq('negotiation_id', neg.id)
+      await notifyNegotiationStatusChanged(supabase, {
+        workspaceId: neg.workspace_id || workspaceId,
+        negotiationId: neg.id,
+        negotiationTitle: neg.product || neg.title,
+        newStatus,
+        recipients: (negTasks || []).map(t => t.assigned_to),
+        actingUserId: user?.id,
+      })
+      await logActivity(supabase, {
+        workspaceId: neg.workspace_id || workspaceId, negotiationId: neg.id, type: 'status_changed',
+        title: `Estado cambió de "${neg.status}" a "${newStatus}"`, actorId: user?.id,
+      })
+    }))
+    setBulkWorking(false)
+  }
+
+  async function handleBulkDelete() {
+    setBulkWorking(true)
+    await supabase.from('negotiations').delete().in('id', [...selectedIds])
+    setSelectedIds(new Set())
+    setShowBulkDeleteConfirm(false)
+    setBulkWorking(false)
+    fetchAll()
+  }
+
   return (
     <div className="neg-container">
       <div className="neg-header">
@@ -407,9 +450,38 @@ export default function Negotiations() {
                 </span>
               ))}
             </div>
+            {(canCreateProject || canBulkDelete) && (
+              <div className="neg-bulk-actions">
+                {canCreateProject && (
+                  <select
+                    className="neg-bulk-status-select"
+                    value=""
+                    disabled={bulkWorking}
+                    onChange={e => { const v = e.target.value; if (v) handleBulkStatusChange(v) }}
+                  >
+                    <option value="" disabled>Cambiar estado a...</option>
+                    {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                  </select>
+                )}
+                {canBulkDelete && (
+                  <button className="neg-bulk-delete-btn" disabled={bulkWorking} onClick={() => setShowBulkDeleteConfirm(true)}>
+                    🗑 Eliminar ({selectedIds.size})
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {showBulkDeleteConfirm && (
+        <DeleteConfirmModal
+          itemName="ELIMINAR"
+          itemType={`${selectedIds.size} proyecto${selectedIds.size !== 1 ? 's' : ''} seleccionado${selectedIds.size !== 1 ? 's' : ''}`}
+          onConfirm={handleBulkDelete}
+          onCancel={() => setShowBulkDeleteConfirm(false)}
+        />
+      )}
 
       <div className="neg-toolbar">
         <div className="filter-field">
@@ -452,6 +524,11 @@ export default function Negotiations() {
         >
           ⚙ Vista
         </button>
+        {canCreateProject && (
+          <button className="neg-col-btn" onClick={() => setShowImportModal(true)} title="Importar proyectos desde Excel/CSV">
+            ⬆ Importar
+          </button>
+        )}
         <div className="neg-export-menu" ref={exportMenuRef}>
           <button
             className="neg-col-btn"
@@ -484,6 +561,16 @@ export default function Negotiations() {
 
       {showColEditor && (
         <ColumnEditor cols={cols} onChange={saveCols} onClose={() => setShowColEditor(false)} />
+      )}
+
+      {showImportModal && (
+        <ImportNegotiationsModal
+          workspaceId={workspaceId}
+          entities={entities}
+          customStates={customStates}
+          onClose={() => setShowImportModal(false)}
+          onImported={fetchAll}
+        />
       )}
 
       {loading ? (

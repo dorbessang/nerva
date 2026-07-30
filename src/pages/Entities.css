@@ -168,6 +168,7 @@
 }
 
 .entity-card {
+  position: relative;
   background-color: #ffffff;
   border-radius: 14px;
   padding: 20px;
@@ -178,6 +179,39 @@
   flex-direction: column;
   gap: 14px;
 }
+
+.entity-card-checkbox {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.entities-list-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.entities-bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F9FAFB;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.entities-bulk-count { display: flex; align-items: center; }
 
 .entity-card:hover {
   box-shadow: 0 4px 20px rgba(11, 31, 58, 0.1);
