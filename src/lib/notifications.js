@@ -34,11 +34,11 @@ export async function notifyRoleChanged(supabase, { workspaceId, userId, newRole
 }
 
 // Avisa in-app cuando escriben "@Nombre Completo" en una nota. `negotiationId`
-// solo viaja cuando la nota cuelga de un proyecto (permite deep-link al
-// hacer click, igual que el resto de las notificaciones) — las notas de
-// entidad o sueltas no tienen a dónde navegar todavía, la notificación
-// igual llega pero solo se puede descartar.
-export async function notifyMentioned(supabase, { workspaceId, mentionedUserIds, actorId, actorName, negotiationId, contextLabel }) {
+// o `entityId` viajan según de qué cuelgue la nota, para poder hacer
+// deep-link al hacer click (igual que el resto de las notificaciones) — las
+// notas sueltas del workspace personal no tienen a dónde navegar, la
+// notificación igual llega pero solo se puede descartar.
+export async function notifyMentioned(supabase, { workspaceId, mentionedUserIds, actorId, actorName, negotiationId, entityId, contextLabel }) {
   const candidates = [...new Set(mentionedUserIds || [])].filter(id => id && id !== actorId)
   if (candidates.length === 0) return
   const toNotify = await filterEnabled(supabase, workspaceId, 'mentioned', candidates)
@@ -51,6 +51,7 @@ export async function notifyMentioned(supabase, { workspaceId, mentionedUserIds,
       title: 'Te mencionaron',
       body: `${actorName || 'Alguien'} te mencionó en una nota${contextLabel ? ' de ' + contextLabel : ''}.`,
       negotiation_id: negotiationId || null,
+      entity_id: entityId || null,
     }))
   )
 }

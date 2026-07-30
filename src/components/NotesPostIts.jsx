@@ -125,7 +125,7 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
     if (newlyMentioned.length === 0) return
     await notifyMentioned(supabase, {
       workspaceId, mentionedUserIds: newlyMentioned, actorId: user?.id,
-      actorName: profile?.full_name, negotiationId, contextLabel,
+      actorName: profile?.full_name, negotiationId, entityId, contextLabel,
     })
   }
 

@@ -73,6 +73,19 @@ export default function NotificationBell() {
 
     if (n.negotiation_id) {
       navigate(`/negotiations?openNeg=${n.negotiation_id}`)
+      return
+    }
+
+    if (n.entity_id) {
+      const { data: entity } = await supabase
+        .from('entities')
+        .select('entity_type_id')
+        .eq('id', n.entity_id)
+        .maybeSingle()
+
+      if (entity?.entity_type_id) {
+        navigate(`/entities/${entity.entity_type_id}?openEntity=${n.entity_id}`)
+      }
     }
   }
 
