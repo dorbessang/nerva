@@ -816,6 +816,7 @@ const NOTIF_TYPES = [
   { key: 'task_due_soon', label: 'Una tarea mía vence mañana' },
   { key: 'task_overdue', label: 'Una tarea mía está vencida' },
   { key: 'negotiation_inactive', label: 'Un proyecto con tareas mías se marca inactivo' },
+  { key: 'mentioned', label: 'Me mencionan con @ en una nota' },
 ]
 
 function TabNotificaciones({ workspaceId }) {

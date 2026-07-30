@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { logActivity } from '../lib/activity'
-// Reusa las clases .neg-note-*/.neg-add-task-btn/.detail-empty ya definidas
-// en Negotiations.css — ese archivo queda cargado globalmente en cualquier
-// página que importe algo de Negotiations.jsx (incluida Entities.jsx).
+import { notifyMentioned } from '../lib/notifications'
+// Reusa las clases .neg-note-*/.neg-add-task-btn/.detail-empty/.mention-*
+// ya definidas en Negotiations.css — ese archivo queda cargado
+// globalmente en cualquier página que importe algo de Negotiations.jsx
+// (incluida Entities.jsx).
 
 const NOTE_COLORS = [
   { bg: '#fef08a', border: '#fde047', date: '#854d0e' },
@@ -13,20 +15,65 @@ const NOTE_COLORS = [
   { bg: '#fecdd3', border: '#fda4af', date: '#9f1239' },
 ]
 
+// Busca el "@algo" que queda pegado al cursor, si lo hay — dispara el
+// autocompletado de menciones mientras se sigue tipeando ese nombre.
+function caretMentionQuery(text, caret) {
+  const upToCaret = text.slice(0, caret)
+  const match = upToCaret.match(/@([^\s@]*)$/)
+  return match ? match[1] : null
+}
+
+// Reemplaza el "@algo" en curso por "@Nombre Completo " y devuelve dónde
+// queda el cursor después de insertarlo.
+function applyMention(text, caret, fullName) {
+  const upToCaret = text.slice(0, caret)
+  const at = upToCaret.lastIndexOf('@')
+  const before = text.slice(0, at)
+  const after = text.slice(caret)
+  const inserted = `@${fullName} `
+  return { text: before + inserted + after, caret: (before + inserted).length }
+}
+
+// A quién menciona el texto final — matchea por nombre completo literal
+// contra los miembros del workspace (no hay @user_id embebido, es texto
+// plano legible), evitando falsos positivos de nombres que son substring
+// de otros más largos.
+function extractMentionedUserIds(text, members) {
+  const sorted = [...members].sort((a, b) => (b.name?.length || 0) - (a.name?.length || 0))
+  const ids = new Set()
+  let remaining = text
+  for (const m of sorted) {
+    if (!m.name) continue
+    if (remaining.includes(`@${m.name}`)) {
+      ids.add(m.user_id)
+      remaining = remaining.split(`@${m.name}`).join('')
+    }
+  }
+  return [...ids]
+}
+
 // Notas tipo post-it, reusadas en el detalle de proyecto, el de entidad, y
 // como notepad suelto del workspace personal — se filtran/insertan por
 // negotiationId, por entityId, o si no se pasa ninguno de los dos, quedan
-// sueltas (solo scoped por workspaceId).
-export default function NotesPostIts({ negotiationId, entityId, workspaceId, canEdit, onChanged }) {
-  const { user } = useAuth()
+// sueltas (solo scoped por workspaceId). `contextLabel` es el nombre del
+// proyecto/entidad (si aplica), solo para el texto de la notificación de
+// @mención.
+export default function NotesPostIts({ negotiationId, entityId, workspaceId, canEdit, onChanged, contextLabel }) {
+  const { user, profile } = useAuth()
   const [notes, setNotes] = useState([])
   const [newNote, setNewNote] = useState('')
   const [newNoteDate, setNewNoteDate] = useState(new Date().toISOString().split('T')[0])
   const [savingNote, setSavingNote] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState(null)
   const [editingNoteText, setEditingNoteText] = useState('')
+  const [members, setMembers] = useState([])
+  const [mention, setMention] = useState(null) // { field: 'new'|'edit', items: [...] }
+
+  const newNoteInputRef = useRef(null)
+  const editTextareaRef = useRef(null)
 
   useEffect(() => { fetchNotes() }, [negotiationId, entityId])
+  useEffect(() => { fetchMembers() }, [workspaceId])
 
   async function fetchNotes() {
     let query = supabase.from('negotiation_notes').select('*').order('note_date', { ascending: true })
@@ -38,14 +85,59 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
     if (data) setNotes(data)
   }
 
+  async function fetchMembers() {
+    if (!workspaceId) return
+    const { data } = await supabase.from('workspace_members')
+      .select('user_id, profile:user_id ( full_name )')
+      .eq('workspace_id', workspaceId)
+      .eq('status', 'active')
+    setMembers((data || [])
+      .filter(m => m.user_id !== user?.id)
+      .map(m => ({ user_id: m.user_id, name: m.profile?.full_name })))
+  }
+
+  function handleFieldChange(field, value, caret) {
+    if (field === 'new') setNewNote(value)
+    else setEditingNoteText(value)
+
+    const query = caretMentionQuery(value, caret)
+    if (query === null || members.length === 0) { setMention(null); return }
+    const items = members.filter(m => m.name?.toLowerCase().includes(query.toLowerCase()))
+    setMention(items.length > 0 ? { field, items } : null)
+  }
+
+  function selectMention(member) {
+    const isNew = mention.field === 'new'
+    const ref = isNew ? newNoteInputRef.current : editTextareaRef.current
+    const value = isNew ? newNote : editingNoteText
+    const { text, caret } = applyMention(value, ref.selectionStart, member.name)
+    if (isNew) setNewNote(text)
+    else setEditingNoteText(text)
+    setMention(null)
+    requestAnimationFrame(() => { ref.focus(); ref.setSelectionRange(caret, caret) })
+  }
+
+  async function notifyNoteMentions(content, previousContent) {
+    if (members.length === 0) return
+    const before = previousContent ? extractMentionedUserIds(previousContent, members) : []
+    const after = extractMentionedUserIds(content, members)
+    const newlyMentioned = after.filter(id => !before.includes(id))
+    if (newlyMentioned.length === 0) return
+    await notifyMentioned(supabase, {
+      workspaceId, mentionedUserIds: newlyMentioned, actorId: user?.id,
+      actorName: profile?.full_name, negotiationId, contextLabel,
+    })
+  }
+
   async function handleAddNote() {
     if (!newNote.trim()) return
     setSavingNote(true)
+    const content = newNote.trim()
     const { data, error } = await supabase.from('negotiation_notes').insert({
       negotiation_id: negotiationId || null,
       entity_id: entityId || null,
       workspace_id: workspaceId,
-      content: newNote.trim(),
+      content,
       note_date: newNoteDate,
     }).select('id').single()
     if (error) { console.error('addNote error:', error.message); setSavingNote(false); return }
@@ -53,8 +145,10 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
       workspaceId, negotiationId, entityId,
       type: 'note_added', title: 'Nota agregada', actorId: user?.id,
     })
+    await notifyNoteMentions(content, null)
     setNewNote('')
     setNewNoteDate(new Date().toISOString().split('T')[0])
+    setMention(null)
     setSavingNote(false)
     fetchNotes()
     onChanged?.()
@@ -69,9 +163,12 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
   async function handleSaveNoteEdit(noteId) {
     const text = editingNoteText.trim()
     if (!text) return
+    const previous = notes.find(n => n.id === noteId)?.content || ''
     await supabase.from('negotiation_notes').update({ content: text }).eq('id', noteId)
     setNotes(prev => prev.map(n => n.id === noteId ? { ...n, content: text } : n))
+    await notifyNoteMentions(text, previous)
     setEditingNoteId(null)
+    setMention(null)
     onChanged?.()
   }
 
@@ -97,19 +194,35 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
                 {new Date(n.note_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
               </span>
               {isEditing ? (
-                <textarea
-                  className="neg-note-edit-input"
-                  value={editingNoteText}
-                  autoFocus
-                  onChange={e => setEditingNoteText(e.target.value)}
-                  onBlur={() => handleSaveNoteEdit(n.id)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveNoteEdit(n.id) }
-                    if (e.key === 'Escape') setEditingNoteId(null)
-                  }}
-                  style={{ background: 'transparent', border: 'none', outline: 'none', width: '100%', font: 'inherit', fontSize: 13, resize: 'none', lineHeight: 1.5, padding: 0, color: '#374151' }}
-                  rows={3}
-                />
+                <div style={{ position: 'relative' }}>
+                  <textarea
+                    ref={editTextareaRef}
+                    className="neg-note-edit-input"
+                    value={editingNoteText}
+                    autoFocus
+                    onChange={e => handleFieldChange('edit', e.target.value, e.target.selectionStart)}
+                    onBlur={() => { if (!mention) handleSaveNoteEdit(n.id) }}
+                    onKeyDown={e => {
+                      if (mention?.field === 'edit') {
+                        if (e.key === 'Escape') { e.preventDefault(); setMention(null) }
+                        return
+                      }
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveNoteEdit(n.id) }
+                      if (e.key === 'Escape') setEditingNoteId(null)
+                    }}
+                    style={{ background: 'transparent', border: 'none', outline: 'none', width: '100%', font: 'inherit', fontSize: 13, resize: 'none', lineHeight: 1.5, padding: 0, color: '#374151' }}
+                    rows={3}
+                  />
+                  {mention?.field === 'edit' && (
+                    <div className="mention-dropdown">
+                      {mention.items.map(m => (
+                        <div key={m.user_id} className="mention-dropdown-item" onMouseDown={e => { e.preventDefault(); selectMention(m) }}>
+                          @{m.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ) : (
                 <span
                   className="neg-note-content"
@@ -132,14 +245,33 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
             value={newNoteDate}
             onChange={e => setNewNoteDate(e.target.value)}
           />
-          <input
-            type="text"
-            className="neg-note-input"
-            placeholder="Nueva nota..."
-            value={newNote}
-            onChange={e => setNewNote(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleAddNote() }}
-          />
+          <div style={{ position: 'relative', flex: 1 }}>
+            <input
+              ref={newNoteInputRef}
+              type="text"
+              className="neg-note-input"
+              style={{ width: '100%' }}
+              placeholder="Nueva nota... (@ para mencionar a alguien)"
+              value={newNote}
+              onChange={e => handleFieldChange('new', e.target.value, e.target.selectionStart)}
+              onKeyDown={e => {
+                if (mention?.field === 'new') {
+                  if (e.key === 'Escape') { e.preventDefault(); setMention(null) }
+                  return
+                }
+                if (e.key === 'Enter') handleAddNote()
+              }}
+            />
+            {mention?.field === 'new' && (
+              <div className="mention-dropdown">
+                {mention.items.map(m => (
+                  <div key={m.user_id} className="mention-dropdown-item" onMouseDown={e => { e.preventDefault(); selectMention(m) }}>
+                    @{m.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <button className="neg-add-task-btn" onClick={handleAddNote} disabled={savingNote || !newNote.trim()}>
             + Agregar
           </button>

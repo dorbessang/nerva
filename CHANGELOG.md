@@ -18,6 +18,12 @@ Registro detallado de cambios por sesión de trabajo.
 ### Nota: pendiente para la etapa fuerte de Settings
 - El usuario dejó anotado (sin construir todavía) que el campo "Tipo de empresa" de Entidades — hoy texto libre en `custom_fields.company_type` — tiene que pasar a ser una lista de clases configurable por workspace desde Settings, mismo patrón que `custom_states`/`entity_types`, para poder habilitarlo como filtro más adelante. Aclarado explícitamente que es distinto del tipo de entidad (Proveedor/Cliente)
 
+### Feature: @menciones en notas
+- Escribir "@Nombre" en cualquier nota (`NotesPostIts`, reusado en proyectos, entidades y el notepad del workspace personal) abre un autocompletado con los miembros activos del workspace; al elegir uno se inserta "@Nombre Completo " como texto plano — nada de sintaxis oculta, la nota se sigue leyendo igual de bien después
+- A quién notificar se decide comparando el texto de la nota contra los nombres reales de los miembros al guardar (no con una regex ingenua de "una palabra", los nombres tienen espacios). Al editar una nota ya guardada, solo se notifican las menciones **nuevas** — resaguarda de generar notificaciones duplicadas cada vez que alguien re-guarda una nota que ya tenía una mención
+- `notifyMentioned()` en `src/lib/notifications.js`, mismo patrón que el resto del sistema de notificaciones (respeta `notification_preferences`, sin auto-notificarse). Nuevo tipo `mentioned` sumado a Settings → Notificaciones
+- Deep-link al hacer click solo funciona para menciones en notas de proyecto (reusa `notifications.negotiation_id`, ya existía) — las de entidad o sueltas notifican igual pero no navegan a ningún lado, porque agregar esa columna hubiera requerido una migración de schema que esta sesión no pudo ejecutar (sandbox sin salida de red hacia la Supabase real, confirmado con un 403 de política al intentar). Documentado en PENDIENTES.md con el SQL de una línea para cuando se quiera sumar
+
 ## 2026-07-29
 
 ### Feature: Agenda personal (workspace tipo `personal`)

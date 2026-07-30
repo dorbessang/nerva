@@ -593,6 +593,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
                 workspaceId={workspaceId}
                 canEdit={canNote}
                 onChanged={() => setActivityRefresh(v => v + 1)}
+                contextLabel={entity.name}
               />
             )}
 

@@ -1563,6 +1563,7 @@ export function NegotiationDetail({ neg, entities, customStates, getStateConfig,
               workspaceId={neg.workspace_id || workspaceId}
               canEdit={canNote}
               onChanged={() => { setActivityRefresh(v => v + 1); onNotesChanged?.() }}
+              contextLabel={neg.product || neg.title}
             />
           </div>
           <div className="neg-detail-section">
