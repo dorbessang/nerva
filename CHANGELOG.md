@@ -4,6 +4,20 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-30
+
+### Feature: Export de Entidades unificado (todos los tipos, un solo PDF)
+- El export de Entidades a PDF armado el 2026-07-29 generaba un archivo distinto por cada tipo de entidad (uno para Proveedores, otro para Clientes...). Ajustado a pedido del usuario: el mismo botón, desde cualquier pestaña de Entidades, ahora arma **un único PDF con todos los tipos del workspace** — portada, resumen general (con desglose "X Proveedores · Y Clientes..."), y por cada tipo una página divisoria seguida del detalle de cada entidad de ese tipo
+- `exportAllEntitiesPdf({ workspaceId, customStates, workspaceName })` hace sus propias queries por `workspace_id` (todos los `entity_types` y todas las `entities`) en vez de recibir la lista ya acotada a un tipo de la pestaña activa
+- Páginas divisorias navy de ancho completo (mismo estilo que la portada) sin pie de página — el texto gris del footer no se leería sobre navy — la numeración final de páginas se arma con la lista explícita de páginas que sí llevan footer, no un rango continuo
+
+### Feature: Scorecard de proveedor
+- Nueva pestaña "Resumen" en el detalle de una entidad (primera de la lista, activa por defecto): consolida en un solo lugar métricas de la relación con esa entidad que antes estaban dispersas o no existían — tarjetas de stat (proyectos/completados/en curso/tareas pendientes), valor de pipeline vinculado a esa entidad (agrupado por moneda, no existía a nivel entidad hasta ahora), distribución por estado en gráfico de barras (CSS puro), última actividad + alerta de proyectos pausados/inactivos, antigüedad de la relación, y desglose de NDA
+- Deliberadamente sin "tiempo de respuesta" (parte de la idea original) — no hay ningún timestamp de mensajes en el modelo de datos actual para calcularlo sin inventar un dato
+
+### Nota: pendiente para la etapa fuerte de Settings
+- El usuario dejó anotado (sin construir todavía) que el campo "Tipo de empresa" de Entidades — hoy texto libre en `custom_fields.company_type` — tiene que pasar a ser una lista de clases configurable por workspace desde Settings, mismo patrón que `custom_states`/`entity_types`, para poder habilitarlo como filtro más adelante. Aclarado explícitamente que es distinto del tipo de entidad (Proveedor/Cliente)
+
 ## 2026-07-29
 
 ### Feature: Agenda personal (workspace tipo `personal`)

@@ -533,6 +533,52 @@
   text-overflow: ellipsis;
 }
 
+/* Scorecard — barras de distribución por estado */
+.scorecard-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scorecard-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.scorecard-bar-label {
+  font-size: 12px;
+  color: #374151;
+  width: 110px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scorecard-bar-track {
+  flex: 1;
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.scorecard-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.2s;
+}
+
+.scorecard-bar-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0B1F3A;
+  width: 20px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
 /* Lista de proyectos */
 .entity-negs-list {
   display: flex;

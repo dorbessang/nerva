@@ -11,6 +11,7 @@ import ActivityTimeline from '../components/ActivityTimeline'
 import Documents from '../components/Documents'
 import { notifyTaskAssigned } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
+import { formatAmount } from '../components/DealMilestones'
 import './Entities.css'
 
 const AVATAR_COLORS = [
@@ -321,7 +322,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
   const [showNegModal, setShowNegModal] = useState(false)
   const [bgColor, textColor] = getAvatarColor(entity.name)
   const [activityRefresh, setActivityRefresh] = useState(0)
-  const [rightTab, setRightTab] = useState('actividad')
+  const [rightTab, setRightTab] = useState('resumen')
   const [entityTasks, setEntityTasks] = useState([])
   const [members, setMembers] = useState([])
   const [showTaskForm, setShowTaskForm] = useState(false)
@@ -329,8 +330,30 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
   const [newTaskAssignee, setNewTaskAssignee] = useState('')
   const [newTaskDue, setNewTaskDue] = useState('')
   const [savingTask, setSavingTask] = useState(false)
+  const [scorecard, setScorecard] = useState({ pipeline: [], pendingProjectTasks: 0 })
 
   useEffect(() => { fetchEntityTasks(); fetchMembers() }, [entity.id])
+
+  useEffect(() => {
+    const negIds = (entity.negotiation_entities || []).map(n => n.negotiation?.id).filter(Boolean)
+    if (negIds.length === 0) { setScorecard({ pipeline: [], pendingProjectTasks: 0 }); return }
+    Promise.all([
+      supabase.from('negotiations').select('id, currency').in('id', negIds),
+      supabase.from('deal_milestones').select('negotiation_id, amount').in('negotiation_id', negIds),
+      supabase.from('tasks').select('id, status').in('negotiation_id', negIds),
+    ]).then(([{ data: negCurrency }, { data: milestones }, { data: projectTasks }]) => {
+      const currencyByNeg = {}
+      for (const n of negCurrency || []) currencyByNeg[n.id] = n.currency || 'USD'
+      const totals = {}
+      for (const m of milestones || []) {
+        const cur = currencyByNeg[m.negotiation_id] || 'USD'
+        totals[cur] = (totals[cur] || 0) + Number(m.amount)
+      }
+      const pipeline = Object.entries(totals).map(([currency, total]) => ({ currency, total })).sort((a, b) => b.total - a.total)
+      const pendingProjectTasks = (projectTasks || []).filter(t => t.status !== 'done').length
+      setScorecard({ pipeline, pendingProjectTasks })
+    })
+  }, [entity.id])
 
   async function fetchEntityTasks() {
     const { data } = await supabase.from('tasks')
@@ -531,6 +554,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
           <div className="entity-detail-col entity-detail-col--right">
             <div className="entity-tabs">
               {[
+                { key: 'resumen', label: 'Resumen' },
                 { key: 'actividad', label: 'Actividad' },
                 { key: 'proyectos', label: `Proyectos (${negs.length})` },
                 { key: 'notas', label: 'Notas' },
@@ -546,6 +570,18 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
                 </button>
               ))}
             </div>
+
+            {rightTab === 'resumen' && (
+              <EntityScorecard
+                entity={entity}
+                negs={negs}
+                counts={counts}
+                getStateConfig={getStateConfig}
+                scorecard={scorecard}
+                entityTasksPending={entityTasks.filter(t => t.status !== 'done').length}
+                entityTypeSingular={entityTypeSingular}
+              />
+            )}
 
             {rightTab === 'actividad' && (
               <ActivityTimeline entityId={entity.id} refreshKey={activityRefresh} />
@@ -773,6 +809,117 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
           onActivityChanged={() => {}}
           onNotesChanged={() => {}}
         />
+      )}
+    </div>
+  )
+}
+
+function relativeDaysLabel(date) {
+  const days = Math.floor((Date.now() - date) / 86400000)
+  if (days <= 0) return 'hoy'
+  if (days === 1) return 'ayer'
+  return `hace ${days} días`
+}
+
+function EntityScorecard({ entity, negs, counts, getStateConfig, scorecard, entityTasksPending, entityTypeSingular }) {
+  const completedCount = negs.filter(n => n.status === 'Completado').length
+  const pendingTasks = scorecard.pendingProjectTasks + entityTasksPending
+  const maxCount = Math.max(1, ...Object.values(counts))
+
+  const lastActivityDate = negs.reduce((max, n) => {
+    if (!n.last_activity_at) return max
+    const d = new Date(n.last_activity_at)
+    return (!max || d > max) ? d : max
+  }, null)
+  const inactiveCount = negs.filter(n => n.activity_status === 'inactive').length
+  const pausedCount = negs.filter(n => n.activity_status === 'paused').length
+
+  const ndaCounts = {}
+  negs.forEach(n => { const k = n.nda || '—'; ndaCounts[k] = (ndaCounts[k] || 0) + 1 })
+  const ndaStr = Object.entries(ndaCounts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${k}`).join('   ·   ')
+
+  if (negs.length === 0) {
+    return <p className="detail-empty">Sin proyectos todavía — el resumen aparece cuando haya al menos uno.</p>
+  }
+
+  return (
+    <div className="entity-scorecard">
+      <div className="entity-proj-stats">
+        <div className="entity-proj-stat">
+          <div className="entity-proj-stat-n" style={{ color: '#0B1F3A' }}>{negs.length}</div>
+          <div className="entity-proj-stat-lbl">Proyectos</div>
+        </div>
+        <div className="entity-proj-stat">
+          <div className="entity-proj-stat-n" style={{ color: '#059669' }}>{completedCount}</div>
+          <div className="entity-proj-stat-lbl">Completados</div>
+        </div>
+        <div className="entity-proj-stat">
+          <div className="entity-proj-stat-n" style={{ color: '#D97706' }}>{negs.length - completedCount}</div>
+          <div className="entity-proj-stat-lbl">En curso</div>
+        </div>
+        <div className="entity-proj-stat">
+          <div className="entity-proj-stat-n" style={{ color: '#DC2626' }}>{pendingTasks}</div>
+          <div className="entity-proj-stat-lbl">Tareas pend.</div>
+        </div>
+      </div>
+
+      {scorecard.pipeline.length > 0 && (
+        <div className="detail-section" style={{ marginTop: 18 }}>
+          <div className="detail-section-title">Valor de pipeline</div>
+          <div className="entity-info-val" style={{ fontSize: 16, fontWeight: 700, color: '#0B1F3A' }}>
+            {scorecard.pipeline.map(p => `${formatAmount(p.total)} ${p.currency}`).join('   ·   ')}
+          </div>
+        </div>
+      )}
+
+      <div className="detail-section" style={{ marginTop: 18 }}>
+        <div className="detail-section-title">Distribución por estado</div>
+        <div className="scorecard-bars">
+          {Object.entries(counts).map(([status, count]) => {
+            const cfg = getStateConfig(status)
+            return (
+              <div key={status} className="scorecard-bar-row">
+                <span className="scorecard-bar-label">{status}</span>
+                <div className="scorecard-bar-track">
+                  <div className="scorecard-bar-fill" style={{ width: `${(count / maxCount) * 100}%`, background: cfg.color }} />
+                </div>
+                <span className="scorecard-bar-count">{count}</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="detail-section" style={{ marginTop: 18 }}>
+        <div className="detail-section-title">Actividad</div>
+        <div className="entity-info-row">
+          <span className="entity-info-label">Última actividad</span>
+          <span className="entity-info-val">{lastActivityDate ? relativeDaysLabel(lastActivityDate) : 'Sin registro'}</span>
+        </div>
+        {(inactiveCount > 0 || pausedCount > 0) && (
+          <div className="entity-info-row">
+            <span className="entity-info-label">Atención</span>
+            <span className="entity-info-val">
+              {[inactiveCount > 0 && `💤 ${inactiveCount} inactivo${inactiveCount > 1 ? 's' : ''}`, pausedCount > 0 && `⏸ ${pausedCount} pausado${pausedCount > 1 ? 's' : ''}`]
+                .filter(Boolean).join('   ·   ')}
+            </span>
+          </div>
+        )}
+        {entity.created_at && (
+          <div className="entity-info-row">
+            <span className="entity-info-label">{entityTypeSingular || 'Entidad'} desde</span>
+            <span className="entity-info-val">
+              {new Date(entity.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {ndaStr && (
+        <div className="detail-section" style={{ marginTop: 18 }}>
+          <div className="detail-section-title">NDA</div>
+          <div className="entity-info-val">{ndaStr}</div>
+        </div>
       )}
     </div>
   )

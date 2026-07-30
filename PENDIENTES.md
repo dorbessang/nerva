@@ -42,10 +42,21 @@ Decisión explícita de **no construirlo todavía**. Se define el patrón target
 - La elección de "tipo de CRM" al crear un workspace pasa a ser, en este esquema, qué **módulos** están activos — no solo qué `entity_types` vienen precargados
 
 ### Próximo paso acordado
-Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diagnóstico quedan: ~~kanban visual~~, ~~búsqueda global~~ y ~~export a Excel/PDF~~ (hechos, ver abajo), scorecard de proveedor, alertas de vencimiento de NDA/contrato, @menciones, bulk actions/import CSV, API/webhooks.
+Puntos 1 a 5 completos, funcionalidad probada. De los huecos originales del diagnóstico quedan: ~~kanban visual~~, ~~búsqueda global~~, ~~export a Excel/PDF~~ y ~~scorecard de proveedor~~ (hechos, ver abajo), alertas de vencimiento de NDA/contrato, @menciones, bulk actions/import CSV, API/webhooks.
 
 - Alertas de vencimiento de NDA/contrato — descartado por ahora. Hoy `nda` es un campo hardcodeado en `negotiations`, pero según lo pensado para Etapa 2 (campos custom por workspace) no va a seguir siendo un campo fijo — no tiene sentido construir alertas sobre un dato que va a cambiar de modelo pronto
-- Sin scorecard de proveedor, @menciones, bulk actions/import CSV, API/webhooks — sin definir orden todavía
+- Sin @menciones, bulk actions/import CSV, API/webhooks — sin definir orden todavía
+
+### Scorecard de proveedor (o cualquier tipo de entidad)
+- [x] Nueva pestaña "Resumen" en el detalle de una entidad (`EntityDetailModal` → `EntityScorecard`), primera de la lista y activa por defecto (antes arrancaba en "Actividad") — consolida en un solo lugar métricas que antes estaban dispersas o no existían en ningún lado
+- [x] Tarjetas de stat (mismo estilo que las chips que ya existían en la pestaña Proyectos): Proyectos totales, Completados, En curso, Tareas pendientes (suma las de sus proyectos vinculados + las tareas propias de la entidad, `entity_id`)
+- [x] Valor de pipeline vinculado a esa entidad — no existía antes a nivel entidad (solo agregado a nivel workspace en Dashboard/Proyectos). Suma `deal_milestones` de todos sus proyectos agrupado por moneda, mismo criterio que el resto de la app (sin conversión automática)
+- [x] Distribución por estado como gráfico de barras horizontal (CSS puro, sin canvas/librería — `.scorecard-bars`), usando los colores reales de `custom_states` del workspace
+- [x] Bloque de actividad: última actividad entre todos sus proyectos (fecha relativa "hace Nd", mismo criterio que la tabla de Proyectos), alerta si tiene proyectos pausados/inactivos (`activity_status`), y antigüedad de la relación ("Proveedor desde {fecha}", usando `entities.created_at`)
+- [x] Desglose de NDA (cuántos proyectos en cada estado de NDA), mismo formato que el resumen del export a PDF
+- [x] Deliberadamente **no** se incluyó "tiempo de respuesta" pese a estar en la idea original — no hay ningún timestamp de mensajes/respuestas en el modelo de datos actual para calcularlo sin inventar un dato; queda para si en algún momento se agrega algo tipo hilo de mensajes
+- [x] Todo el fetch de datos nuevos (pipeline, tareas de los proyectos vinculados) vive en un `useEffect` propio del modal, con queries puntuales por `negotiation_id in (...)` — mismo patrón que ya se usaba en los exports a PDF, no se tocó el fetch principal de la lista de Entidades
+- [x] Probado con Playwright: la pestaña "Resumen" abre por defecto, tarjetas y valores correctos con una entidad con 4 proyectos en distintos estados/actividad (uno completado, uno inactivo, uno pausado), pipeline sumado bien entre 2 hitos, barras por estado con los colores esperados, alerta de inactivo/pausado, antigüedad y desglose de NDA correctos, y que cambiar de pestaña y volver no rompe nada
 
 ### Export de Proyectos
 - [x] Botón "⬇ Exportar Excel" en el toolbar de `/negotiations`, junto a "⚙ Columnas". Exporta la lista `filtered` (respeta los filtros de búsqueda/proveedor/estado/actividad activos) usando exactamente las columnas visibles del usuario (`cols`) — si hay filas seleccionadas, exporta solo esas en vez de todo lo filtrado
