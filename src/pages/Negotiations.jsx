@@ -13,7 +13,7 @@ import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, 
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
 import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues } from '../lib/customFields'
-import { CustomFieldInput, CustomFieldsFormSection } from '../components/CustomFieldInput'
+import { CustomFieldInput, CustomFieldsFormSection, CustomFieldReadOnly } from '../components/CustomFieldInput'
 import './Negotiations.css'
 
 const TERRITORIES = ['ARG','BOL','BRA','CEAM','CHI','COL','ECU','MEX','PAR','PER','URU','VEN']
@@ -44,7 +44,7 @@ const ACTIVITY_LABELS = { active: 'En curso', paused: 'Pausado', inactive: 'Inac
 
 // Valor de texto plano por columna para el export CSV — separado de
 // renderCell/renderCardField porque esos devuelven JSX con badges/chips.
-function getExportValue(key, neg, getEntityName, customFieldDefs) {
+function getExportValue(key, neg, getEntityName, customFieldDefs, members) {
   switch (key) {
     case 'product': return neg.product || neg.title || ''
     case 'entities': return getEntityName(neg)
@@ -62,7 +62,7 @@ function getExportValue(key, neg, getEntityName, customFieldDefs) {
     default: {
       const def = customFieldDefs?.find(d => d.key === key)
       if (!def) return ''
-      const val = renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key))
+      const val = renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key), members)
       return val === '—' ? '' : val
     }
   }
@@ -74,13 +74,13 @@ function getExportValue(key, neg, getEntityName, customFieldDefs) {
 // xlsx/jspdf se cargan bajo demanda (import dinámico) para no sumarlos al
 // bundle inicial de /negotiations — son acciones ocasionales, no parte del
 // flujo principal de la página.
-async function exportNegotiationsXlsx(negotiations, cols, getEntityName, customFieldDefs) {
+async function exportNegotiationsXlsx(negotiations, cols, getEntityName, customFieldDefs, members) {
   const XLSX = await import('xlsx')
   const visibleCols = cols.filter(c => c.visible)
   const headers = visibleCols.map(c => ALL_COLUMNS.find(x => x.key === c.key)?.label || customFieldDefs.find(d => d.key === c.key)?.label || c.key)
   const rows = [
     headers,
-    ...negotiations.map(neg => visibleCols.map(c => getExportValue(c.key, neg, getEntityName, customFieldDefs))),
+    ...negotiations.map(neg => visibleCols.map(c => getExportValue(c.key, neg, getEntityName, customFieldDefs, members))),
   ]
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = visibleCols.map(() => ({ wch: 22 }))
@@ -329,7 +329,7 @@ export default function Negotiations() {
 
   function handleExportExcel() {
     setShowExportMenu(false)
-    exportNegotiationsXlsx(exportRows(), cols, getEntityName, customFieldDefs)
+    exportNegotiationsXlsx(exportRows(), cols, getEntityName, customFieldDefs, members)
   }
 
   async function handleExportPdf() {
@@ -593,13 +593,13 @@ export default function Negotiations() {
       ) : filtered.length === 0 ? (
         <div className="neg-empty">No hay proyectos todavía.</div>
       ) : view === 'table' ? (
-        <TableView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} allColumns={allColumns} customFieldDefs={customFieldDefs}
+        <TableView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} allColumns={allColumns} customFieldDefs={customFieldDefs} members={members}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} allVisibleSelected={allVisibleSelected} onToggleSelectAll={toggleSelectAllVisible} />
       ) : view === 'cards' ? (
-        <CardsView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} customFieldDefs={customFieldDefs}
+        <CardsView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} customFieldDefs={customFieldDefs} members={members}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} />
       ) : (
-        <KanbanView negotiations={filtered} customStates={customStates} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} cols={cols} customFieldDefs={customFieldDefs}
+        <KanbanView negotiations={filtered} customStates={customStates} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} cols={cols} customFieldDefs={customFieldDefs} members={members}
           onSelect={setSelectedNeg} canEdit={canCreateProject} onMove={handleKanbanMove} />
       )}
 
@@ -634,6 +634,7 @@ export default function Negotiations() {
           entities={entities}
           customStates={customStates}
           customFieldDefs={customFieldDefs}
+          members={members}
           getStateConfig={getStateConfig}
           getEntityFlag={getEntityFlag}
           highlightTaskId={highlightTaskId}
@@ -718,7 +719,7 @@ function ColumnEditor({ cols, allColumns, onChange, onClose }) {
 }
 
 // Render de una celda según el key de columna
-function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs) {
+function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members) {
   const cfg = getStateConfig(neg.status)
   const flag = getEntityFlag(neg)
 
@@ -797,12 +798,12 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
     default: {
       const def = customFieldDefs?.find(d => d.key === key)
       if (!def) return <td key={key}>—</td>
-      return <td key={key} className="neg-td-text">{renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key))}</td>
+      return <td key={key} className="neg-td-text">{renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key), members)}</td>
     }
   }
 }
 
-function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll }) {
+function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll }) {
   const visibleCols = cols.filter(c => c.visible)
 
   return (
@@ -827,7 +828,7 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
                 <td className="neg-td-check" onClick={e => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedIds.has(neg.id)} onChange={() => onToggleSelect(neg.id)} />
                 </td>
-                {visibleCols.map(c => renderCell(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs))}
+                {visibleCols.map(c => renderCell(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members))}
               </tr>
             )
           })}
@@ -837,7 +838,7 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
   )
 }
 
-function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs) {
+function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members) {
   const flag = getEntityFlag(neg)
   switch (key) {
     case 'entities': {
@@ -905,14 +906,14 @@ function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag,
     default: {
       const def = customFieldDefs?.find(d => d.key === key)
       if (!def) return null
-      const rendered = renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key))
+      const rendered = renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key), members)
       if (rendered === '—') return null
       return <div key={key} className="neg-card-text neg-card-field">{rendered}</div>
     }
   }
 }
 
-function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, customFieldDefs, selectedIds, onToggleSelect }) {
+function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, customFieldDefs, members, selectedIds, onToggleSelect }) {
   // Columnas visibles excluyendo product y status (que van hardcodeados en el header)
   const visibleFields = cols.filter(c => c.visible && c.key !== 'product' && c.key !== 'status')
 
@@ -940,7 +941,7 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
                 </div>
                 <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>
               </div>
-              {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs))}
+              {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members))}
             </div>
           </div>
         )
@@ -949,7 +950,7 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
   )
 }
 
-function KanbanView({ negotiations, customStates, getStateConfig, getEntityName, getEntityFlag, onSelect, canEdit, onMove, cols, customFieldDefs }) {
+function KanbanView({ negotiations, customStates, getStateConfig, getEntityName, getEntityFlag, onSelect, canEdit, onMove, cols, customFieldDefs, members }) {
   const [dragOverCol, setDragOverCol] = useState(null)
   // Mismos campos configurables que Tabla/Cards ("⚙ Vista"), product y status
   // van hardcodeados en el título de la card / la columna en la que cae.
@@ -992,7 +993,7 @@ function KanbanView({ negotiations, customStates, getStateConfig, getEntityName,
                       {actIcon && <span className="neg-kanban-card-icon">{actIcon}</span>}
                       {neg.product || neg.title}
                     </div>
-                    {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs))}
+                    {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members))}
                     {canEdit && (
                       <div className="neg-kanban-card-actions" onClick={e => e.stopPropagation()}>
                         {colIdx > 0 && (
@@ -1434,7 +1435,7 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
   )
 }
 
-export function NegotiationDetail({ neg, entities, customStates, customFieldDefs = [], getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
+export function NegotiationDetail({ neg, entities, customStates, customFieldDefs = [], members = [], getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
   const { effectiveRole, role, user, isStaff, workspaceId } = useAuth()
   const canDelete = effectiveRole === 'owner'
   const canPause = effectiveRole === 'owner' || effectiveRole === 'admin'
@@ -1693,7 +1694,7 @@ export function NegotiationDetail({ neg, entities, customStates, customFieldDefs
                     {canEditInline ? (
                       <CustomFieldInput def={def} value={getCustomFieldValue(customFieldValues, def.key)} onChange={v => saveCustomField(def.key, v)} />
                     ) : (
-                      <p className="detail-empty">{renderCustomFieldDisplay(def, getCustomFieldValue(customFieldValues, def.key))}</p>
+                      <p className="detail-empty"><CustomFieldReadOnly def={def} cf={customFieldValues} members={members} /></p>
                     )}
                   </div>
                 ))}

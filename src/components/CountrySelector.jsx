@@ -33,6 +33,10 @@ const COUNTRIES = [
   {code:"UY",name:"Uruguay"},{code:"VE",name:"Venezuela"},{code:"VN",name:"Vietnam"},
 ].sort((a,b) => a.name.localeCompare(b.name, 'es'))
 
+export function getAllCountries() {
+  return COUNTRIES
+}
+
 export function getFlagUrl(code) {
   if (!code || code.length !== 2) return null
   return `https://flagcdn.com/w20/${code.toLowerCase()}.png`

@@ -13,6 +13,7 @@ const emptyContact = () => ({
   role: '',
   email: '',
   phone: '',
+  whatsapp: '',
   notes: '',
   is_primary: false,
 })
@@ -23,6 +24,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
   const [countryCode, setCountryCode] = useState(initial?.country_code || '')
   const [companyType, setCompanyType] = useState(initial?.custom_fields?.company_type || '')
   const [website, setWebsite] = useState(initial?.website || '')
+  const [address, setAddress] = useState(initial?.address || '')
   const [customFieldValues, setCustomFieldValues] = useState(() =>
     Object.fromEntries(customFieldDefs.map(def => [def.key, initial?.custom_fields?.[def.key]?.value]))
   )
@@ -83,6 +85,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
           name: name.trim(),
           country_code: countryCode || null,
           website: website.trim() || null,
+          address: address.trim() || null,
           custom_fields: customFields,
         })
         .eq('id', initial.id)
@@ -104,6 +107,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
             role: c.role.trim() || null,
             email: c.email.trim() || null,
             phone: c.phone.trim() || null,
+            whatsapp: c.whatsapp.trim() || null,
             notes: c.notes.trim() || null,
             is_primary: i === 0,
           }))
@@ -118,6 +122,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
           name: name.trim(),
           country_code: countryCode || null,
           website: website.trim() || null,
+          address: address.trim() || null,
           custom_fields: customFields,
           status: 'active',
         })
@@ -144,6 +149,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
             role: c.role.trim() || null,
             email: c.email.trim() || null,
             phone: c.phone.trim() || null,
+            whatsapp: c.whatsapp.trim() || null,
             notes: c.notes.trim() || null,
             is_primary: i === 0,
           }))
@@ -197,6 +203,11 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
             </div>
 
             <div className="form-group">
+              <label>DIRECCIÓN</label>
+              <input type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder="Calle, número, ciudad..." />
+            </div>
+
+            <div className="form-group">
               <label>TIPO DE EMPRESA</label>
               <textarea value={companyType} onChange={e => setCompanyType(e.target.value)} placeholder="Ej: Laboratorio multinacional, Distribuidor regional..." rows={2} />
             </div>
@@ -242,6 +253,13 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
                   <div className="form-group">
                     <label>📞 TELÉFONO</label>
                     <input type="text" value={contact.phone} onChange={e => updateContact(contact.tempId, 'phone', e.target.value)} placeholder="+54 11 1234-5678" />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>💬 WHATSAPP (opcional)</label>
+                    <input type="text" value={contact.whatsapp || ''} onChange={e => updateContact(contact.tempId, 'whatsapp', e.target.value)} placeholder="+54 9 11 1234-5678" />
                   </div>
                 </div>
 

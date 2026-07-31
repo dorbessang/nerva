@@ -13,7 +13,7 @@ import Documents from '../components/Documents'
 import { notifyTaskAssigned } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { formatAmount } from '../components/DealMilestones'
-import { renderCustomFieldDisplay, getCustomFieldValue } from '../lib/customFields'
+import { CustomFieldReadOnly } from '../components/CustomFieldInput'
 import './Entities.css'
 
 const AVATAR_COLORS = [
@@ -116,7 +116,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     setLoading(true)
     const { data: entitiesData, error } = await supabase
       .from('entities')
-      .select(`*, entity_type:entity_type_id ( name, color ), contacts ( id, name, role, email, phone, notes, is_primary )`)
+      .select(`*, entity_type:entity_type_id ( name, color ), contacts ( id, name, role, email, phone, whatsapp, notes, is_primary )`)
       .eq('entity_type_id', entityTypeId)
       .order('name')
 
@@ -605,6 +605,12 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
                   <span className="entity-info-val">{getCountryName(entity.country_code)}</span>
                 </div>
               )}
+              {entity.address && (
+                <div className="entity-info-row">
+                  <span className="entity-info-label">Dirección</span>
+                  <span className="entity-info-val">{entity.address}</span>
+                </div>
+              )}
               {entity.custom_fields?.company_type && (
                 <div className="entity-info-row">
                   <span className="entity-info-label">Tipo</span>
@@ -614,7 +620,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
               {entityFieldDefs.map(def => (
                 <div key={def.key} className="entity-info-row">
                   <span className="entity-info-label">{def.label}</span>
-                  <span className="entity-info-val">{renderCustomFieldDisplay(def, getCustomFieldValue(entity.custom_fields, def.key))}</span>
+                  <span className="entity-info-val"><CustomFieldReadOnly def={def} cf={entity.custom_fields} members={members} /></span>
                 </div>
               ))}
             </div>
@@ -641,6 +647,11 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
                         {contact.phone && (
                           <a href={`tel:${contact.phone}`} className="contact-detail">
                             <span className="contact-icon">📞</span>{contact.phone}
+                          </a>
+                        )}
+                        {contact.whatsapp && (
+                          <a href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="contact-detail">
+                            <span className="contact-icon">💬</span>{contact.whatsapp}
                           </a>
                         )}
                       </div>
@@ -885,7 +896,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
           initial={editingNeg}
           presetEntity={!editingNeg ? entity : undefined}
           entities={entities}
-          members={[]}
+          members={members}
           customStates={customStates}
           customFieldDefs={negotiationFieldDefs}
           onClose={() => { setShowNegModal(false); setSelectedNeg(null) }}
@@ -915,6 +926,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
           entities={entities}
           customStates={customStates}
           customFieldDefs={negotiationFieldDefs}
+          members={members}
           getStateConfig={getStateConfig}
           getEntityFlag={getEntityFlagForNeg}
           onClose={() => setSelectedNeg(null)}

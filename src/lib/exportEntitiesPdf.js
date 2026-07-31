@@ -97,6 +97,14 @@ function drawEntityPage(doc, entity, { index, customStates, negotiations, pendin
 
   let y = 36
 
+  if (entity.address) {
+    setText(doc, INK)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text(entity.address, MARGIN, y)
+    y += 8
+  }
+
   const contacts = [...(entity.contacts || [])].sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0))
   if (contacts.length > 0) {
     setText(doc, GRAY_TEXT)
@@ -105,7 +113,7 @@ function drawEntityPage(doc, entity, { index, customStates, negotiations, pendin
     doc.text('CONTACTOS', MARGIN, y)
     y += 5
     contacts.forEach(c => {
-      const parts = [c.role ? `${c.name} (${c.role})` : c.name, c.email, c.phone].filter(Boolean)
+      const parts = [c.role ? `${c.name} (${c.role})` : c.name, c.email, c.phone, c.whatsapp ? `WhatsApp: ${c.whatsapp}` : null].filter(Boolean)
       setText(doc, INK)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
@@ -164,7 +172,7 @@ function drawEntityPage(doc, entity, { index, customStates, negotiations, pendin
 export async function exportAllEntitiesPdf({ workspaceId, customStates, workspaceName }) {
   const [{ data: entityTypes }, { data: entities }] = await Promise.all([
     supabase.from('entity_types').select('id, name, plural').eq('workspace_id', workspaceId).order('sort_order'),
-    supabase.from('entities').select(`*, contacts ( id, name, role, email, phone, notes, is_primary )`).eq('workspace_id', workspaceId).order('name'),
+    supabase.from('entities').select(`*, contacts ( id, name, role, email, phone, whatsapp, notes, is_primary )`).eq('workspace_id', workspaceId).order('name'),
   ])
 
   const entityIds = (entities || []).map(e => e.id)

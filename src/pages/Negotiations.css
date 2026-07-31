@@ -928,6 +928,48 @@
   cursor: pointer;
 }
 
+.cf-country-multi {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cf-country-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cf-chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font-size: 10px;
+  margin-left: 4px;
+  padding: 0;
+}
+
+.cf-country-combobox {
+  position: relative;
+}
+
+.cf-country-combobox input {
+  width: 100%;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 7px;
+  background: #f9fafb;
+  padding: 11px 12px;
+  font-size: 14px;
+  color: #111827;
+}
+
+.cf-country-combobox input:focus {
+  outline: none;
+  border-color: #0B1F3A;
+  background: #ffffff;
+}
+
 .neg-tasks-header {
   display: flex;
   align-items: center;

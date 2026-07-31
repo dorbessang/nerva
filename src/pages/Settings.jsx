@@ -757,6 +757,11 @@ const FIELD_TYPES = [
   { key: 'boolean', label: 'Casilla (sí/no)' },
   { key: 'select', label: 'Lista desplegable' },
   { key: 'multiselect', label: 'Selección múltiple' },
+  { key: 'country', label: 'País' },
+  { key: 'user', label: 'Usuario del workspace' },
+  { key: 'link', label: 'Link' },
+  { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Teléfono' },
   { key: 'tracked', label: 'Campo con seguimiento' },
 ]
 
@@ -828,6 +833,8 @@ function TabCamposPersonalizados({ workspaceId }) {
   const [newUnderlyingType, setNewUnderlyingType] = useState('select')
   const [newTriggerMode, setNewTriggerMode] = useState('deadline')
   const [newAlertDays, setNewAlertDays] = useState(30)
+  const [newCountryMultiple, setNewCountryMultiple] = useState(false)
+  const [newCountryShowFlag, setNewCountryShowFlag] = useState(true)
 
   useEffect(() => { fetchFields() }, [objectType, workspaceId])
 
@@ -846,10 +853,12 @@ function TabCamposPersonalizados({ workspaceId }) {
   function resetForm() {
     setNewLabel(''); setNewType('text'); setNewChoices([])
     setNewUnderlyingType('select'); setNewTriggerMode('deadline'); setNewAlertDays(30)
+    setNewCountryMultiple(false); setNewCountryShowFlag(true)
   }
 
-  function buildOptions(type, underlyingType, choices, triggerMode, alertDays) {
+  function buildOptions(type, underlyingType, choices, triggerMode, alertDays, countryMultiple, countryShowFlag) {
     if (type === 'select' || type === 'multiselect') return { choices }
+    if (type === 'country') return { multiple: countryMultiple, show_flag: countryShowFlag }
     if (type === 'tracked') {
       const opts = { underlying_type: underlyingType, trigger_mode: triggerMode, alert_days: Number(alertDays) || 30 }
       if (underlyingType === 'select') opts.choices = choices
@@ -867,7 +876,7 @@ function TabCamposPersonalizados({ workspaceId }) {
       key: genFieldKey(),
       label: newLabel.trim(),
       field_type: newType,
-      options: buildOptions(newType, newUnderlyingType, newChoices, newTriggerMode, newAlertDays),
+      options: buildOptions(newType, newUnderlyingType, newChoices, newTriggerMode, newAlertDays, newCountryMultiple, newCountryShowFlag),
       sort_order: fields.length,
     })
     resetForm()
@@ -939,6 +948,17 @@ function TabCamposPersonalizados({ workspaceId }) {
                             onChange={choices => setEditing(ed => ({ ...ed, options: { ...ed.options, choices } }))}
                           />
                         )}
+                        {f.field_type === 'country' && (
+                          <div className="cf-tracked-row">
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={!!editing.options.show_flag}
+                                onChange={e => setEditing(ed => ({ ...ed, options: { ...ed.options, show_flag: e.target.checked } }))}
+                              /> Mostrar banderita
+                            </label>
+                          </div>
+                        )}
                         {f.field_type === 'tracked' && (
                           <>
                             {editing.options.underlying_type === 'select' && (
@@ -972,6 +992,7 @@ function TabCamposPersonalizados({ workspaceId }) {
                           <div className="settings-row-email">
                             {fieldTypeLabel(f.field_type)}
                             {f.field_type === 'tracked' && ` · ${f.options.trigger_mode === 'deadline' ? 'fecha límite' : 'inactividad'}, ${f.options.alert_days} días`}
+                            {f.field_type === 'country' && f.options.multiple && ' · varios países'}
                           </div>
                         </div>
                       </div>
@@ -1013,6 +1034,17 @@ function TabCamposPersonalizados({ workspaceId }) {
 
           {(newType === 'select' || newType === 'multiselect') && (
             <ChoicesEditor choices={newChoices} onChange={setNewChoices} />
+          )}
+
+          {newType === 'country' && (
+            <div className="cf-tracked-config">
+              <div className="cf-tracked-row">
+                <label><input type="checkbox" checked={newCountryMultiple} onChange={e => setNewCountryMultiple(e.target.checked)} /> Permite varios países</label>
+              </div>
+              <div className="cf-tracked-row">
+                <label><input type="checkbox" checked={newCountryShowFlag} onChange={e => setNewCountryShowFlag(e.target.checked)} /> Mostrar banderita</label>
+              </div>
+            </div>
           )}
 
           {newType === 'tracked' && (
