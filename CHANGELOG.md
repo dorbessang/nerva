@@ -4,6 +4,13 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-31 (5)
+
+### Fix: bugs de País de origen tras la migración de campos custom
+- **`[object Object]` en el subtítulo del detalle de entidad**: el subtítulo leía `entity.custom_fields.company_type` directo, pero todo campo custom se guarda envuelto en `{ value, updated_at }`, no como escalar — el template literal stringificaba el objeto entero. Corregido para resolver el def y el valor como corresponde (`renderCustomFieldDisplay` + `getCustomFieldValue`), mismo patrón que ya usa el resto de la app
+- **`CountrySelector` no mostraba el país recién elegido** (solo la banderita, el texto seguía en "— Seleccioná un país —"): race condition real — al seleccionar, el componente llama a `.blur()` para cerrar el dropdown, lo que dispara DOS caminos distintos hacia una función `close()` (el listener de click-afuera y un `onBlur` con `setTimeout` de 150ms), y ambos leían un closure viejo de `selected` (el valor todavía no se había propagado desde el padre en ese mismo tick), pisando el nombre recién seleccionado con texto vacío. El dato en sí se guardaba bien (el `onChange` real sí corría) — el bug era puramente visual, pero confundía como si no hubiera guardado nada. Corregido con un flag (`justSelectedRef`) que blindea ambos caminos de `close()` durante los ~200ms posteriores a una selección
+- SQL entregado al usuario: reconecta cualquier campo custom tipo País de una ronda anterior a la columna real `country_code` (en vez de duplicarlo), y apaga la banderita duplicada en el detalle de entidad (`options.show_flag = false`, ya que el header del modal de detalle ya muestra su propia bandera)
+
 ## 2026-07-31 (4)
 
 ### Fix: Guardar/Cancelar de Entidades al header del modal + contraste

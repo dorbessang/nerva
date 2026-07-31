@@ -68,6 +68,12 @@ export default function CountrySelector({ value, onChange }) {
   const [highlighted, setHighlighted] = useState(0)
   const ref = useRef(null)
   const inputRef = useRef(null)
+  // select() llama a .blur() para cerrar el dropdown, lo que dispara el
+  // onBlur (con un setTimeout) — pero ese handler lee `selected` de un
+  // closure viejo (el valor todavía no se propagó desde el padre) y
+  // pisaba el nombre recién seleccionado con el de antes. Este flag evita
+  // que ese close() de más se ejecute justo después de una selección.
+  const justSelectedRef = useRef(false)
 
   // Sincroniza el input cuando el valor externo cambia
   useEffect(() => {
@@ -94,6 +100,7 @@ export default function CountrySelector({ value, onChange }) {
   }, [])
 
   function close() {
+    if (justSelectedRef.current) return
     // Al cerrar, restaura el nombre del país seleccionado
     setInputValue(selected?.name || '')
     setMode('idle')
@@ -101,11 +108,19 @@ export default function CountrySelector({ value, onChange }) {
   }
 
   function select(code) {
+    // Dos disparadores distintos de close() pueden dispararse después de
+    // elegir una opción (el listener de click-afuera y el onBlur con
+    // delay) — ambos leen un closure viejo de `selected` (todavía no se
+    // actualizó el valor del padre) y pisarían el nombre recién elegido.
+    // El flag se mantiene activo el tiempo suficiente para cubrir a los
+    // dos, no solo al primero que dispare.
+    justSelectedRef.current = true
     onChange(code)
     setInputValue(COUNTRIES.find(c => c.code === code)?.name || '')
     setMode('idle')
     setHighlighted(0)
     inputRef.current?.blur()
+    setTimeout(() => { justSelectedRef.current = false }, 200)
   }
 
   function handleInputChange(e) {

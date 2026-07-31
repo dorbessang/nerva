@@ -14,7 +14,7 @@ import { notifyTaskAssigned } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { formatAmount } from '../components/DealMilestones'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
-import { computeFieldOrder, getCustomFieldValue } from '../lib/customFields'
+import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay } from '../lib/customFields'
 import './Entities.css'
 
 const AVATAR_COLORS = [
@@ -584,7 +584,12 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
               </h2>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>
                 {entity.country_code && getCountryName(entity.country_code)}
-                {entity.custom_fields?.company_type && ` · ${entity.custom_fields.company_type}`}
+                {(() => {
+                  const companyTypeDef = entityFieldDefs.find(d => d.key === 'company_type')
+                  if (!companyTypeDef) return null
+                  const text = renderCustomFieldDisplay(companyTypeDef, getCustomFieldValue(entity.custom_fields, companyTypeDef.key))
+                  return text !== '—' ? ` · ${text}` : null
+                })()}
               </div>
             </div>
           </div>
