@@ -4,6 +4,14 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-31 (3)
+
+### Feature: Estados de Proyectos editables (nombre y color)
+- `Settings → Estados` solo permitía agregar/borrar — se sumó "Editar" (nombre + color) a cada fila regular, mismo patrón que ya usan Tipos de entidad y Campos personalizados
+- `negotiations.status` guarda el nombre del estado como texto libre (matcheo por nombre, no por id, a diferencia de los campos custom que usan una `key` estable) — renombrar un estado ahora hace un `update` en cascada sobre los proyectos que ya lo tenían asignado, para que no queden huérfanos sin matchear ningún estado configurado
+- "Completado" queda sin botón Editar (sigue con el badge "🔒 Protegido") — su nombre está hardcodeado en varios puntos de la app (Dashboard, exports a PDF, filtro de actividad) comparando por el string literal, no por una referencia estable; permitir renombrarlo rompería esas comparaciones en silencio
+- Probado con Playwright con datos mockeados: "Completado" bloqueado, renombrar un estado regular actualiza `custom_states` y cascada correctamente a los proyectos existentes
+
 ## 2026-07-31 (2)
 
 ### Feature: todo campo (menos lo genuinamente estructural) pasa a ser un campo custom real
@@ -17,7 +25,7 @@ Registro detallado de cambios por sesión de trabajo.
 - `EntityModal`/`NegotiationModal`/`NegotiationDetail`/`Entities.jsx` reescritos para despachar 100% por `field_type` (nunca por `key` hardcodeada) y guardar por `storage_column` cuando está seteado o en `custom_fields` cuando no. Settings → Campos personalizados deja de mezclar "fijos (JS) + custom (DB)": es 100% lo que devuelve la tabla, con Contactos pinneado al final sin drag handle
 - Probado con Playwright: presets estructurales bloqueados correctamente, regulares editables/borrables, borrar un preset lo saca del alta y del detalle, Financiero foldeando Moneda+Hitos, Entidades vinculadas mostrando principal en el hero y secundarias aparte, Participantes resolviendo a nombre real — cero referencias rotas a NDA/Territorios
 - **Dos cosas a confirmar con el usuario**: `Fecha objetivo` se conservó como preset regular aunque no estaba en el pedido explícito (para no sacar silenciosamente una feature que funcionaba); si había proyectos reales con Participantes cargado como texto libre, esos valores no se migran (no hay forma automática de mapear un nombre tipeado a un usuario real)
-- SQL entregado al usuario: 2 columnas nuevas en `custom_field_definitions`, ampliación del check de `field_type`, `drop column` de `nda`/`territories`, y el seed completo de los ~15 presets
+- SQL entregado al usuario: 2 columnas nuevas en `custom_field_definitions`, ampliación del check de `field_type`, `drop column` de `nda`/`territories`, y el seed completo de los 14 presets (`Fecha objetivo` sacado del seed a pedido del usuario — no viene precargado, se puede crear a mano como campo tipo Fecha)
 
 ## 2026-07-31
 

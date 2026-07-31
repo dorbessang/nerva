@@ -354,6 +354,7 @@ function TabEstados({ workspaceId }) {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [saving, setSaving] = useState(false)
   const [objectType, setObjectType] = useState('negotiation')
+  const [editing, setEditing] = useState(null) // { id, name, color, bg_color }
 
   useEffect(() => {
     fetchStates()
@@ -389,6 +390,24 @@ function TabEstados({ workspaceId }) {
     fetchStates()
   }
 
+  async function handleSaveEdit() {
+    if (!editing?.name?.trim()) return
+    const original = states.find(s => s.id === editing.id)
+    const newName = editing.name.trim()
+    await supabase.from('custom_states').update({
+      name: newName, color: editing.color, bg_color: editing.bg_color,
+    }).eq('id', editing.id)
+    // El estado se guarda como texto libre en negotiations.status (matcheo
+    // por nombre, no por id) — si el label cambió, hay que actualizar en
+    // cascada los proyectos existentes o quedan "huérfanos" (sin matchear
+    // ningún estado configurado).
+    if (objectType === 'negotiation' && original && original.name !== newName) {
+      await supabase.from('negotiations').update({ status: newName }).eq('workspace_id', workspaceId).eq('status', original.name)
+    }
+    setEditing(null)
+    fetchStates()
+  }
+
   const [confirmDeleteState, setConfirmDeleteState] = useState(null)
 
   async function handleDelete(id) {
@@ -421,30 +440,76 @@ function TabEstados({ workspaceId }) {
 
         {loading ? <div className="settings-loading">Cargando...</div> : (
           <div className="settings-table">
-            {states.map(s => (
-              <div key={s.id} className="settings-row">
-                <div className="settings-row-info">
-                  <div className="state-color-dot" style={{ backgroundColor: s.color }} />
-                  <span
-                    className="state-badge-preview"
-                    style={{ backgroundColor: s.bg_color, color: s.color }}
-                  >
-                    {s.name}
-                  </span>
+            {states.map(s => {
+              const isProtected = s.name === 'Completado'
+              const isEditing = editing?.id === s.id
+              return (
+                <div key={s.id} className="settings-row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                  {isEditing ? (
+                    <>
+                      <div className="settings-row-info" style={{ flex: 1, flexWrap: 'wrap', gap: 8 }}>
+                        <input
+                          className="state-name-input"
+                          style={{ maxWidth: 180 }}
+                          value={editing.name}
+                          onChange={e => setEditing(ed => ({ ...ed, name: e.target.value }))}
+                          autoFocus
+                        />
+                        <div className="state-color-palette">
+                          {PRESET_COLORS.map(p => (
+                            <button
+                              key={p.color}
+                              type="button"
+                              className={`state-palette-swatch ${editing.color === p.color ? 'selected' : ''}`}
+                              style={{ backgroundColor: p.color }}
+                              onClick={() => setEditing(ed => ({ ...ed, color: p.color, bg_color: p.bg }))}
+                              title={p.color}
+                            />
+                          ))}
+                        </div>
+                        <span className="state-badge-preview" style={{ backgroundColor: editing.bg_color, color: editing.color }}>
+                          {editing.name || 'Vista previa'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="settings-btn-primary" onClick={handleSaveEdit}>Guardar</button>
+                        <button className="settings-btn-secondary" onClick={() => setEditing(null)}>Cancelar</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="settings-row-info">
+                        <div className="state-color-dot" style={{ backgroundColor: s.color }} />
+                        <span
+                          className="state-badge-preview"
+                          style={{ backgroundColor: s.bg_color, color: s.color }}
+                        >
+                          {s.name}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        {isProtected ? (
+                          <span className="settings-state-protected" title="Este estado es requerido por el sistema — el nombre no se puede cambiar">🔒 Protegido</span>
+                        ) : (
+                          <button className="settings-btn-secondary" onClick={() => setEditing({ id: s.id, name: s.name, color: s.color, bg_color: s.bg_color })}>
+                            Editar
+                          </button>
+                        )}
+                        {isProtected ? null : confirmDeleteState === s.id ? (
+                          <div className="delete-confirm-inline">
+                            <span>¿Seguro?</span>
+                            <button className="settings-btn-danger" onClick={() => handleDelete(s.id)}>Sí</button>
+                            <button className="settings-btn-secondary" onClick={() => setConfirmDeleteState(null)}>No</button>
+                          </div>
+                        ) : (
+                          <button className="settings-btn-danger" onClick={() => setConfirmDeleteState(s.id)}>Eliminar</button>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
-                {s.name === 'Completado' ? (
-                  <span className="settings-state-protected" title="Este estado es requerido por el sistema">🔒 Protegido</span>
-                ) : confirmDeleteState === s.id ? (
-                  <div className="delete-confirm-inline">
-                    <span>¿Seguro?</span>
-                    <button className="settings-btn-danger" onClick={() => handleDelete(s.id)}>Sí</button>
-                    <button className="settings-btn-secondary" onClick={() => setConfirmDeleteState(null)}>No</button>
-                  </div>
-                ) : (
-                  <button className="settings-btn-danger" onClick={() => setConfirmDeleteState(s.id)}>Eliminar</button>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
