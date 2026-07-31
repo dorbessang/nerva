@@ -80,7 +80,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
   }
 
   async function handleSubmit(e) {
-    e.preventDefault()
+    e?.preventDefault()
     setError(null)
 
     const missing = getMissingRequiredFields(gridDefs, values)
@@ -200,9 +200,16 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="entity-modal-card" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
+        <div className="modal-header modal-header--sticky">
           <h2 className="modal-title">{initial ? `Editar ${entityTypeSingular.toLowerCase()}` : `Nuevo ${entityTypeSingular.toLowerCase()}`}</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <div className="modal-header-actions">
+            {error && <span className="form-error" style={{ marginRight: 8 }}>{error}</span>}
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
+            <button type="button" className="btn-primary" onClick={() => handleSubmit()} disabled={loading}>
+              {loading ? 'Guardando...' : initial ? 'Guardar cambios' : `Crear ${entityTypeSingular.toLowerCase()}`}
+            </button>
+            <button className="modal-close" onClick={onClose}>✕</button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="entity-modal-form">
@@ -264,15 +271,6 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
               ))}
             </div>
           )}
-
-          {error && <p className="form-error">{error}</p>}
-
-          <div className="modal-actions">
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? 'Guardando...' : initial ? 'Guardar cambios' : `Crear ${entityTypeSingular.toLowerCase()}`}
-            </button>
-          </div>
         </form>
       </div>
     </div>

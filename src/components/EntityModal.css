@@ -246,6 +246,38 @@
 
 .btn-secondary:hover { background-color: #f9fafb; border-color: #d1d5db; color: #374151; }
 
+/* Botones de Guardar/Cancelar cuando viven en el header navy (sticky) —
+   los estilos de arriba están pensados para fondo claro y quedan casi
+   invisibles sobre el gradiente navy, así que se sobreescriben acá. */
+.modal-header-actions .btn-secondary {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 8px 18px;
+}
+.modal-header-actions .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+.modal-header-actions .btn-primary {
+  background: #ffffff;
+  color: #0B1F3A;
+  padding: 8px 20px;
+  box-shadow: none;
+}
+.modal-header-actions .btn-primary:hover {
+  background: #e8edf5;
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.modal-header-actions .btn-primary:disabled { opacity: 0.55; }
+.modal-header-actions .form-error {
+  color: #FCA5A5;
+  font-size: 12px;
+  max-width: 320px;
+}
+
 /* ==================== Mobile (<=860px) ==================== */
 @media (max-width: 860px) {
   .modal-overlay {

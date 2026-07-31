@@ -4,6 +4,12 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-31 (4)
+
+### Fix: Guardar/Cancelar de Entidades al header del modal + contraste
+- El modal de crear/editar entidad tenía Cancelar/Guardar al fondo del formulario, obligando a bajar para confirmar — a diferencia de Proyectos, que ya los tiene arriba en el header sticky. Movidos al header, mismo patrón (`.modal-header-actions`), eliminado el bloque duplicado de abajo
+- De paso, los botones de ese header (reusados tal cual de los estilos pensados para fondo claro) quedaban con muy bajo contraste sobre el gradiente navy — sumados estilos específicos para `.modal-header-actions .btn-primary`/`.btn-secondary`/`.form-error` (blanco sólido para Guardar, borde/texto translúcido claro para Cancelar, rojo claro para el mensaje de error), aplica también al modal de Proyectos que ya tenía este problema sin que se hubiera notado
+
 ## 2026-07-31 (3)
 
 ### Feature: Estados de Proyectos editables (nombre y color)
