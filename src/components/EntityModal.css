@@ -1,9 +1,10 @@
 .entity-modal-card {
   background: #ffffff;
   border-radius: 10px;
-  width: 100%;
-  max-width: 680px;
-  max-height: 90vh;
+  width: 90vw;
+  max-width: 1100px;
+  height: 85vh;
+  max-height: 85vh;
   overflow: hidden;
   box-shadow: 0 32px 80px rgba(11, 31, 58, 0.2);
   display: flex;
@@ -204,6 +205,16 @@
   gap: 16px;
 }
 
+.entity-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+}
+
+.form-group--wide {
+  grid-column: 1 / -1;
+}
+
 .btn-primary {
   background: linear-gradient(135deg, #0B1F3A 0%, #1a3a6b 100%);
   color: #ffffff;
@@ -263,6 +274,10 @@
   .form-row {
     flex-direction: column;
     gap: 14px;
+  }
+
+  .entity-fields-grid {
+    grid-template-columns: 1fr;
   }
 
   .entity-section-header,

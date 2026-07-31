@@ -156,6 +156,14 @@
   background: #f3f4f6;
 }
 
+.cf-reorder-row {
+  cursor: grab;
+  transition: all 0.15s;
+}
+
+.cf-reorder-row:active { cursor: grabbing; }
+.cf-reorder-row.drag-over { border-color: #0B1F3A; background: #EFF6FF; }
+
 .settings-inactive-badge {
   font-size: 10px;
   font-weight: 700;

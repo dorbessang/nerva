@@ -12,9 +12,11 @@ import Documents from '../components/Documents'
 import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
-import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues } from '../lib/customFields'
-import { CustomFieldInput, CustomFieldsFormSection, CustomFieldReadOnly } from '../components/CustomFieldInput'
+import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, DEFAULT_NEGOTIATION_FIELDS } from '../lib/customFields'
+import { CustomFieldInput, CustomFieldReadOnly } from '../components/CustomFieldInput'
 import './Negotiations.css'
+
+const WIDE_FIXED_NEGOTIATION_FIELDS = ['description', 'entities', 'participants', 'companies', 'territories']
 
 const TERRITORIES = ['ARG','BOL','BRA','CEAM','CHI','COL','ECU','MEX','PAR','PER','URU','VEN']
 const COMPANIES = ['Ethical Nutrition','Millet','Roemmers','Siegfried','Sidus','Tuteur', 'Ceoderma']
@@ -1109,11 +1111,19 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
   const [newMilestoneTiming, setNewMilestoneTiming] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [fieldOrder, setFieldOrder] = useState(null)
+
+  useEffect(() => {
+    supabase.from('workspaces').select('field_order').eq('id', workspaceId).single()
+      .then(({ data }) => setFieldOrder(data?.field_order || {}))
+  }, [workspaceId])
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
   async function handleSave() {
     if (!form.product?.trim() && !form.title?.trim()) { setError('El producto es obligatorio'); return }
+    const missing = getMissingRequiredFields(customFieldDefs, form.custom_fields)
+    if (missing.length > 0) { setError(`Faltan completar campos obligatorios: ${missing.join(', ')}`); return }
     setSaving(true)
     const row = {
       workspace_id: workspaceId,
@@ -1195,28 +1205,19 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
     onSaved()
   }
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="neg-modal-card" onClick={e => e.stopPropagation()}>
-        <div className="modal-header modal-header--sticky">
-          <h2 className="modal-title">{initial ? 'Editar proyecto' : 'Nuevo proyecto'}</h2>
-          <div className="modal-header-actions">
-            {error && <span className="form-error" style={{ marginRight: 8 }}>{error}</span>}
-            <button type="button" className="btn-secondary" onClick={onCancel || onClose}>Cancelar</button>
-            <button type="button" className="btn-primary" onClick={handleSave} disabled={saving}>
-              {saving ? 'Guardando...' : 'Guardar'}
-            </button>
-            <button className="modal-close" onClick={onClose}>✕</button>
+  function renderFixedField(key) {
+    const wide = WIDE_FIXED_NEGOTIATION_FIELDS.includes(key)
+    switch (key) {
+      case 'product':
+        return (
+          <div key={key} className="form-group">
+            <label>PRODUCTO / LÍNEA *</label>
+            <input type="text" value={form.product} onChange={e => set('product', e.target.value)} placeholder="Ej: Ibuprofeno 400mg" />
           </div>
-        </div>
-        <div className="neg-modal-body">
-          <div className="form-row">
-            <div className="form-group">
-              <label>PRODUCTO / LÍNEA *</label>
-              <input type="text" value={form.product} onChange={e => set('product', e.target.value)} placeholder="Ej: Ibuprofeno 400mg" />
-            </div>
-          </div>
-          <div className="form-group">
+        )
+      case 'description':
+        return (
+          <div key={key} className={`form-group ${wide ? 'form-group--wide' : ''}`}>
             <label>DESCRIPCIÓN</label>
             <textarea
               value={form.description}
@@ -1225,9 +1226,10 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
               placeholder="De qué se trata este proyecto: contexto, alcance, términos generales..."
             />
           </div>
-
-          {/* Selector de entidades — combobox + lista de seleccionadas */}
-          <div className="form-group" ref={entityRef}>
+        )
+      case 'entities':
+        return (
+          <div key={key} className={`form-group ${wide ? 'form-group--wide' : ''}`} ref={entityRef}>
             <label>ENTIDADES VINCULADAS</label>
             <div className="entity-combobox">
               <input
@@ -1308,31 +1310,44 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
               </div>
             )}
           </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label>ESTADO</label>
-              <select value={form.status} onChange={e => set('status', e.target.value)}>
-                {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>FECHA</label>
-              <input type="date" value={form.target_date} onChange={e => set('target_date', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>NDA</label>
-              <select value={form.nda} onChange={e => set('nda', e.target.value)}>
-                {NDA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>MONEDA</label>
-              <select value={form.currency} onChange={e => set('currency', e.target.value)}>
-                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
+        )
+      case 'status':
+        return (
+          <div key={key} className="form-group">
+            <label>ESTADO</label>
+            <select value={form.status} onChange={e => set('status', e.target.value)}>
+              {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+            </select>
           </div>
-          <div className="form-group">
+        )
+      case 'target_date':
+        return (
+          <div key={key} className="form-group">
+            <label>FECHA</label>
+            <input type="date" value={form.target_date} onChange={e => set('target_date', e.target.value)} />
+          </div>
+        )
+      case 'nda':
+        return (
+          <div key={key} className="form-group">
+            <label>NDA</label>
+            <select value={form.nda} onChange={e => set('nda', e.target.value)}>
+              {NDA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        )
+      case 'currency':
+        return (
+          <div key={key} className="form-group">
+            <label>MONEDA</label>
+            <select value={form.currency} onChange={e => set('currency', e.target.value)}>
+              {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        )
+      case 'participants':
+        return (
+          <div key={key} className={`form-group ${wide ? 'form-group--wide' : ''}`}>
             <label>PARTICIPANTES</label>
             <ChipsCombobox
               options={members.map(m => m.profile?.full_name || m.profile?.email || 'Usuario')}
@@ -1342,7 +1357,10 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
               allowSelectAll
             />
           </div>
-          <div className="form-group">
+        )
+      case 'companies':
+        return (
+          <div key={key} className={`form-group ${wide ? 'form-group--wide' : ''}`}>
             <label>EMPRESAS INTERESADAS</label>
             <ChipsCombobox
               options={COMPANIES}
@@ -1352,7 +1370,10 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
               allowSelectAll
             />
           </div>
-          <div className="form-group">
+        )
+      case 'territories':
+        return (
+          <div key={key} className={`form-group ${wide ? 'form-group--wide' : ''}`}>
             <label>TERRITORIOS</label>
             <ChipsCombobox
               options={TERRITORIES}
@@ -1362,11 +1383,40 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
               allowSelectAll
             />
           </div>
-          <CustomFieldsFormSection
-            defs={customFieldDefs}
-            values={form.custom_fields}
-            onChange={(key, v) => set('custom_fields', { ...form.custom_fields, [key]: v })}
-          />
+        )
+      default:
+        return null
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="neg-modal-card" onClick={e => e.stopPropagation()}>
+        <div className="modal-header modal-header--sticky">
+          <h2 className="modal-title">{initial ? 'Editar proyecto' : 'Nuevo proyecto'}</h2>
+          <div className="modal-header-actions">
+            {error && <span className="form-error" style={{ marginRight: 8 }}>{error}</span>}
+            <button type="button" className="btn-secondary" onClick={onCancel || onClose}>Cancelar</button>
+            <button type="button" className="btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+            <button className="modal-close" onClick={onClose}>✕</button>
+          </div>
+        </div>
+        <div className="neg-modal-body">
+          <div className="entity-fields-grid">
+            {(fieldOrder === null ? DEFAULT_NEGOTIATION_FIELDS : computeFieldOrder('negotiation', fieldOrder, DEFAULT_NEGOTIATION_FIELDS, customFieldDefs)).map(key => {
+              if (DEFAULT_NEGOTIATION_FIELDS.includes(key)) return renderFixedField(key)
+              const def = customFieldDefs.find(d => d.key === key)
+              if (!def) return null
+              return (
+                <div key={key} className={`form-group ${isWideCustomField(def) ? 'form-group--wide' : ''}`}>
+                  <label>{def.label}{def.required ? ' *' : ''}</label>
+                  <CustomFieldInput def={def} value={form.custom_fields[def.key]} onChange={v => set('custom_fields', { ...form.custom_fields, [def.key]: v })} />
+                </div>
+              )
+            })}
+          </div>
           <div className="form-group">
             <label>OBSERVACIONES INTERNAS</label>
             <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={3} placeholder="Notas internas del equipo..." />
@@ -1465,6 +1515,7 @@ export function NegotiationDetail({ neg, entities, customStates, customFieldDefs
   const [inlineDescription, setInlineDescription] = useState(neg.description || '')
   const [inlineCurrency, setInlineCurrency] = useState(neg.currency || 'USD')
   const [customFieldValues, setCustomFieldValues] = useState(neg.custom_fields || {})
+  const [customFieldError, setCustomFieldError] = useState(null)
   const cfg = getStateConfig(neg.status)
   const flag = getEntityFlag(neg)
   const primaryEntity = neg.primary_entity || neg.negotiation_entities?.map(ne => ne.entity).filter(Boolean)[0] || null
@@ -1482,6 +1533,12 @@ export function NegotiationDetail({ neg, entities, customStates, customFieldDefs
   }
 
   async function saveCustomField(key, value) {
+    const def = customFieldDefs.find(d => d.key === key)
+    if (def?.required && isCustomFieldValueEmpty(value)) {
+      setCustomFieldError(`"${def.label}" es obligatorio`)
+      return
+    }
+    setCustomFieldError(null)
     const merged = mergeCustomFieldValue(customFieldValues, key, value)
     setCustomFieldValues(merged)
     await supabase.from('negotiations').update({ custom_fields: merged }).eq('id', neg.id)
@@ -1687,10 +1744,11 @@ export function NegotiationDetail({ neg, entities, customStates, customFieldDefs
           {customFieldDefs.length > 0 && (
             <div className="neg-detail-section">
               <div className="detail-section-title">CAMPOS PERSONALIZADOS</div>
+              {customFieldError && <p className="form-error">{customFieldError}</p>}
               <div className="cf-form-fields">
                 {customFieldDefs.map(def => (
                   <div key={def.key} className="cf-form-field">
-                    <label className="cf-form-field-label">{def.label}</label>
+                    <label className="cf-form-field-label">{def.label}{def.required ? ' *' : ''}</label>
                     {canEditInline ? (
                       <CustomFieldInput def={def} value={getCustomFieldValue(customFieldValues, def.key)} onChange={v => saveCustomField(def.key, v)} />
                     ) : (

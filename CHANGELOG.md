@@ -4,6 +4,19 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-31
+
+### Feature: Modales grandes y consistentes + orden de campos configurable + campo obligatorio
+- El modal de creación de Entidades quedó chico tras sumarle los 5 tipos de campo custom nuevos de ayer (País/Usuario/Link/Email/Teléfono) — forzaba scroll. Al revisar los 4 modales relevantes, solo `EntityModal` (crear/editar entidad) estaba realmente chico (680px, sin alto fijo); `NegotiationModal`, `NegotiationDetail` y `EntityDetailModal` ya usaban `90vw / max-width 1100px / height 85vh` desde antes. Se llevó `EntityModal` al mismo tamaño — no hizo falta tocar los otros tres
+- Los campos personalizados dejaron de vivir en un apartado "CAMPOS PERSONALIZADOS" separado — ahora son una entrada más del mismo formulario, mezclados con los campos fijos, en `EntityModal` y `NegotiationModal`. Reescritos a una grilla de 2 columnas (los tipos anchos — texto largo, selección múltiple, país múltiple, el combobox de entidades vinculadas — ocupan el ancho completo), recorriendo un orden combinado con dispatch por key (mismo patrón que `renderCell`/`renderCardField` de Proyectos). Se eliminó `CustomFieldsFormSection`, sin usuarios tras el refactor
+- **Orden configurable**: columna nueva `workspaces.field_order jsonb` — un array de keys (fijas y custom mezcladas) por tipo de objeto. Se descartó sembrar los campos fijos como filas falsas en `custom_field_definitions` (ensuciaría una tabla con significado preciso) y se descartó guardarlo por-usuario en localStorage — es una decisión de estructura de datos del equipo, no una preferencia individual de visualización, mismo criterio que ya rige el resto de las tablas de Settings. Helper `computeFieldOrder()` mergea el orden guardado con la lista real (descarta campos borrados, agrega los nuevos al final) — con `field_order` vacío el resultado es exactamente el orden de hoy, cero cambio visual para quien no reordene nada
+- Quedan **fuera** del reorder, fijos al final del formulario: Contactos (Entidades), Tareas iniciales e Hitos de pago (Proyectos) — son sub-formularios repetibles con su propia alta/borrado, no un valor atómico simple
+- Settings → Campos personalizados: la lista pasó a ser unificada (campos fijos + custom, en el orden real), arrastrable con drag & drop nativo (mismo patrón ya usado en el column-editor de Proyectos) — persiste al soltar, sin botón aparte. Los campos fijos muestran badge "Campo fijo", arrastrables pero no editables ni borrables
+- **Campo obligatorio**: columna nueva `custom_field_definitions.required boolean`, checkbox en el alta/edición de un campo custom en Settings (no aplica a campos fijos, que ya tienen su propia validación existente). Bloquea el guardado en ambos modales con un mensaje listando los campos faltantes, y también bloquea la edición inline puntual desde el detalle de un proyecto (si se intenta vaciar un campo obligatorio, no guarda y el input vuelve al último valor válido)
+- Alcance del merge sin apartado separado: se extendió también a la sección "Información" de `EntityDetailModal` (solo lectura, cambio chico). **`NegotiationDetail` no se tocó** — Estado/NDA/Moneda son badges/pills en un layout ya diseñado, forzarlos a una lista plana hubiera sido un rediseño no pedido; decisión documentada
+- Probado con Playwright: tamaño de ambos modales de creación (1100×850 sobre viewport de 1000px de alto), formularios sin header separado, drag-reorder persistiendo el `PATCH` correcto, validación de obligatorio bloqueando el guardado con el mensaje correcto en ambos modales y en la edición inline
+- SQL entregado al usuario: `workspaces.field_order`, `custom_field_definitions.required`
+
 ## 2026-07-30
 
 ### Feature: Export de Entidades unificado (todos los tipos, un solo PDF)

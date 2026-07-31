@@ -145,26 +145,6 @@ export function CustomFieldInput({ def, value, onChange }) {
   return <input type="text" value={value || ''} onChange={e => onChange(e.target.value)} />
 }
 
-// Sección completa "Campos personalizados" para un formulario — un
-// CustomFieldInput por definición fetcheada, reusado por NegotiationModal
-// y EntityModal.
-export function CustomFieldsFormSection({ defs, values, onChange }) {
-  if (!defs || defs.length === 0) return null
-  return (
-    <div className="form-group">
-      <label>CAMPOS PERSONALIZADOS</label>
-      <div className="cf-form-fields">
-        {defs.map(def => (
-          <div key={def.key} className="cf-form-field">
-            <label className="cf-form-field-label">{def.label}</label>
-            <CustomFieldInput def={def} value={values?.[def.key]} onChange={v => onChange(def.key, v)} />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 // Render de solo lectura de un campo custom (detalle de proyecto/entidad) —
 // mismo texto que renderCustomFieldDisplay, pero link/email/teléfono salen
 // clickeables (mismo patrón que ya usan los Contactos de una entidad).

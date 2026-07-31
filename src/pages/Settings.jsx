@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import { notifyRoleChanged } from '../lib/notifications'
+import { computeFieldOrder, DEFAULT_ENTITY_FIELDS, ENTITY_FIELD_LABELS, DEFAULT_NEGOTIATION_FIELDS, NEGOTIATION_FIELD_LABELS } from '../lib/customFields'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 
@@ -835,8 +836,50 @@ function TabCamposPersonalizados({ workspaceId }) {
   const [newAlertDays, setNewAlertDays] = useState(30)
   const [newCountryMultiple, setNewCountryMultiple] = useState(false)
   const [newCountryShowFlag, setNewCountryShowFlag] = useState(true)
+  const [newRequired, setNewRequired] = useState(false)
+  const [fieldOrder, setFieldOrder] = useState(null)
+  const [dragSrc, setDragSrc] = useState(null)
+  const [dragOver, setDragOver] = useState(null)
 
   useEffect(() => { fetchFields() }, [objectType, workspaceId])
+  useEffect(() => { fetchFieldOrder() }, [workspaceId])
+
+  async function fetchFieldOrder() {
+    const { data } = await supabase.from('workspaces').select('field_order').eq('id', workspaceId).single()
+    setFieldOrder(data?.field_order || {})
+  }
+
+  const fixedKeys = objectType === 'negotiation' ? DEFAULT_NEGOTIATION_FIELDS : DEFAULT_ENTITY_FIELDS
+  const fixedLabels = objectType === 'negotiation' ? NEGOTIATION_FIELD_LABELS : ENTITY_FIELD_LABELS
+  const orderedKeys = fieldOrder === null
+    ? [...fixedKeys, ...fields.map(f => f.key)]
+    : computeFieldOrder(objectType, fieldOrder, fixedKeys, fields)
+
+  async function persistOrder(newOrderedKeys) {
+    const updated = { ...(fieldOrder || {}), [objectType]: newOrderedKeys }
+    setFieldOrder(updated)
+    await supabase.from('workspaces').update({ field_order: updated }).eq('id', workspaceId)
+  }
+
+  function handleDragStart(e, idx) {
+    setDragSrc(idx)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  function handleDragOver(e, idx) {
+    e.preventDefault()
+    setDragOver(idx)
+  }
+
+  function handleDrop(idx) {
+    if (dragSrc === null || dragSrc === idx) { setDragSrc(null); setDragOver(null); return }
+    const next = [...orderedKeys]
+    const [moved] = next.splice(dragSrc, 1)
+    next.splice(idx, 0, moved)
+    persistOrder(next)
+    setDragSrc(null)
+    setDragOver(null)
+  }
 
   async function fetchFields() {
     setLoading(true)
@@ -853,7 +896,7 @@ function TabCamposPersonalizados({ workspaceId }) {
   function resetForm() {
     setNewLabel(''); setNewType('text'); setNewChoices([])
     setNewUnderlyingType('select'); setNewTriggerMode('deadline'); setNewAlertDays(30)
-    setNewCountryMultiple(false); setNewCountryShowFlag(true)
+    setNewCountryMultiple(false); setNewCountryShowFlag(true); setNewRequired(false)
   }
 
   function buildOptions(type, underlyingType, choices, triggerMode, alertDays, countryMultiple, countryShowFlag) {
@@ -877,6 +920,7 @@ function TabCamposPersonalizados({ workspaceId }) {
       label: newLabel.trim(),
       field_type: newType,
       options: buildOptions(newType, newUnderlyingType, newChoices, newTriggerMode, newAlertDays, newCountryMultiple, newCountryShowFlag),
+      required: newRequired,
       sort_order: fields.length,
     })
     resetForm()
@@ -889,6 +933,7 @@ function TabCamposPersonalizados({ workspaceId }) {
     await supabase.from('custom_field_definitions').update({
       label: editing.label.trim(),
       options: editing.options,
+      required: editing.required,
     }).eq('id', editing.id)
     setEditing(null)
     fetchFields()
@@ -928,12 +973,32 @@ function TabCamposPersonalizados({ workspaceId }) {
 
         {loading ? <div className="settings-loading">Cargando...</div> : (
           <div className="settings-table">
-            {fields.length === 0 && <p className="settings-hint">Todavía no hay campos personalizados acá.</p>}
-            {fields.map(f => {
-              const isEditing = editing?.id === f.id
+            <p className="settings-hint" style={{ marginBottom: 6 }}>Arrastrá para reordenar cómo se ven en el formulario de alta — incluye los campos fijos.</p>
+            {orderedKeys.map((key, idx) => {
+              const isBuiltin = fixedKeys.includes(key)
+              const f = isBuiltin ? null : fields.find(x => x.key === key)
+              if (!isBuiltin && !f) return null
+              const isEditing = !isBuiltin && editing?.id === f.id
               return (
-                <div key={f.id} className="settings-row" style={{ flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }}>
-                  {isEditing ? (
+                <div
+                  key={key}
+                  className={`settings-row cf-reorder-row ${dragOver === idx ? 'drag-over' : ''}`}
+                  style={{ flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }}
+                  draggable
+                  onDragStart={e => handleDragStart(e, idx)}
+                  onDragOver={e => handleDragOver(e, idx)}
+                  onDrop={() => handleDrop(idx)}
+                  onDragEnd={() => { setDragSrc(null); setDragOver(null) }}
+                >
+                  <span className="col-drag-handle">⠿</span>
+                  {isBuiltin ? (
+                    <div className="settings-row-info">
+                      <div>
+                        <div className="settings-row-name">{fixedLabels[key]}</div>
+                        <div className="settings-row-email">Campo fijo</div>
+                      </div>
+                    </div>
+                  ) : isEditing ? (
                     <>
                       <div className="settings-row-info" style={{ flex: 1, flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
                         <input
@@ -978,6 +1043,15 @@ function TabCamposPersonalizados({ workspaceId }) {
                             </div>
                           </>
                         )}
+                        <div className="cf-tracked-row">
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={!!editing.required}
+                              onChange={e => setEditing(ed => ({ ...ed, required: e.target.checked }))}
+                            /> Obligatorio
+                          </label>
+                        </div>
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="settings-btn-primary" onClick={handleSaveEdit}>Guardar</button>
@@ -988,16 +1062,17 @@ function TabCamposPersonalizados({ workspaceId }) {
                     <>
                       <div className="settings-row-info">
                         <div>
-                          <div className="settings-row-name">{f.label}</div>
+                          <div className="settings-row-name">{f.label}{f.required && ' *'}</div>
                           <div className="settings-row-email">
                             {fieldTypeLabel(f.field_type)}
                             {f.field_type === 'tracked' && ` · ${f.options.trigger_mode === 'deadline' ? 'fecha límite' : 'inactividad'}, ${f.options.alert_days} días`}
                             {f.field_type === 'country' && f.options.multiple && ' · varios países'}
+                            {f.required && ' · obligatorio'}
                           </div>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="settings-btn-secondary" onClick={() => setEditing({ id: f.id, label: f.label, options: f.options })}>
+                        <button className="settings-btn-secondary" onClick={() => setEditing({ id: f.id, label: f.label, options: f.options, required: f.required })}>
                           Editar
                         </button>
                         {confirmDelete === f.id ? (
@@ -1074,6 +1149,10 @@ function TabCamposPersonalizados({ workspaceId }) {
               </div>
             </div>
           )}
+
+          <div className="cf-tracked-row">
+            <label><input type="checkbox" checked={newRequired} onChange={e => setNewRequired(e.target.checked)} /> Obligatorio</label>
+          </div>
 
           <button className="settings-btn-primary" style={{ alignSelf: 'flex-start' }} onClick={handleAdd} disabled={saving}>
             + Agregar campo

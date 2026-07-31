@@ -14,6 +14,7 @@ import { notifyTaskAssigned } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { formatAmount } from '../components/DealMilestones'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
+import { computeFieldOrder, DEFAULT_ENTITY_FIELDS } from '../lib/customFields'
 import './Entities.css'
 
 const AVATAR_COLORS = [
@@ -429,6 +430,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
   const [rightTab, setRightTab] = useState('resumen')
   const [entityTasks, setEntityTasks] = useState([])
   const [members, setMembers] = useState([])
+  const [fieldOrder, setFieldOrder] = useState(null)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [newTaskAssignee, setNewTaskAssignee] = useState('')
@@ -436,7 +438,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
   const [savingTask, setSavingTask] = useState(false)
   const [scorecard, setScorecard] = useState({ pipeline: [], pendingProjectTasks: 0 })
 
-  useEffect(() => { fetchEntityTasks(); fetchMembers() }, [entity.id])
+  useEffect(() => { fetchEntityTasks(); fetchMembers(); fetchFieldOrder() }, [entity.id])
 
   useEffect(() => {
     const negIds = (entity.negotiation_entities || []).map(n => n.negotiation?.id).filter(Boolean)
@@ -472,6 +474,11 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
       .select('user_id, profile:user_id ( full_name, email )')
       .eq('workspace_id', workspaceId)
     if (data) setMembers(data)
+  }
+
+  async function fetchFieldOrder() {
+    const { data } = await supabase.from('workspaces').select('field_order').eq('id', workspaceId).single()
+    setFieldOrder(data?.field_order || {})
   }
 
   async function handleAddEntityTask() {
@@ -593,36 +600,41 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
           <div className="entity-detail-col entity-detail-col--left">
             <div className="detail-section">
               <div className="detail-section-title">Información</div>
-              {entity.website && (
-                <div className="entity-info-row">
-                  <span className="entity-info-label">Sitio web</span>
-                  <a href={entity.website} target="_blank" rel="noreferrer" className="detail-link">{entity.website}</a>
-                </div>
-              )}
-              {entity.country_code && (
-                <div className="entity-info-row">
-                  <span className="entity-info-label">País</span>
-                  <span className="entity-info-val">{getCountryName(entity.country_code)}</span>
-                </div>
-              )}
-              {entity.address && (
-                <div className="entity-info-row">
-                  <span className="entity-info-label">Dirección</span>
-                  <span className="entity-info-val">{entity.address}</span>
-                </div>
-              )}
-              {entity.custom_fields?.company_type && (
-                <div className="entity-info-row">
-                  <span className="entity-info-label">Tipo</span>
-                  <span className="entity-info-val">{entity.custom_fields.company_type}</span>
-                </div>
-              )}
-              {entityFieldDefs.map(def => (
-                <div key={def.key} className="entity-info-row">
-                  <span className="entity-info-label">{def.label}</span>
-                  <span className="entity-info-val"><CustomFieldReadOnly def={def} cf={entity.custom_fields} members={members} /></span>
-                </div>
-              ))}
+              {(fieldOrder === null ? DEFAULT_ENTITY_FIELDS : computeFieldOrder('entity', fieldOrder, DEFAULT_ENTITY_FIELDS, entityFieldDefs)).map(key => {
+                if (key === 'name' || key === 'entity_type') return null
+                if (key === 'website') return entity.website && (
+                  <div key={key} className="entity-info-row">
+                    <span className="entity-info-label">Sitio web</span>
+                    <a href={entity.website} target="_blank" rel="noreferrer" className="detail-link">{entity.website}</a>
+                  </div>
+                )
+                if (key === 'country') return entity.country_code && (
+                  <div key={key} className="entity-info-row">
+                    <span className="entity-info-label">País</span>
+                    <span className="entity-info-val">{getCountryName(entity.country_code)}</span>
+                  </div>
+                )
+                if (key === 'address') return entity.address && (
+                  <div key={key} className="entity-info-row">
+                    <span className="entity-info-label">Dirección</span>
+                    <span className="entity-info-val">{entity.address}</span>
+                  </div>
+                )
+                if (key === 'company_type') return entity.custom_fields?.company_type && (
+                  <div key={key} className="entity-info-row">
+                    <span className="entity-info-label">Tipo</span>
+                    <span className="entity-info-val">{entity.custom_fields.company_type}</span>
+                  </div>
+                )
+                const def = entityFieldDefs.find(d => d.key === key)
+                if (!def) return null
+                return (
+                  <div key={key} className="entity-info-row">
+                    <span className="entity-info-label">{def.label}</span>
+                    <span className="entity-info-val"><CustomFieldReadOnly def={def} cf={entity.custom_fields} members={members} /></span>
+                  </div>
+                )
+              })}
             </div>
 
             {entity.contacts?.length > 0 && (

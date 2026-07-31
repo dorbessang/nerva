@@ -8,6 +8,15 @@
 
 import { getCountryName } from '../components/CountrySelector'
 
+// Keys de los campos fijos (no custom) de cada objeto, en su orden por
+// defecto — usadas como base para computeFieldOrder y para el listado
+// unificado (fijos + custom) que se ve y reordena desde Settings.
+export const DEFAULT_ENTITY_FIELDS = ['name', 'entity_type', 'country', 'website', 'address', 'company_type']
+export const ENTITY_FIELD_LABELS = { name: 'Nombre', entity_type: 'Tipo', country: 'País de origen', website: 'Sitio web', address: 'Dirección', company_type: 'Tipo de empresa' }
+
+export const DEFAULT_NEGOTIATION_FIELDS = ['product', 'description', 'entities', 'status', 'target_date', 'nda', 'currency', 'participants', 'companies', 'territories']
+export const NEGOTIATION_FIELD_LABELS = { product: 'Producto / Línea', description: 'Descripción', entities: 'Entidades vinculadas', status: 'Estado', target_date: 'Fecha objetivo', nda: 'NDA', currency: 'Moneda', participants: 'Participantes', companies: 'Empresas interesadas', territories: 'Territorios' }
+
 function countryFlagEmoji(code) {
   if (!code || code.length !== 2) return ''
   return String.fromCodePoint(...code.toUpperCase().split('').map(c => 127397 + c.charCodeAt(0)))
@@ -75,4 +84,34 @@ export function renderCustomFieldDisplay(def, rawValue, members) {
   }
   if (underlyingType === 'user') return resolveMemberName(members, rawValue) || '—'
   return String(rawValue)
+}
+
+// Orden final de un formulario (campos fijos + campos custom mezclados) —
+// mergea el orden guardado por el workspace con la lista real de keys
+// existentes: descarta keys de campos borrados y agrega al final las keys
+// nuevas que el orden guardado todavía no conoce. Si no hay orden guardado
+// devuelve el orden por defecto tal cual (fijos primero, custom después).
+export function computeFieldOrder(objectType, fieldOrder, defaultFixedKeys, customDefs) {
+  const allKeys = [...defaultFixedKeys, ...(customDefs || []).map(d => d.key)]
+  const saved = fieldOrder?.[objectType]
+  if (!saved || saved.length === 0) return allKeys
+  const savedValid = saved.filter(k => allKeys.includes(k))
+  const missing = allKeys.filter(k => !savedValid.includes(k))
+  return [...savedValid, ...missing]
+}
+
+export function isCustomFieldValueEmpty(value) {
+  if (Array.isArray(value)) return value.length === 0
+  return value === undefined || value === null || value === ''
+}
+
+export function getMissingRequiredFields(defs, values) {
+  return (defs || []).filter(d => d.required && isCustomFieldValueEmpty(values?.[d.key])).map(d => d.label)
+}
+
+// Campos que conviene ocupen el ancho completo de la grilla de 2 columnas
+// (texto largo, selección múltiple, país múltiple) en vez de una celda.
+export function isWideCustomField(def) {
+  const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
+  return type === 'textarea' || type === 'multiselect' || (type === 'country' && def.options?.multiple)
 }

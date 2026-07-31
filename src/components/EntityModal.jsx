@@ -3,8 +3,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import CountrySelector from './CountrySelector'
 import { logActivity } from '../lib/activity'
-import { mergeCustomFieldValues } from '../lib/customFields'
-import { CustomFieldsFormSection } from './CustomFieldInput'
+import { mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isWideCustomField, DEFAULT_ENTITY_FIELDS } from '../lib/customFields'
+import { CustomFieldInput } from './CustomFieldInput'
 import './EntityModal.css'
 
 const emptyContact = () => ({
@@ -33,11 +33,13 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
   )
   const [entityTypes, setEntityTypes] = useState([])
   const [entityTypeId, setEntityTypeId] = useState(initial?.entity_type_id || '')
+  const [fieldOrder, setFieldOrder] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     fetchEntityTypes()
+    fetchFieldOrder()
   }, [])
 
   async function fetchEntityTypes() {
@@ -49,6 +51,11 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
       setEntityTypes(data)
       if (!entityTypeId && data.length > 0) setEntityTypeId(data[0].id)
     }
+  }
+
+  async function fetchFieldOrder() {
+    const { data } = await supabase.from('workspaces').select('field_order').eq('id', workspaceId).single()
+    setFieldOrder(data?.field_order || {})
   }
 
   function updateContact(tempId, field, value) {
@@ -68,6 +75,9 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
     setError(null)
     if (!name.trim()) { setError('El nombre es obligatorio'); return }
     if (!entityTypeId) { setError('Seleccioná un tipo'); return }
+
+    const missing = getMissingRequiredFields(customFieldDefs, customFieldValues)
+    if (missing.length > 0) { setError(`Faltan completar campos obligatorios: ${missing.join(', ')}`); return }
 
     setLoading(true)
 
@@ -166,6 +176,59 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
     onClose()
   }
 
+  function renderFixedField(key) {
+    switch (key) {
+      case 'name':
+        return (
+          <div key={key} className="form-group">
+            <label>NOMBRE *</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Laboratorio Chemo" autoFocus />
+          </div>
+        )
+      case 'entity_type':
+        return (
+          <div key={key} className="form-group">
+            <label>TIPO</label>
+            <select value={entityTypeId} onChange={e => setEntityTypeId(e.target.value)}>
+              {entityTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+        )
+      case 'country':
+        return (
+          <div key={key} className="form-group">
+            <label>PAÍS DE ORIGEN</label>
+            <CountrySelector value={countryCode} onChange={setCountryCode} />
+          </div>
+        )
+      case 'website':
+        return (
+          <div key={key} className="form-group">
+            <label>SITIO WEB</label>
+            <input type="text" value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://..." />
+          </div>
+        )
+      case 'address':
+        return (
+          <div key={key} className="form-group">
+            <label>DIRECCIÓN</label>
+            <input type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder="Calle, número, ciudad..." />
+          </div>
+        )
+      case 'company_type':
+        return (
+          <div key={key} className="form-group form-group--wide">
+            <label>TIPO DE EMPRESA</label>
+            <textarea value={companyType} onChange={e => setCompanyType(e.target.value)} placeholder="Ej: Laboratorio multinacional, Distribuidor regional..." rows={2} />
+          </div>
+        )
+      default:
+        return null
+    }
+  }
+
+  const orderedKeys = fieldOrder === null ? DEFAULT_ENTITY_FIELDS : computeFieldOrder('entity', fieldOrder, DEFAULT_ENTITY_FIELDS, customFieldDefs)
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="entity-modal-card" onClick={e => e.stopPropagation()}>
@@ -178,45 +241,19 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
           <div className="entity-form-section">
             <h3 className="entity-section-title">Datos generales</h3>
 
-            <div className="form-row">
-              <div className="form-group">
-                <label>NOMBRE *</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={`Ej: Laboratorio Chemo`} autoFocus />
-              </div>
-              <div className="form-group">
-                <label>TIPO</label>
-                <select value={entityTypeId} onChange={e => setEntityTypeId(e.target.value)}>
-                  {entityTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
+            <div className="entity-fields-grid">
+              {orderedKeys.map(key => {
+                if (DEFAULT_ENTITY_FIELDS.includes(key)) return renderFixedField(key)
+                const def = customFieldDefs.find(d => d.key === key)
+                if (!def) return null
+                return (
+                  <div key={key} className={`form-group ${isWideCustomField(def) ? 'form-group--wide' : ''}`}>
+                    <label>{def.label}{def.required ? ' *' : ''}</label>
+                    <CustomFieldInput def={def} value={customFieldValues[def.key]} onChange={v => setCustomFieldValues(prev => ({ ...prev, [def.key]: v }))} />
+                  </div>
+                )
+              })}
             </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>PAÍS DE ORIGEN</label>
-                <CountrySelector value={countryCode} onChange={setCountryCode} />
-              </div>
-              <div className="form-group">
-                <label>SITIO WEB</label>
-                <input type="text" value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://..." />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label>DIRECCIÓN</label>
-              <input type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder="Calle, número, ciudad..." />
-            </div>
-
-            <div className="form-group">
-              <label>TIPO DE EMPRESA</label>
-              <textarea value={companyType} onChange={e => setCompanyType(e.target.value)} placeholder="Ej: Laboratorio multinacional, Distribuidor regional..." rows={2} />
-            </div>
-
-            <CustomFieldsFormSection
-              defs={customFieldDefs}
-              values={customFieldValues}
-              onChange={(key, v) => setCustomFieldValues(prev => ({ ...prev, [key]: v }))}
-            />
           </div>
 
           <div className="entity-form-section">
@@ -234,7 +271,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
                   )}
                 </div>
 
-                <div className="form-row">
+                <div className="entity-fields-grid">
                   <div className="form-group">
                     <label>NOMBRE Y APELLIDO</label>
                     <input type="text" value={contact.name} onChange={e => updateContact(contact.tempId, 'name', e.target.value)} placeholder="Ej: Juan García" />
@@ -243,9 +280,6 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
                     <label>CARGO / PUESTO</label>
                     <input type="text" value={contact.role} onChange={e => updateContact(contact.tempId, 'role', e.target.value)} placeholder="Ej: Director Comercial" />
                   </div>
-                </div>
-
-                <div className="form-row">
                   <div className="form-group">
                     <label>✉ EMAIL</label>
                     <input type="email" value={contact.email} onChange={e => updateContact(contact.tempId, 'email', e.target.value)} placeholder="juan@empresa.com" />
@@ -254,18 +288,14 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
                     <label>📞 TELÉFONO</label>
                     <input type="text" value={contact.phone} onChange={e => updateContact(contact.tempId, 'phone', e.target.value)} placeholder="+54 11 1234-5678" />
                   </div>
-                </div>
-
-                <div className="form-row">
                   <div className="form-group">
                     <label>💬 WHATSAPP (opcional)</label>
                     <input type="text" value={contact.whatsapp || ''} onChange={e => updateContact(contact.tempId, 'whatsapp', e.target.value)} placeholder="+54 9 11 1234-5678" />
                   </div>
-                </div>
-
-                <div className="form-group">
-                  <label>NOTAS ADICIONALES</label>
-                  <textarea value={contact.notes} onChange={e => updateContact(contact.tempId, 'notes', e.target.value)} placeholder="Aclaraciones opcionales..." rows={2} />
+                  <div className="form-group form-group--wide">
+                    <label>NOTAS ADICIONALES</label>
+                    <textarea value={contact.notes} onChange={e => updateContact(contact.tempId, 'notes', e.target.value)} placeholder="Aclaraciones opcionales..." rows={2} />
+                  </div>
                 </div>
               </div>
             ))}
