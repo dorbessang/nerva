@@ -104,7 +104,7 @@ function TeamDashboard() {
           .from("negotiations")
           .select(
             `
-        id, product, title, status, updated_at, nda, description,
+        id, product, title, status, updated_at, description,
         negotiation_entities ( entity:entity_id ( name, country_code ) )
       `,
           )
@@ -496,10 +496,9 @@ function TeamDashboard() {
             const entityNames =
               neg.entities?.map((e) => e.name).join(", ") || "—";
 
-            // Tooltip que aparece al hacer hover — muestra estado, NDA y descripción
+            // Tooltip que aparece al hacer hover — muestra estado y descripción
             const tooltipText = [
               `Estado: ${neg.status || "—"}`,
-              `NDA: ${neg.nda || "—"}`,
               neg.description ? `Descripción: ${neg.description}` : null,
             ]
               .filter(Boolean)

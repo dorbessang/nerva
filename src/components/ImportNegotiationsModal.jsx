@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { parseSpreadsheet, getCell, getCellRaw, downloadTemplate } from '../lib/importXlsx'
 import './ImportModal.css'
 
-const HEADERS = ['Producto', 'Proveedor', 'Estado', 'NDA', 'Territorios', 'Fecha objetivo']
+const HEADERS = ['Producto', 'Proveedor', 'Estado', 'Fecha objetivo']
 
 function parseDate(v) {
   if (!v) return null
@@ -20,8 +20,6 @@ function buildRows(raw, entities, customStates) {
     const product = getCell(r, 'producto')
     const providerName = getCell(r, 'proveedor')
     const statusRaw = getCell(r, 'estado')
-    const nda = getCell(r, 'nda')
-    const territoriesRaw = getCell(r, 'territorios')
     const dateRaw = getCellRaw(r, 'fecha objetivo')
     const dateDisplay = dateRaw instanceof Date ? dateRaw.toLocaleDateString('es-AR') : String(dateRaw).trim()
 
@@ -42,11 +40,10 @@ function buildRows(raw, entities, customStates) {
       else warnings.push(`Estado "${statusRaw}" no reconocido, se usó "${status}"`)
     }
 
-    const territories = territoriesRaw ? territoriesRaw.split(',').map(t => t.trim()).filter(Boolean) : []
     const target_date = dateDisplay ? parseDate(dateRaw) : null
     if (dateDisplay && !target_date) warnings.push(`Fecha "${dateDisplay}" no reconocida, se omitió`)
 
-    return { idx, product, providerName, entityId: entityMatch?.id || null, status, nda: nda || '—', territories, target_date, errors, warnings }
+    return { idx, product, providerName, entityId: entityMatch?.id || null, status, target_date, errors, warnings }
   })
 }
 
@@ -80,9 +77,7 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
       title: r.product,
       product: r.product,
       status: r.status,
-      nda: r.nda,
       target_date: r.target_date,
-      territories: r.territories,
       companies: [],
       participants: [],
       primary_entity_id: r.entityId,
@@ -145,7 +140,7 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
                 <table className="import-preview-table">
                   <thead>
                     <tr>
-                      <th>#</th><th>Producto</th><th>Proveedor</th><th>Estado</th><th>NDA</th><th>Territorios</th><th>Fecha</th><th>Estado del import</th>
+                      <th>#</th><th>Producto</th><th>Proveedor</th><th>Estado</th><th>Fecha</th><th>Estado del import</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -155,8 +150,6 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
                         <td>{r.product || '—'}</td>
                         <td>{r.providerName || '—'}</td>
                         <td>{r.status}</td>
-                        <td>{r.nda}</td>
-                        <td>{r.territories.join(', ') || '—'}</td>
                         <td>{r.target_date || '—'}</td>
                         <td>
                           {r.errors.length > 0

@@ -12,15 +12,10 @@ import Documents from '../components/Documents'
 import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
-import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, DEFAULT_NEGOTIATION_FIELDS } from '../lib/customFields'
+import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, SPECIAL_FIELD_TYPES } from '../lib/customFields'
 import { CustomFieldInput, CustomFieldReadOnly } from '../components/CustomFieldInput'
 import './Negotiations.css'
 
-const WIDE_FIXED_NEGOTIATION_FIELDS = ['description', 'entities', 'participants', 'companies', 'territories']
-
-const TERRITORIES = ['ARG','BOL','BRA','CEAM','CHI','COL','ECU','MEX','PAR','PER','URU','VEN']
-const COMPANIES = ['Ethical Nutrition','Millet','Roemmers','Siegfried','Sidus','Tuteur', 'Ceoderma']
-const NDA_STATES = ['—','Enviado','En Revisión','Firmado']
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
 
 // Todas las columnas disponibles para la tabla
@@ -29,8 +24,6 @@ const ALL_COLUMNS = [
   { key: 'entities',         label: 'Proveedor'                              },
   { key: 'status',           label: 'Estado'                                 },
   { key: 'description',      label: 'Descripción'                            },
-  { key: 'nda',              label: 'NDA'                                    },
-  { key: 'territories',      label: 'Territorios'                            },
   { key: 'companies',        label: 'Empresas'                               },
   { key: 'target_date',      label: 'Fecha'                                  },
   { key: 'participants',     label: 'Participantes'                          },
@@ -40,7 +33,7 @@ const ALL_COLUMNS = [
   { key: 'last_activity_at', label: 'Últ. actividad'                         },
 ]
 
-const DEFAULT_VISIBLE = ['product','entities','status','nda','territories','companies','target_date']
+const DEFAULT_VISIBLE = ['product','entities','status','companies','target_date']
 
 const ACTIVITY_LABELS = { active: 'En curso', paused: 'Pausado', inactive: 'Inactivo' }
 
@@ -52,11 +45,9 @@ function getExportValue(key, neg, getEntityName, customFieldDefs, members) {
     case 'entities': return getEntityName(neg)
     case 'status': return neg.status || ''
     case 'description': return neg.description || ''
-    case 'nda': return neg.nda || ''
-    case 'territories': return (neg.territories || []).join(', ')
     case 'companies': return (neg.companies || []).join(', ')
     case 'target_date': return neg.target_date || ''
-    case 'participants': return (neg.participants || []).join(', ')
+    case 'participants': return resolveMemberNames(members, neg.participants).join(', ')
     case 'notes': return (neg.notes_list || []).map(n => `${n.note_date}: ${n.content}`).join(' | ')
     case 'observations': return neg.observations || ''
     case 'activity_status': return ACTIVITY_LABELS[neg.activity_status] || ''
@@ -347,6 +338,7 @@ export default function Negotiations() {
         getEntityName,
         pipeline: selectedIds.size > 0 ? selectedPipeline : totalPipeline,
         workspaceName: activeWorkspace?.name,
+        members,
       })
     } finally {
       setExportingPdf(false)
@@ -746,17 +738,6 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
       )
     case 'status':
       return <td key={key}><span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span></td>
-    case 'nda':
-      return <td key={key}><span className="neg-nda-badge">{neg.nda || '—'}</span></td>
-    case 'territories':
-      return (
-        <td key={key}>
-          <div className="neg-chips">
-            {neg.territories?.slice(0, 4).map(t => <span key={t} className="neg-chip neg-chip-green">{t}</span>)}
-            {neg.territories?.length > 4 && <span className="neg-chip neg-chip-gray">+{neg.territories.length - 4}</span>}
-          </div>
-        </td>
-      )
     case 'companies':
       return (
         <td key={key}>
@@ -768,15 +749,17 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
       )
     case 'target_date':
       return <td key={key} className="neg-td-date">{neg.target_date || '—'}</td>
-    case 'participants':
+    case 'participants': {
+      const names = resolveMemberNames(members, neg.participants)
       return (
         <td key={key}>
           <div className="neg-chips">
-            {neg.participants?.slice(0, 2).map(p => <span key={p} className="neg-chip neg-chip-blue">{p}</span>)}
-            {neg.participants?.length > 2 && <span className="neg-chip neg-chip-gray">+{neg.participants.length - 2}</span>}
+            {names.slice(0, 2).map(n => <span key={n} className="neg-chip neg-chip-blue">{n}</span>)}
+            {names.length > 2 && <span className="neg-chip neg-chip-gray">+{names.length - 2}</span>}
           </div>
         </td>
       )
+    }
     case 'notes': {
       const list = neg.notes_list || []
       if (!list.length) return <td key={key} className="neg-td-text" style={{ color: '#d1d5db' }}>Sin notas</td>
@@ -853,14 +836,6 @@ function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag,
         </div>
       )
     }
-    case 'territories':
-      if (!neg.territories?.length) return null
-      return (
-        <div key={key} className="neg-chips neg-card-field">
-          {neg.territories.slice(0, 4).map(t => <span key={t} className="neg-chip neg-chip-green">{t}</span>)}
-          {neg.territories.length > 4 && <span className="neg-chip neg-chip-gray">+{neg.territories.length - 4}</span>}
-        </div>
-      )
     case 'companies':
       if (!neg.companies?.length) return null
       return (
@@ -869,17 +844,16 @@ function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag,
           {neg.companies.length > 2 && <span className="neg-chip neg-chip-gray">+{neg.companies.length - 2}</span>}
         </div>
       )
-    case 'participants':
-      if (!neg.participants?.length) return null
+    case 'participants': {
+      const names = resolveMemberNames(members, neg.participants)
+      if (!names.length) return null
       return (
         <div key={key} className="neg-chips neg-card-field">
-          {neg.participants.slice(0, 2).map(p => <span key={p} className="neg-chip neg-chip-blue">{p}</span>)}
-          {neg.participants.length > 2 && <span className="neg-chip neg-chip-gray">+{neg.participants.length - 2}</span>}
+          {names.slice(0, 2).map(n => <span key={n} className="neg-chip neg-chip-blue">{n}</span>)}
+          {names.length > 2 && <span className="neg-chip neg-chip-gray">+{names.length - 2}</span>}
         </div>
       )
-    case 'nda':
-      if (!neg.nda || neg.nda === '—') return null
-      return <div key={key} className="neg-card-field"><span className="neg-nda-badge">{neg.nda}</span></div>
+    }
     case 'target_date':
       if (!neg.target_date) return null
       return <div key={key} className="neg-card-date neg-card-field">{neg.target_date}</div>
@@ -1018,73 +992,23 @@ function KanbanView({ negotiations, customStates, getStateConfig, getEntityName,
   )
 }
 
-// Combobox con buscador + chips para campos de selección múltiple (participantes, empresas, territorios).
-// Evita mostrar la lista completa siempre abierta cuando hay muchas opciones.
-function ChipsCombobox({ options, selected, onChange, placeholder, allowSelectAll }) {
-  const [search, setSearch] = useState('')
-  const [open, setOpen] = useState(false)
-
-  const available = options.filter(o => !selected.includes(o))
-  const filtered = available.filter(o => o.toLowerCase().includes(search.toLowerCase())).slice(0, 6)
-  const allSelected = options.length > 0 && selected.length === options.length
-
-  function add(o) {
-    onChange([...selected, o])
-    setSearch('')
-  }
-  function remove(o) {
-    onChange(selected.filter(x => x !== o))
-  }
-  function toggleAll() {
-    onChange(allSelected ? [] : [...options])
-  }
-
-  return (
-    <div className="entity-combobox">
-      <input
-        type="text"
-        className="entity-search-input"
-        placeholder={placeholder}
-        value={search}
-        autoComplete="off"
-        onChange={e => { setSearch(e.target.value); setOpen(true) }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-      />
-      {open && (
-        <div className="entity-dropdown">
-          {allowSelectAll && options.length > 0 && (
-            <div className="entity-dropdown-option entity-dropdown-option--all" onMouseDown={toggleAll}>
-              {allSelected ? '✕ Quitar todos' : '✓ Seleccionar todos'}
-            </div>
-          )}
-          {filtered.map(o => (
-            <div key={o} className="entity-dropdown-option" onMouseDown={() => add(o)}>{o}</div>
-          ))}
-          {filtered.length === 0 && (
-            <div className="entity-dropdown-empty">{available.length === 0 ? 'No hay más opciones' : 'Sin resultados'}</div>
-          )}
-        </div>
-      )}
-      {selected.length > 0 && (
-        <div className="chips-selected-list">
-          {selected.map(o => (
-            <span key={o} className="chips-selected-pill">
-              {o}
-              <button type="button" className="chips-selected-remove" onClick={() => remove(o)}>×</button>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
+// NOTA: el combobox con buscador + chips que vivía acá (usado antes por
+// Participantes/Empresas/Territorios como campos fijos) se sacó por no
+// tener más call sites — Participantes y Clientes/Potenciales clientes
+// ahora son campos custom genéricos (tipo Usuario múltiple / selección
+// múltiple). Si en el futuro se rediseña el widget de selección múltiple
+// para que no muestre todas las opciones como checkboxes (pendiente
+// explícito, ver PENDIENTES.md), este es el patrón a reusar — buscar en
+// el historial de git este archivo si hace falta el código exacto.
 
 export function NegotiationModal({ initial, presetEntity, entities, members, customStates, customFieldDefs = [], onClose, onCancel, onSaved, workspaceId, userId }) {
+  const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
+  const financialDef = customFieldDefs.find(d => d.field_type === 'financial')
+
   const empty = {
     title: '', product: '', status: customStates[0]?.name || 'Contactado',
-    nda: '—', target_date: '', description: '', observations: '',
-    territories: [], companies: [], participants: [],
+    target_date: '', description: '', observations: '',
+    companies: [], participants: [],
     entity_ids: presetEntity ? [{ id: presetEntity.id, role: '' }] : [], // [{ id, role }]
     tasks: [],
     currency: 'USD', milestones: [], custom_fields: {}
@@ -1120,24 +1044,36 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
+  function fieldValue(def) {
+    if (def.field_type === 'entities_link') return form.entity_ids
+    return def.storage_column ? form[def.storage_column] : form.custom_fields[def.key]
+  }
+
+  function setFieldValue(def, v) {
+    if (def.storage_column) set(def.storage_column, v)
+    else set('custom_fields', { ...form.custom_fields, [def.key]: v })
+  }
+
   async function handleSave() {
-    if (!form.product?.trim() && !form.title?.trim()) { setError('El producto es obligatorio'); return }
-    const missing = getMissingRequiredFields(customFieldDefs, form.custom_fields)
+    const validationValues = Object.fromEntries(gridDefs.map(def => [def.key, fieldValue(def)]))
+    const missing = getMissingRequiredFields(gridDefs, validationValues)
     if (missing.length > 0) { setError(`Faltan completar campos obligatorios: ${missing.join(', ')}`); return }
     setSaving(true)
     const row = {
       workspace_id: workspaceId,
-      title: form.product?.trim() || form.title?.trim(),
-      product: form.product?.trim(),
-      status: form.status, nda: form.nda,
-      target_date: form.target_date || null,
-      description: form.description, observations: form.observations,
-      territories: form.territories, companies: form.companies,
-      participants: form.participants, created_by: userId,
+      created_by: userId,
+      observations: form.observations,
       primary_entity_id: form.entity_ids[0]?.id || null,
-      currency: form.currency,
-      custom_fields: mergeCustomFieldValues(initial?.custom_fields, form.custom_fields),
     }
+    if (financialDef) row.currency = form.currency
+    const jsonbValues = {}
+    for (const def of gridDefs) {
+      if (def.field_type === 'entities_link') continue
+      if (def.storage_column) row[def.storage_column] = form[def.storage_column]
+      else jsonbValues[def.key] = form.custom_fields[def.key]
+    }
+    row.title = (row.product || form.title || '').toString().trim()
+    row.custom_fields = mergeCustomFieldValues(initial?.custom_fields, jsonbValues)
     let negId = initial?.id
     if (initial?.id) {
       await supabase.from('negotiations').update(row).eq('id', initial.id)
@@ -1205,188 +1141,109 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
     onSaved()
   }
 
-  function renderFixedField(key) {
-    const wide = WIDE_FIXED_NEGOTIATION_FIELDS.includes(key)
-    switch (key) {
-      case 'product':
-        return (
-          <div key={key} className="form-group">
-            <label>PRODUCTO / LÍNEA *</label>
-            <input type="text" value={form.product} onChange={e => set('product', e.target.value)} placeholder="Ej: Ibuprofeno 400mg" />
-          </div>
-        )
-      case 'description':
-        return (
-          <div key={key} className={`form-group ${wide ? 'form-group--wide' : ''}`}>
-            <label>DESCRIPCIÓN</label>
-            <textarea
-              value={form.description}
-              onChange={e => set('description', e.target.value)}
-              rows={3}
-              placeholder="De qué se trata este proyecto: contexto, alcance, términos generales..."
+  function renderField(def) {
+    const wide = isWideCustomField(def)
+    if (def.field_type === 'entities_link') {
+      return (
+        <div key={def.key} className="form-group form-group--wide" ref={entityRef}>
+          <label>{def.label}{def.required ? ' *' : ''}</label>
+          <div className="entity-combobox">
+            <input
+              type="text"
+              className="entity-search-input"
+              placeholder="Buscar y agregar entidad..."
+              value={entitySearch}
+              autoComplete="off"
+              onChange={e => { setEntitySearch(e.target.value); setEntityDropdownOpen(true) }}
+              onFocus={() => setEntityDropdownOpen(true)}
+              onBlur={() => setTimeout(() => setEntityDropdownOpen(false), 150)}
             />
-          </div>
-        )
-      case 'entities':
-        return (
-          <div key={key} className={`form-group ${wide ? 'form-group--wide' : ''}`} ref={entityRef}>
-            <label>ENTIDADES VINCULADAS</label>
-            <div className="entity-combobox">
-              <input
-                type="text"
-                className="entity-search-input"
-                placeholder="Buscar y agregar entidad..."
-                value={entitySearch}
-                autoComplete="off"
-                onChange={e => { setEntitySearch(e.target.value); setEntityDropdownOpen(true) }}
-                onFocus={() => setEntityDropdownOpen(true)}
-                onBlur={() => setTimeout(() => setEntityDropdownOpen(false), 150)}
-              />
-              {entityDropdownOpen && (
-                <div className="entity-dropdown">
-                  {entities
-                    .filter(e =>
-                      !form.entity_ids.find(x => x.id === e.id) &&
-                      e.name.toLowerCase().includes(entitySearch.toLowerCase())
-                    )
-                    .slice(0, 6)
-                    .map(e => (
-                      <div
-                        key={e.id}
-                        className="entity-dropdown-option"
-                        onMouseDown={() => {
-                          set('entity_ids', [...form.entity_ids, { id: e.id, role: '' }])
-                          setEntitySearch('')
-                        }}
-                      >
-                        {e.name}
-                      </div>
-                    ))
-                  }
-                  {entities.filter(e =>
+            {entityDropdownOpen && (
+              <div className="entity-dropdown">
+                {entities
+                  .filter(e =>
                     !form.entity_ids.find(x => x.id === e.id) &&
                     e.name.toLowerCase().includes(entitySearch.toLowerCase())
-                  ).length === 0 && (
-                    <div className="entity-dropdown-empty">Sin resultados</div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Lista de entidades seleccionadas con campo de rol — la primera es la principal */}
-            {form.entity_ids.length > 0 && (
-              <div className="entity-selected-list">
-                {form.entity_ids.map((e, idx) => {
-                  const ent = entities.find(x => x.id === e.id)
-                  const isPrimary = idx === 0
-                  return (
-                    <div key={e.id} className={`entity-selected-row ${isPrimary ? 'entity-selected-row--primary' : ''}`}>
-                      {isPrimary ? (
-                        <span className="entity-primary-badge" title="Se muestra en tabla y mosaico">★ Principal</span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="entity-make-primary-btn"
-                          title="Marcar como principal"
-                          onClick={() => set('entity_ids', [e, ...form.entity_ids.filter(x => x.id !== e.id)])}
-                        >☆</button>
-                      )}
-                      <span className="entity-selected-name">{ent?.name}</span>
-                      <input
-                        type="text"
-                        className="entity-role-input"
-                        placeholder="Rol (opcional)"
-                        value={e.role}
-                        onChange={ev => set('entity_ids', form.entity_ids.map(x => x.id === e.id ? { ...x, role: ev.target.value } : x))}
-                      />
-                      <button
-                        type="button"
-                        className="entity-remove-btn"
-                        onClick={() => set('entity_ids', form.entity_ids.filter(x => x.id !== e.id))}
-                      >×</button>
-                    </div>
                   )
-                })}
+                  .slice(0, 6)
+                  .map(e => (
+                    <div
+                      key={e.id}
+                      className="entity-dropdown-option"
+                      onMouseDown={() => {
+                        set('entity_ids', [...form.entity_ids, { id: e.id, role: '' }])
+                        setEntitySearch('')
+                      }}
+                    >
+                      {e.name}
+                    </div>
+                  ))
+                }
+                {entities.filter(e =>
+                  !form.entity_ids.find(x => x.id === e.id) &&
+                  e.name.toLowerCase().includes(entitySearch.toLowerCase())
+                ).length === 0 && (
+                  <div className="entity-dropdown-empty">Sin resultados</div>
+                )}
               </div>
             )}
           </div>
-        )
-      case 'status':
-        return (
-          <div key={key} className="form-group">
-            <label>ESTADO</label>
-            <select value={form.status} onChange={e => set('status', e.target.value)}>
-              {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-            </select>
-          </div>
-        )
-      case 'target_date':
-        return (
-          <div key={key} className="form-group">
-            <label>FECHA</label>
-            <input type="date" value={form.target_date} onChange={e => set('target_date', e.target.value)} />
-          </div>
-        )
-      case 'nda':
-        return (
-          <div key={key} className="form-group">
-            <label>NDA</label>
-            <select value={form.nda} onChange={e => set('nda', e.target.value)}>
-              {NDA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        )
-      case 'currency':
-        return (
-          <div key={key} className="form-group">
-            <label>MONEDA</label>
-            <select value={form.currency} onChange={e => set('currency', e.target.value)}>
-              {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-        )
-      case 'participants':
-        return (
-          <div key={key} className={`form-group ${wide ? 'form-group--wide' : ''}`}>
-            <label>PARTICIPANTES</label>
-            <ChipsCombobox
-              options={members.map(m => m.profile?.full_name || m.profile?.email || 'Usuario')}
-              selected={form.participants}
-              onChange={v => set('participants', v)}
-              placeholder="Buscar y agregar participante..."
-              allowSelectAll
-            />
-          </div>
-        )
-      case 'companies':
-        return (
-          <div key={key} className={`form-group ${wide ? 'form-group--wide' : ''}`}>
-            <label>EMPRESAS INTERESADAS</label>
-            <ChipsCombobox
-              options={COMPANIES}
-              selected={form.companies}
-              onChange={v => set('companies', v)}
-              placeholder="Buscar y agregar empresa..."
-              allowSelectAll
-            />
-          </div>
-        )
-      case 'territories':
-        return (
-          <div key={key} className={`form-group ${wide ? 'form-group--wide' : ''}`}>
-            <label>TERRITORIOS</label>
-            <ChipsCombobox
-              options={TERRITORIES}
-              selected={form.territories}
-              onChange={v => set('territories', v)}
-              placeholder="Buscar y agregar territorio..."
-              allowSelectAll
-            />
-          </div>
-        )
-      default:
-        return null
+
+          {/* Lista de entidades seleccionadas con campo de rol — la primera es la principal */}
+          {form.entity_ids.length > 0 && (
+            <div className="entity-selected-list">
+              {form.entity_ids.map((e, idx) => {
+                const ent = entities.find(x => x.id === e.id)
+                const isPrimary = idx === 0
+                return (
+                  <div key={e.id} className={`entity-selected-row ${isPrimary ? 'entity-selected-row--primary' : ''}`}>
+                    {isPrimary ? (
+                      <span className="entity-primary-badge" title="Se muestra en tabla y mosaico">★ Principal</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="entity-make-primary-btn"
+                        title="Marcar como principal"
+                        onClick={() => set('entity_ids', [e, ...form.entity_ids.filter(x => x.id !== e.id)])}
+                      >☆</button>
+                    )}
+                    <span className="entity-selected-name">{ent?.name}</span>
+                    <input
+                      type="text"
+                      className="entity-role-input"
+                      placeholder="Rol (opcional)"
+                      value={e.role}
+                      onChange={ev => set('entity_ids', form.entity_ids.map(x => x.id === e.id ? { ...x, role: ev.target.value } : x))}
+                    />
+                    <button
+                      type="button"
+                      className="entity-remove-btn"
+                      onClick={() => set('entity_ids', form.entity_ids.filter(x => x.id !== e.id))}
+                    >×</button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )
     }
+    if (def.field_type === 'status') {
+      return (
+        <div key={def.key} className="form-group">
+          <label>{def.label}{def.required ? ' *' : ''}</label>
+          <select value={form.status} onChange={e => set('status', e.target.value)}>
+            {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+          </select>
+        </div>
+      )
+    }
+    return (
+      <div key={def.key} className={`form-group ${wide ? 'form-group--wide' : ''}`}>
+        <label>{def.label}{def.required ? ' *' : ''}</label>
+        <CustomFieldInput def={def} value={fieldValue(def)} onChange={v => setFieldValue(def, v)} />
+      </div>
+    )
   }
 
   return (
@@ -1405,22 +1262,59 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
         </div>
         <div className="neg-modal-body">
           <div className="entity-fields-grid">
-            {(fieldOrder === null ? DEFAULT_NEGOTIATION_FIELDS : computeFieldOrder('negotiation', fieldOrder, DEFAULT_NEGOTIATION_FIELDS, customFieldDefs)).map(key => {
-              if (DEFAULT_NEGOTIATION_FIELDS.includes(key)) return renderFixedField(key)
-              const def = customFieldDefs.find(d => d.key === key)
+            {(fieldOrder === null ? gridDefs.map(d => d.key) : computeFieldOrder('negotiation', fieldOrder, gridDefs)).map(key => {
+              const def = gridDefs.find(d => d.key === key)
               if (!def) return null
-              return (
-                <div key={key} className={`form-group ${isWideCustomField(def) ? 'form-group--wide' : ''}`}>
-                  <label>{def.label}{def.required ? ' *' : ''}</label>
-                  <CustomFieldInput def={def} value={form.custom_fields[def.key]} onChange={v => set('custom_fields', { ...form.custom_fields, [def.key]: v })} />
-                </div>
-              )
+              return renderField(def)
             })}
           </div>
           <div className="form-group">
             <label>OBSERVACIONES INTERNAS</label>
             <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={3} placeholder="Notas internas del equipo..." />
           </div>
+          {financialDef && (
+            <div className="form-group">
+              <label>{financialDef.label}{financialDef.required ? ' *' : ''}</label>
+              <div className="form-group" style={{ maxWidth: 160, marginBottom: 10 }}>
+                <label>MONEDA</label>
+                <select value={form.currency} onChange={e => set('currency', e.target.value)}>
+                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="neg-milestone-add" style={{ marginTop: 0 }}>
+                <input type="text" className="neg-note-input neg-milestone-name-input" value={newMilestoneName} onChange={e => setNewMilestoneName(e.target.value)}
+                  placeholder="Ej: Upfront, Milestone Fase 2, Royalties Año 1..." />
+                <input type="number" className="neg-note-date-input neg-milestone-amount-input" value={newMilestoneAmount} onChange={e => setNewMilestoneAmount(e.target.value)}
+                  placeholder="Monto (negativo = pago a hacer)" step="0.01" />
+                <input type="date" className="neg-note-date-input neg-milestone-date-input" value={newMilestoneDate} onChange={e => setNewMilestoneDate(e.target.value)} />
+                <input type="text" className="neg-note-input neg-milestone-timing-input" value={newMilestoneTiming} onChange={e => setNewMilestoneTiming(e.target.value)}
+                  placeholder="Momento (si no hay fecha exacta, ej: al lanzamiento)" />
+                <button type="button" className="btn-secondary" onClick={() => {
+                  const amount = parseFloat(newMilestoneAmount)
+                  if (!newMilestoneName.trim() || Number.isNaN(amount) || amount === 0) return
+                  set('milestones', [...form.milestones, { id: Date.now(), name: newMilestoneName.trim(), amount, estimated_date: newMilestoneDate, timing_note: newMilestoneTiming.trim() }])
+                  setNewMilestoneName(''); setNewMilestoneAmount(''); setNewMilestoneDate(''); setNewMilestoneTiming('')
+                }}>
+                  + Agregar
+                </button>
+              </div>
+              {form.milestones.map(m => (
+                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, border: '1px solid #e5e7eb', marginTop: 6 }}>
+                  <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>{m.name}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: Number(m.amount) < 0 ? '#DC2626' : '#059669' }}>{Number(m.amount).toLocaleString('es-AR')} {form.currency}</span>
+                  {(m.estimated_date || m.timing_note) && (
+                    <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                      {[m.estimated_date ? new Date(m.estimated_date + 'T00:00:00').toLocaleDateString('es-AR') : null, m.timing_note].filter(Boolean).join(' · ')}
+                    </span>
+                  )}
+                  <button type="button" onClick={() => set('milestones', form.milestones.filter(x => x.id !== m.id))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 16 }}>×</button>
+                </div>
+              ))}
+              {initial && (
+                <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>Los hitos ya existentes se editan desde la vista de detalle del proyecto.</p>
+              )}
+            </div>
+          )}
           <div className="form-group">
             <label>TAREAS INICIALES</label>
             <div className="neg-newtask-row">
@@ -1443,41 +1337,6 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
                 <button type="button" onClick={() => set('tasks', form.tasks.filter(x => x.id !== t.id))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 16 }}>×</button>
               </div>
             ))}
-          </div>
-          <div className="form-group">
-            <label>HITOS DE PAGO {initial ? '' : 'INICIALES'}</label>
-            <div className="neg-milestone-add" style={{ marginTop: 0 }}>
-              <input type="text" className="neg-note-input neg-milestone-name-input" value={newMilestoneName} onChange={e => setNewMilestoneName(e.target.value)}
-                placeholder="Ej: Upfront, Milestone Fase 2, Royalties Año 1..." />
-              <input type="number" className="neg-note-date-input neg-milestone-amount-input" value={newMilestoneAmount} onChange={e => setNewMilestoneAmount(e.target.value)}
-                placeholder="Monto (negativo = pago a hacer)" step="0.01" />
-              <input type="date" className="neg-note-date-input neg-milestone-date-input" value={newMilestoneDate} onChange={e => setNewMilestoneDate(e.target.value)} />
-              <input type="text" className="neg-note-input neg-milestone-timing-input" value={newMilestoneTiming} onChange={e => setNewMilestoneTiming(e.target.value)}
-                placeholder="Momento (si no hay fecha exacta, ej: al lanzamiento)" />
-              <button type="button" className="btn-secondary" onClick={() => {
-                const amount = parseFloat(newMilestoneAmount)
-                if (!newMilestoneName.trim() || Number.isNaN(amount) || amount === 0) return
-                set('milestones', [...form.milestones, { id: Date.now(), name: newMilestoneName.trim(), amount, estimated_date: newMilestoneDate, timing_note: newMilestoneTiming.trim() }])
-                setNewMilestoneName(''); setNewMilestoneAmount(''); setNewMilestoneDate(''); setNewMilestoneTiming('')
-              }}>
-                + Agregar
-              </button>
-            </div>
-            {form.milestones.map(m => (
-              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, border: '1px solid #e5e7eb', marginTop: 6 }}>
-                <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>{m.name}</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: Number(m.amount) < 0 ? '#DC2626' : '#059669' }}>{Number(m.amount).toLocaleString('es-AR')} {form.currency}</span>
-                {(m.estimated_date || m.timing_note) && (
-                  <span style={{ fontSize: 11, color: '#9ca3af' }}>
-                    {[m.estimated_date ? new Date(m.estimated_date + 'T00:00:00').toLocaleDateString('es-AR') : null, m.timing_note].filter(Boolean).join(' · ')}
-                  </span>
-                )}
-                <button type="button" onClick={() => set('milestones', form.milestones.filter(x => x.id !== m.id))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 16 }}>×</button>
-              </div>
-            ))}
-            {initial && (
-              <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>Los hitos ya existentes se editan desde la vista de detalle del proyecto.</p>
-            )}
           </div>
         </div>
       </div>
@@ -1510,17 +1369,30 @@ export function NegotiationDetail({ neg, entities, customStates, customFieldDefs
   const [activityRefresh, setActivityRefresh] = useState(0)
   const [activityStatus, setActivityStatus] = useState(neg.activity_status || 'active')
   const [inlineStatus, setInlineStatus] = useState(neg.status || '')
-  const [inlineNda, setInlineNda] = useState(neg.nda || '—')
   const [inlineObs, setInlineObs] = useState(neg.observations || '')
-  const [inlineDescription, setInlineDescription] = useState(neg.description || '')
   const [inlineCurrency, setInlineCurrency] = useState(neg.currency || 'USD')
   const [customFieldValues, setCustomFieldValues] = useState(neg.custom_fields || {})
+  const [columnValues, setColumnValues] = useState(() => {
+    const init = {}
+    for (const def of customFieldDefs) {
+      if (def.storage_column) init[def.key] = neg[def.storage_column]
+    }
+    return init
+  })
   const [customFieldError, setCustomFieldError] = useState(null)
   const cfg = getStateConfig(neg.status)
   const flag = getEntityFlag(neg)
   const primaryEntity = neg.primary_entity || neg.negotiation_entities?.map(ne => ne.entity).filter(Boolean)[0] || null
   const entityNames = primaryEntity?.name || '—'
   const secondaryEntities = (neg.negotiation_entities || []).filter(ne => ne.entity?.id && ne.entity.id !== primaryEntity?.id)
+  const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
+  const financialDef = customFieldDefs.find(d => d.field_type === 'financial')
+  const entitiesLinkDef = customFieldDefs.find(d => d.field_type === 'entities_link')
+  const inlineDetailDefs = gridDefs.filter(d => d.field_type !== 'status' && d.field_type !== 'entities_link' && d.key !== 'product')
+
+  function fieldValue(def) {
+    return def.storage_column ? columnValues[def.key] : getCustomFieldValue(customFieldValues, def.key)
+  }
 
   useEffect(() => { fetchTasks() }, [])
 
@@ -1533,15 +1405,23 @@ export function NegotiationDetail({ neg, entities, customStates, customFieldDefs
   }
 
   async function saveCustomField(key, value) {
-    const def = customFieldDefs.find(d => d.key === key)
-    if (def?.required && isCustomFieldValueEmpty(value)) {
+    const merged = mergeCustomFieldValue(customFieldValues, key, value)
+    setCustomFieldValues(merged)
+    await supabase.from('negotiations').update({ custom_fields: merged }).eq('id', neg.id)
+  }
+
+  async function saveField(def, value) {
+    if (def.required && isCustomFieldValueEmpty(value)) {
       setCustomFieldError(`"${def.label}" es obligatorio`)
       return
     }
     setCustomFieldError(null)
-    const merged = mergeCustomFieldValue(customFieldValues, key, value)
-    setCustomFieldValues(merged)
-    await supabase.from('negotiations').update({ custom_fields: merged }).eq('id', neg.id)
+    if (def.storage_column) {
+      setColumnValues(v => ({ ...v, [def.key]: value }))
+      await saveInlineField(def.storage_column, value)
+    } else {
+      await saveCustomField(def.key, value)
+    }
   }
 
   async function saveInlineField(field, value) {
@@ -1640,24 +1520,20 @@ export function NegotiationDetail({ neg, entities, customStates, customFieldDefs
               <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{inlineStatus}</span>
             )}
           </div>
-          <div className="neg-detail-section">
-            <div className="detail-section-title">DESCRIPCIÓN</div>
-            {canEditInline ? (
-              <textarea
-                className="neg-inline-obs"
-                value={inlineDescription}
-                onChange={e => setInlineDescription(e.target.value)}
-                onBlur={() => saveInlineField('description', inlineDescription)}
-                placeholder="De qué se trata este proyecto: contexto, alcance, términos generales..."
-                rows={3}
-              />
-            ) : (
-              <p className="detail-empty" style={{ whiteSpace: 'pre-wrap' }}>{inlineDescription || 'Sin descripción todavía.'}</p>
-            )}
-          </div>
-          {secondaryEntities.length > 0 && (
+          {customFieldError && <p className="form-error">{customFieldError}</p>}
+          {inlineDetailDefs.map(def => (
+            <div key={def.key} className="neg-detail-section">
+              <div className="detail-section-title">{def.label}{def.required ? ' *' : ''}</div>
+              {canEditInline ? (
+                <CustomFieldInput def={def} value={fieldValue(def)} onChange={v => saveField(def, v)} />
+              ) : (
+                <p className="detail-empty"><CustomFieldReadOnly def={def} value={fieldValue(def)} members={members} /></p>
+              )}
+            </div>
+          ))}
+          {entitiesLinkDef && secondaryEntities.length > 0 && (
             <div className="neg-detail-section">
-              <div className="detail-section-title">ENTIDADES VINCULADAS</div>
+              <div className="detail-section-title">{entitiesLinkDef.label}</div>
               <div className="neg-secondary-entities">
                 {secondaryEntities.map(ne => (
                   <div key={ne.entity.id} className="neg-secondary-entity-row">
@@ -1671,49 +1547,31 @@ export function NegotiationDetail({ neg, entities, customStates, customFieldDefs
               </div>
             </div>
           )}
-          <div className="neg-detail-grid">
-            <div className="neg-detail-field">
-              <div className="detail-section-title">FECHA</div>
-              <div className="neg-detail-value">{neg.target_date || '—'}</div>
+          {financialDef && (
+            <div className="neg-detail-section">
+              <div className="neg-tasks-header">
+                <div className="detail-section-title">{financialDef.label}</div>
+                {canEditInline ? (
+                  <select
+                    className="neg-inline-select neg-inline-select--small"
+                    value={inlineCurrency}
+                    onChange={e => { setInlineCurrency(e.target.value); saveInlineField('currency', e.target.value) }}
+                  >
+                    {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                ) : (
+                  <span className="neg-detail-value">{inlineCurrency}</span>
+                )}
+              </div>
+              <DealMilestones
+                negotiationId={neg.id}
+                workspaceId={neg.workspace_id || workspaceId}
+                currency={inlineCurrency}
+                canEdit={canNote}
+                onChanged={() => { setActivityRefresh(v => v + 1); onActivityChanged?.() }}
+              />
             </div>
-            <div className="neg-detail-field">
-              <div className="detail-section-title">NDA</div>
-              {canEditInline ? (
-                <select
-                  className="neg-inline-select neg-inline-select--small"
-                  value={inlineNda}
-                  onChange={e => { setInlineNda(e.target.value); saveInlineField('nda', e.target.value) }}
-                >
-                  {NDA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              ) : (
-                <div className="neg-detail-value">{inlineNda}</div>
-              )}
-            </div>
-          </div>
-          <div className="neg-detail-section">
-            <div className="neg-tasks-header">
-              <div className="detail-section-title">VALOR DEL DEAL</div>
-              {canEditInline ? (
-                <select
-                  className="neg-inline-select neg-inline-select--small"
-                  value={inlineCurrency}
-                  onChange={e => { setInlineCurrency(e.target.value); saveInlineField('currency', e.target.value) }}
-                >
-                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              ) : (
-                <span className="neg-detail-value">{inlineCurrency}</span>
-              )}
-            </div>
-            <DealMilestones
-              negotiationId={neg.id}
-              workspaceId={neg.workspace_id || workspaceId}
-              currency={inlineCurrency}
-              canEdit={canNote}
-              onChanged={() => { setActivityRefresh(v => v + 1); onActivityChanged?.() }}
-            />
-          </div>
+          )}
           <div className="neg-detail-section">
             <div className="detail-section-title">DOCUMENTOS</div>
             <Documents
@@ -1723,42 +1581,6 @@ export function NegotiationDetail({ neg, entities, customStates, customFieldDefs
               onChanged={() => setActivityRefresh(v => v + 1)}
             />
           </div>
-          {neg.participants?.length > 0 && (
-            <div className="neg-detail-section">
-              <div className="detail-section-title">PARTICIPANTES</div>
-              <div className="neg-chips">{neg.participants.map(p => <span key={p} className="neg-chip neg-chip-blue">{p}</span>)}</div>
-            </div>
-          )}
-          {neg.companies?.length > 0 && (
-            <div className="neg-detail-section">
-              <div className="detail-section-title">EMPRESAS INTERESADAS</div>
-              <div className="neg-chips">{neg.companies.map(c => <span key={c} className="neg-chip neg-chip-purple">{c}</span>)}</div>
-            </div>
-          )}
-          {neg.territories?.length > 0 && (
-            <div className="neg-detail-section">
-              <div className="detail-section-title">TERRITORIOS</div>
-              <div className="neg-chips">{neg.territories.map(t => <span key={t} className="neg-chip neg-chip-green">{t}</span>)}</div>
-            </div>
-          )}
-          {customFieldDefs.length > 0 && (
-            <div className="neg-detail-section">
-              <div className="detail-section-title">CAMPOS PERSONALIZADOS</div>
-              {customFieldError && <p className="form-error">{customFieldError}</p>}
-              <div className="cf-form-fields">
-                {customFieldDefs.map(def => (
-                  <div key={def.key} className="cf-form-field">
-                    <label className="cf-form-field-label">{def.label}{def.required ? ' *' : ''}</label>
-                    {canEditInline ? (
-                      <CustomFieldInput def={def} value={getCustomFieldValue(customFieldValues, def.key)} onChange={v => saveCustomField(def.key, v)} />
-                    ) : (
-                      <p className="detail-empty"><CustomFieldReadOnly def={def} cf={customFieldValues} members={members} /></p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           <div className="neg-detail-section">
             <div className="detail-section-title">NOTAS</div>
             <NotesPostIts

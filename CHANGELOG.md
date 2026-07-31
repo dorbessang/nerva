@@ -4,6 +4,21 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-31 (2)
+
+### Feature: todo campo (menos lo genuinamente estructural) pasa a ser un campo custom real
+- El usuario probó el reorder de "campos fijos" de la ronda anterior y notó que el modelo estaba mal planteado: casi ningún campo de esa lista JS estática era realmente estructural, la mayoría era específico del caso de uso de licensing farmacéutico con el que arrancó Nerva. Pidió que todos pasen a ser filas reales de `custom_field_definitions` — editables, borrables salvo un puñado genuinamente estructural — y de paso eliminó dos campos que nunca representaron datos reales y renombró/replanteó otros tres
+- Dos columnas nuevas en `custom_field_definitions`: `storage_column text` (si está seteada, el valor vive en una columna real de `negotiations`/`entities` en vez del jsonb `custom_fields`) y `is_structural boolean` (no borrable, `required` fijo en `true` salvo Contactos)
+- 5 `field_type` nuevos sembrables solo por SQL (nunca en el desplegable de alta): `entity_type`, `status`, `entities_link`, `financial`, `contacts` — cada uno con su widget bespoke ya existente, ahora tomando el label de la definición
+- `field_type='user'` suma `options.multiple` (mismo patrón que ya tenía `country`) — Participantes pasa a ser este tipo, sigue reflejando en vivo a los miembros del workspace sin curación manual. Widget nuevo `UserMultiSelect`
+- **Estructurales** (no borrables): Nombre y Tipo en Entidades, Contactos; Nombre del proyecto y Estado en Proyectos. **Pasan a regulares** (editables/borrables): País de origen, Sitio web, Dirección, Tipo de empresa, Descripción, Fecha objetivo, Participantes, Clientes/Potenciales clientes (renombrado de "Empresas interesadas"), Financiero (folda Moneda + Hitos de pago en un preset), Entidades vinculadas
+- **Territorios** y la columna vieja **NDA** (`negotiations.territories`/`negotiations.nda`) se eliminaron por completo sin migrar nada — decisión explícita del usuario, la data era de prueba. El campo custom `nda` "con seguimiento" (con datos reales, sembrado en una ronda anterior) no se tocó
+- **Bug real encontrado y corregido en el camino**: los renders de "Participantes" (tabla, tarjetas, export CSV, export PDF, detalle) mostraban el array crudo de `neg.participants` sin resolver contra `workspace_members` — con el tipo viejo (texto libre) igual mostraba nombres legibles, pero con el tipo nuevo (`user`, valores `user_id`) hubiera mostrado UUIDs pelados. Se exportaron `resolveMemberName`/`resolveMemberNames` desde `customFields.js` y se usaron en los 4 puntos de render, incluyendo `exportPdf.js` (que no recibía `members` hasta ahora, se sumó al llamado)
+- `EntityModal`/`NegotiationModal`/`NegotiationDetail`/`Entities.jsx` reescritos para despachar 100% por `field_type` (nunca por `key` hardcodeada) y guardar por `storage_column` cuando está seteado o en `custom_fields` cuando no. Settings → Campos personalizados deja de mezclar "fijos (JS) + custom (DB)": es 100% lo que devuelve la tabla, con Contactos pinneado al final sin drag handle
+- Probado con Playwright: presets estructurales bloqueados correctamente, regulares editables/borrables, borrar un preset lo saca del alta y del detalle, Financiero foldeando Moneda+Hitos, Entidades vinculadas mostrando principal en el hero y secundarias aparte, Participantes resolviendo a nombre real — cero referencias rotas a NDA/Territorios
+- **Dos cosas a confirmar con el usuario**: `Fecha objetivo` se conservó como preset regular aunque no estaba en el pedido explícito (para no sacar silenciosamente una feature que funcionaba); si había proyectos reales con Participantes cargado como texto libre, esos valores no se migran (no hay forma automática de mapear un nombre tipeado a un usuario real)
+- SQL entregado al usuario: 2 columnas nuevas en `custom_field_definitions`, ampliación del check de `field_type`, `drop column` de `nda`/`territories`, y el seed completo de los ~15 presets
+
 ## 2026-07-31
 
 ### Feature: Modales grandes y consistentes + orden de campos configurable + campo obligatorio

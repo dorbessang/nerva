@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import CountrySelector from './CountrySelector'
 import { logActivity } from '../lib/activity'
-import { mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isWideCustomField, DEFAULT_ENTITY_FIELDS } from '../lib/customFields'
+import { mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isWideCustomField } from '../lib/customFields'
 import { CustomFieldInput } from './CustomFieldInput'
 import './EntityModal.css'
 
@@ -20,19 +19,22 @@ const emptyContact = () => ({
 
 export default function EntityModal({ onClose, onCreated, initial = null, entityTypeSingular = 'proveedor', customFieldDefs = [] }) {
   const { workspaceId, user } = useAuth()
-  const [name, setName] = useState(initial?.name || '')
-  const [countryCode, setCountryCode] = useState(initial?.country_code || '')
-  const [companyType, setCompanyType] = useState(initial?.custom_fields?.company_type || '')
-  const [website, setWebsite] = useState(initial?.website || '')
-  const [address, setAddress] = useState(initial?.address || '')
-  const [customFieldValues, setCustomFieldValues] = useState(() =>
-    Object.fromEntries(customFieldDefs.map(def => [def.key, initial?.custom_fields?.[def.key]?.value]))
-  )
+
+  const gridDefs = customFieldDefs.filter(d => d.field_type !== 'contacts')
+  const contactsDef = customFieldDefs.find(d => d.field_type === 'contacts')
+
+  const [values, setValues] = useState(() => {
+    const init = {}
+    for (const def of customFieldDefs) {
+      if (def.field_type === 'contacts') continue
+      init[def.key] = def.storage_column ? (initial?.[def.storage_column] ?? null) : initial?.custom_fields?.[def.key]?.value
+    }
+    return init
+  })
   const [contacts, setContacts] = useState(
     initial?.contacts?.length > 0 ? initial.contacts.map(c => ({ ...c, tempId: Date.now() + Math.random() })) : [emptyContact()]
   )
   const [entityTypes, setEntityTypes] = useState([])
-  const [entityTypeId, setEntityTypeId] = useState(initial?.entity_type_id || '')
   const [fieldOrder, setFieldOrder] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -49,13 +51,20 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
       .order('sort_order')
     if (data) {
       setEntityTypes(data)
-      if (!entityTypeId && data.length > 0) setEntityTypeId(data[0].id)
+      const entityTypeDef = customFieldDefs.find(d => d.field_type === 'entity_type')
+      if (entityTypeDef && !values[entityTypeDef.key] && data.length > 0) {
+        setValues(v => ({ ...v, [entityTypeDef.key]: data[0].id }))
+      }
     }
   }
 
   async function fetchFieldOrder() {
     const { data } = await supabase.from('workspaces').select('field_order').eq('id', workspaceId).single()
     setFieldOrder(data?.field_order || {})
+  }
+
+  function setValue(key, v) {
+    setValues(prev => ({ ...prev, [key]: v }))
   }
 
   function updateContact(tempId, field, value) {
@@ -73,31 +82,27 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
   async function handleSubmit(e) {
     e.preventDefault()
     setError(null)
-    if (!name.trim()) { setError('El nombre es obligatorio'); return }
-    if (!entityTypeId) { setError('Seleccioná un tipo'); return }
 
-    const missing = getMissingRequiredFields(customFieldDefs, customFieldValues)
+    const missing = getMissingRequiredFields(gridDefs, values)
     if (missing.length > 0) { setError(`Faltan completar campos obligatorios: ${missing.join(', ')}`); return }
 
     setLoading(true)
 
+    const columnValues = {}
+    const jsonbValues = {}
+    for (const def of gridDefs) {
+      if (def.storage_column) columnValues[def.storage_column] = typeof values[def.key] === 'string' ? values[def.key].trim() || null : (values[def.key] ?? null)
+      else jsonbValues[def.key] = values[def.key]
+    }
+
     // Nunca reemplazar custom_fields entero — mergear preserva cualquier
     // campo personalizado ya cargado que este formulario no conoce.
-    const customFields = mergeCustomFieldValues(
-      { ...(initial?.custom_fields || {}), company_type: companyType.trim() },
-      Object.fromEntries(customFieldDefs.map(def => [def.key, customFieldValues[def.key]]))
-    )
+    const customFields = mergeCustomFieldValues(initial?.custom_fields || {}, jsonbValues)
 
     if (initial?.id) {
       const { error: entityError } = await supabase
         .from('entities')
-        .update({
-          name: name.trim(),
-          country_code: countryCode || null,
-          website: website.trim() || null,
-          address: address.trim() || null,
-          custom_fields: customFields,
-        })
+        .update({ ...columnValues, custom_fields: customFields })
         .eq('id', initial.id)
 
       if (entityError) {
@@ -106,36 +111,29 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
         return
       }
 
-      await supabase.from('contacts').delete().eq('entity_id', initial.id)
-      const validContacts = contacts.filter(c => c.name.trim())
-      if (validContacts.length > 0) {
-        await supabase.from('contacts').insert(
-          validContacts.map((c, i) => ({
-            workspace_id: workspaceId,
-            entity_id: initial.id,
-            name: c.name.trim(),
-            role: c.role.trim() || null,
-            email: c.email.trim() || null,
-            phone: c.phone.trim() || null,
-            whatsapp: c.whatsapp.trim() || null,
-            notes: c.notes.trim() || null,
-            is_primary: i === 0,
-          }))
-        )
+      if (contactsDef) {
+        await supabase.from('contacts').delete().eq('entity_id', initial.id)
+        const validContacts = contacts.filter(c => c.name.trim())
+        if (validContacts.length > 0) {
+          await supabase.from('contacts').insert(
+            validContacts.map((c, i) => ({
+              workspace_id: workspaceId,
+              entity_id: initial.id,
+              name: c.name.trim(),
+              role: c.role.trim() || null,
+              email: c.email.trim() || null,
+              phone: c.phone.trim() || null,
+              whatsapp: c.whatsapp.trim() || null,
+              notes: c.notes.trim() || null,
+              is_primary: i === 0,
+            }))
+          )
+        }
       }
     } else {
       const { data: entityData, error: entityError } = await supabase
         .from('entities')
-        .insert({
-          workspace_id: workspaceId,
-          entity_type_id: entityTypeId,
-          name: name.trim(),
-          country_code: countryCode || null,
-          website: website.trim() || null,
-          address: address.trim() || null,
-          custom_fields: customFields,
-          status: 'active',
-        })
+        .insert({ workspace_id: workspaceId, ...columnValues, custom_fields: customFields, status: 'active' })
         .select()
         .single()
 
@@ -149,21 +147,23 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
         return
       }
 
-      const validContacts = contacts.filter(c => c.name.trim())
-      if (validContacts.length > 0) {
-        await supabase.from('contacts').insert(
-          validContacts.map((c, i) => ({
-            workspace_id: workspaceId,
-            entity_id: entityData.id,
-            name: c.name.trim(),
-            role: c.role.trim() || null,
-            email: c.email.trim() || null,
-            phone: c.phone.trim() || null,
-            whatsapp: c.whatsapp.trim() || null,
-            notes: c.notes.trim() || null,
-            is_primary: i === 0,
-          }))
-        )
+      if (contactsDef) {
+        const validContacts = contacts.filter(c => c.name.trim())
+        if (validContacts.length > 0) {
+          await supabase.from('contacts').insert(
+            validContacts.map((c, i) => ({
+              workspace_id: workspaceId,
+              entity_id: entityData.id,
+              name: c.name.trim(),
+              role: c.role.trim() || null,
+              email: c.email.trim() || null,
+              phone: c.phone.trim() || null,
+              whatsapp: c.whatsapp.trim() || null,
+              notes: c.notes.trim() || null,
+              is_primary: i === 0,
+            }))
+          )
+        }
       }
       await logActivity(supabase, {
         workspaceId, entityId: entityData.id, type: 'entity_created',
@@ -176,58 +176,26 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
     onClose()
   }
 
-  function renderFixedField(key) {
-    switch (key) {
-      case 'name':
-        return (
-          <div key={key} className="form-group">
-            <label>NOMBRE *</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Laboratorio Chemo" autoFocus />
-          </div>
-        )
-      case 'entity_type':
-        return (
-          <div key={key} className="form-group">
-            <label>TIPO</label>
-            <select value={entityTypeId} onChange={e => setEntityTypeId(e.target.value)}>
-              {entityTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </div>
-        )
-      case 'country':
-        return (
-          <div key={key} className="form-group">
-            <label>PAÍS DE ORIGEN</label>
-            <CountrySelector value={countryCode} onChange={setCountryCode} />
-          </div>
-        )
-      case 'website':
-        return (
-          <div key={key} className="form-group">
-            <label>SITIO WEB</label>
-            <input type="text" value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://..." />
-          </div>
-        )
-      case 'address':
-        return (
-          <div key={key} className="form-group">
-            <label>DIRECCIÓN</label>
-            <input type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder="Calle, número, ciudad..." />
-          </div>
-        )
-      case 'company_type':
-        return (
-          <div key={key} className="form-group form-group--wide">
-            <label>TIPO DE EMPRESA</label>
-            <textarea value={companyType} onChange={e => setCompanyType(e.target.value)} placeholder="Ej: Laboratorio multinacional, Distribuidor regional..." rows={2} />
-          </div>
-        )
-      default:
-        return null
+  function renderField(def) {
+    if (def.field_type === 'entity_type') {
+      return (
+        <div key={def.key} className="form-group">
+          <label>{def.label}{def.required ? ' *' : ''}</label>
+          <select value={values[def.key] || ''} onChange={e => setValue(def.key, e.target.value)}>
+            {entityTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+      )
     }
+    return (
+      <div key={def.key} className={`form-group ${isWideCustomField(def) ? 'form-group--wide' : ''}`}>
+        <label>{def.label}{def.required ? ' *' : ''}</label>
+        <CustomFieldInput def={def} value={values[def.key]} onChange={v => setValue(def.key, v)} />
+      </div>
+    )
   }
 
-  const orderedKeys = fieldOrder === null ? DEFAULT_ENTITY_FIELDS : computeFieldOrder('entity', fieldOrder, DEFAULT_ENTITY_FIELDS, customFieldDefs)
+  const orderedKeys = fieldOrder === null ? gridDefs.map(d => d.key) : computeFieldOrder('entity', fieldOrder, gridDefs)
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -243,63 +211,59 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
 
             <div className="entity-fields-grid">
               {orderedKeys.map(key => {
-                if (DEFAULT_ENTITY_FIELDS.includes(key)) return renderFixedField(key)
-                const def = customFieldDefs.find(d => d.key === key)
+                const def = gridDefs.find(d => d.key === key)
                 if (!def) return null
-                return (
-                  <div key={key} className={`form-group ${isWideCustomField(def) ? 'form-group--wide' : ''}`}>
-                    <label>{def.label}{def.required ? ' *' : ''}</label>
-                    <CustomFieldInput def={def} value={customFieldValues[def.key]} onChange={v => setCustomFieldValues(prev => ({ ...prev, [def.key]: v }))} />
-                  </div>
-                )
+                return renderField(def)
               })}
             </div>
           </div>
 
-          <div className="entity-form-section">
-            <div className="entity-section-header">
-              <h3 className="entity-section-title">Contactos</h3>
-              <button type="button" className="btn-add-contact" onClick={addContact}>+ Agregar contacto</button>
-            </div>
-
-            {contacts.map((contact, index) => (
-              <div key={contact.tempId} className="contact-block">
-                <div className="contact-block-header">
-                  <span className="contact-block-label">{index === 0 ? 'Contacto principal' : `Contacto ${index + 1}`}</span>
-                  {contacts.length > 1 && (
-                    <button type="button" className="btn-remove-contact" onClick={() => removeContact(contact.tempId)}>✕</button>
-                  )}
-                </div>
-
-                <div className="entity-fields-grid">
-                  <div className="form-group">
-                    <label>NOMBRE Y APELLIDO</label>
-                    <input type="text" value={contact.name} onChange={e => updateContact(contact.tempId, 'name', e.target.value)} placeholder="Ej: Juan García" />
-                  </div>
-                  <div className="form-group">
-                    <label>CARGO / PUESTO</label>
-                    <input type="text" value={contact.role} onChange={e => updateContact(contact.tempId, 'role', e.target.value)} placeholder="Ej: Director Comercial" />
-                  </div>
-                  <div className="form-group">
-                    <label>✉ EMAIL</label>
-                    <input type="email" value={contact.email} onChange={e => updateContact(contact.tempId, 'email', e.target.value)} placeholder="juan@empresa.com" />
-                  </div>
-                  <div className="form-group">
-                    <label>📞 TELÉFONO</label>
-                    <input type="text" value={contact.phone} onChange={e => updateContact(contact.tempId, 'phone', e.target.value)} placeholder="+54 11 1234-5678" />
-                  </div>
-                  <div className="form-group">
-                    <label>💬 WHATSAPP (opcional)</label>
-                    <input type="text" value={contact.whatsapp || ''} onChange={e => updateContact(contact.tempId, 'whatsapp', e.target.value)} placeholder="+54 9 11 1234-5678" />
-                  </div>
-                  <div className="form-group form-group--wide">
-                    <label>NOTAS ADICIONALES</label>
-                    <textarea value={contact.notes} onChange={e => updateContact(contact.tempId, 'notes', e.target.value)} placeholder="Aclaraciones opcionales..." rows={2} />
-                  </div>
-                </div>
+          {contactsDef && (
+            <div className="entity-form-section">
+              <div className="entity-section-header">
+                <h3 className="entity-section-title">{contactsDef.label}</h3>
+                <button type="button" className="btn-add-contact" onClick={addContact}>+ Agregar contacto</button>
               </div>
-            ))}
-          </div>
+
+              {contacts.map((contact, index) => (
+                <div key={contact.tempId} className="contact-block">
+                  <div className="contact-block-header">
+                    <span className="contact-block-label">{index === 0 ? 'Contacto principal' : `Contacto ${index + 1}`}</span>
+                    {contacts.length > 1 && (
+                      <button type="button" className="btn-remove-contact" onClick={() => removeContact(contact.tempId)}>✕</button>
+                    )}
+                  </div>
+
+                  <div className="entity-fields-grid">
+                    <div className="form-group">
+                      <label>NOMBRE Y APELLIDO</label>
+                      <input type="text" value={contact.name} onChange={e => updateContact(contact.tempId, 'name', e.target.value)} placeholder="Ej: Juan García" />
+                    </div>
+                    <div className="form-group">
+                      <label>CARGO / PUESTO</label>
+                      <input type="text" value={contact.role} onChange={e => updateContact(contact.tempId, 'role', e.target.value)} placeholder="Ej: Director Comercial" />
+                    </div>
+                    <div className="form-group">
+                      <label>✉ EMAIL</label>
+                      <input type="email" value={contact.email} onChange={e => updateContact(contact.tempId, 'email', e.target.value)} placeholder="juan@empresa.com" />
+                    </div>
+                    <div className="form-group">
+                      <label>📞 TELÉFONO</label>
+                      <input type="text" value={contact.phone} onChange={e => updateContact(contact.tempId, 'phone', e.target.value)} placeholder="+54 11 1234-5678" />
+                    </div>
+                    <div className="form-group">
+                      <label>💬 WHATSAPP (opcional)</label>
+                      <input type="text" value={contact.whatsapp || ''} onChange={e => updateContact(contact.tempId, 'whatsapp', e.target.value)} placeholder="+54 9 11 1234-5678" />
+                    </div>
+                    <div className="form-group form-group--wide">
+                      <label>NOTAS ADICIONALES</label>
+                      <textarea value={contact.notes} onChange={e => updateContact(contact.tempId, 'notes', e.target.value)} placeholder="Aclaraciones opcionales..." rows={2} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {error && <p className="form-error">{error}</p>}
 

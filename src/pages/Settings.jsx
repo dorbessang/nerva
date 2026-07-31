@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import { notifyRoleChanged } from '../lib/notifications'
-import { computeFieldOrder, DEFAULT_ENTITY_FIELDS, ENTITY_FIELD_LABELS, DEFAULT_NEGOTIATION_FIELDS, NEGOTIATION_FIELD_LABELS } from '../lib/customFields'
+import { computeFieldOrder } from '../lib/customFields'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 
@@ -766,8 +766,15 @@ const FIELD_TYPES = [
   { key: 'tracked', label: 'Campo con seguimiento' },
 ]
 
+// Tipos especiales (solo sembrados por SQL, nunca elegibles acá) — con
+// label propio para que el listado de Settings no muestre la key cruda.
+const SPECIAL_FIELD_TYPE_LABELS = {
+  entity_type: 'Tipo de entidad', status: 'Estado del proyecto',
+  entities_link: 'Entidades vinculadas', financial: 'Financiero', contacts: 'Contactos',
+}
+
 function fieldTypeLabel(key) {
-  return FIELD_TYPES.find(t => t.key === key)?.label || key
+  return FIELD_TYPES.find(t => t.key === key)?.label || SPECIAL_FIELD_TYPE_LABELS[key] || key
 }
 
 function genFieldKey() {
@@ -849,11 +856,14 @@ function TabCamposPersonalizados({ workspaceId }) {
     setFieldOrder(data?.field_order || {})
   }
 
-  const fixedKeys = objectType === 'negotiation' ? DEFAULT_NEGOTIATION_FIELDS : DEFAULT_ENTITY_FIELDS
-  const fixedLabels = objectType === 'negotiation' ? NEGOTIATION_FIELD_LABELS : ENTITY_FIELD_LABELS
+  // "Contactos" (Entidades) queda fijo al final de la lista, no se
+  // arrastra a mitad de camino — mismo motivo que en el formulario de
+  // alta: es un sub-formulario repetible, no un valor simple.
+  const orderableFields = fields.filter(f => f.field_type !== 'contacts')
+  const pinnedField = fields.find(f => f.field_type === 'contacts')
   const orderedKeys = fieldOrder === null
-    ? [...fixedKeys, ...fields.map(f => f.key)]
-    : computeFieldOrder(objectType, fieldOrder, fixedKeys, fields)
+    ? orderableFields.map(f => f.key)
+    : computeFieldOrder(objectType, fieldOrder, orderableFields)
 
   async function persistOrder(newOrderedKeys) {
     const updated = { ...(fieldOrder || {}), [objectType]: newOrderedKeys }
@@ -945,6 +955,123 @@ function TabCamposPersonalizados({ workspaceId }) {
     fetchFields()
   }
 
+  function renderFieldRow(f, idx, draggable) {
+    const isEditing = editing?.id === f.id
+    const hasChoices = f.field_type === 'select' || f.field_type === 'multiselect'
+    const dragProps = draggable ? {
+      draggable: true,
+      onDragStart: e => handleDragStart(e, idx),
+      onDragOver: e => handleDragOver(e, idx),
+      onDrop: () => handleDrop(idx),
+      onDragEnd: () => { setDragSrc(null); setDragOver(null) },
+    } : {}
+    return (
+      <div
+        key={f.key}
+        className={`settings-row cf-reorder-row ${draggable ? '' : 'cf-reorder-row--pinned'} ${dragOver === idx ? 'drag-over' : ''}`}
+        style={{ flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }}
+        {...dragProps}
+      >
+        {draggable && <span className="col-drag-handle">⠿</span>}
+        {isEditing ? (
+          <>
+            <div className="settings-row-info" style={{ flex: 1, flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+              <input
+                className="state-name-input"
+                value={editing.label}
+                onChange={e => setEditing(ed => ({ ...ed, label: e.target.value }))}
+                autoFocus
+              />
+              {hasChoices && (
+                <ChoicesEditor
+                  choices={editing.options.choices || []}
+                  onChange={choices => setEditing(ed => ({ ...ed, options: { ...ed.options, choices } }))}
+                />
+              )}
+              {f.field_type === 'country' && (
+                <div className="cf-tracked-row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={!!editing.options.show_flag}
+                      onChange={e => setEditing(ed => ({ ...ed, options: { ...ed.options, show_flag: e.target.checked } }))}
+                    /> Mostrar banderita
+                  </label>
+                </div>
+              )}
+              {f.field_type === 'tracked' && (
+                <>
+                  {editing.options.underlying_type === 'select' && (
+                    <ChoicesEditor
+                      choices={editing.options.choices || []}
+                      onChange={choices => setEditing(ed => ({ ...ed, options: { ...ed.options, choices } }))}
+                    />
+                  )}
+                  <div className="cf-tracked-row">
+                    <label>Avisar con</label>
+                    <input
+                      type="number" min="1" className="state-name-input" style={{ maxWidth: 80 }}
+                      value={editing.options.alert_days}
+                      onChange={e => setEditing(ed => ({ ...ed, options: { ...ed.options, alert_days: e.target.value } }))}
+                    />
+                    <span>días de {editing.options.trigger_mode === 'deadline' ? 'anticipación' : 'inactividad'}</span>
+                  </div>
+                </>
+              )}
+              {f.field_type !== 'contacts' && (
+                <div className="cf-tracked-row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={f.is_structural ? true : !!editing.required}
+                      disabled={f.is_structural}
+                      onChange={e => setEditing(ed => ({ ...ed, required: e.target.checked }))}
+                    /> Obligatorio
+                  </label>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="settings-btn-primary" onClick={handleSaveEdit}>Guardar</button>
+              <button className="settings-btn-secondary" onClick={() => setEditing(null)}>Cancelar</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="settings-row-info">
+              <div>
+                <div className="settings-row-name">{f.label}{f.required && ' *'}</div>
+                <div className="settings-row-email">
+                  {fieldTypeLabel(f.field_type)}
+                  {f.is_structural && ' · campo base'}
+                  {f.field_type === 'tracked' && ` · ${f.options.trigger_mode === 'deadline' ? 'fecha límite' : 'inactividad'}, ${f.options.alert_days} días`}
+                  {f.field_type === 'country' && f.options.multiple && ' · varios países'}
+                  {f.required && ' · obligatorio'}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="settings-btn-secondary" onClick={() => setEditing({ id: f.id, label: f.label, options: f.options, required: f.required })}>
+                Editar
+              </button>
+              {!f.is_structural && (
+                confirmDelete === f.id ? (
+                  <div className="delete-confirm-inline">
+                    <span>¿Seguro?</span>
+                    <button className="settings-btn-danger" onClick={() => handleDelete(f.id)}>Sí</button>
+                    <button className="settings-btn-secondary" onClick={() => setConfirmDelete(null)}>No</button>
+                  </div>
+                ) : (
+                  <button className="settings-btn-danger" onClick={() => setConfirmDelete(f.id)}>Eliminar</button>
+                )
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="settings-section">
       <div className="settings-block">
@@ -973,123 +1100,13 @@ function TabCamposPersonalizados({ workspaceId }) {
 
         {loading ? <div className="settings-loading">Cargando...</div> : (
           <div className="settings-table">
-            <p className="settings-hint" style={{ marginBottom: 6 }}>Arrastrá para reordenar cómo se ven en el formulario de alta — incluye los campos fijos.</p>
+            <p className="settings-hint" style={{ marginBottom: 6 }}>Arrastrá para reordenar cómo se ven en el formulario de alta.</p>
             {orderedKeys.map((key, idx) => {
-              const isBuiltin = fixedKeys.includes(key)
-              const f = isBuiltin ? null : fields.find(x => x.key === key)
-              if (!isBuiltin && !f) return null
-              const isEditing = !isBuiltin && editing?.id === f.id
-              return (
-                <div
-                  key={key}
-                  className={`settings-row cf-reorder-row ${dragOver === idx ? 'drag-over' : ''}`}
-                  style={{ flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }}
-                  draggable
-                  onDragStart={e => handleDragStart(e, idx)}
-                  onDragOver={e => handleDragOver(e, idx)}
-                  onDrop={() => handleDrop(idx)}
-                  onDragEnd={() => { setDragSrc(null); setDragOver(null) }}
-                >
-                  <span className="col-drag-handle">⠿</span>
-                  {isBuiltin ? (
-                    <div className="settings-row-info">
-                      <div>
-                        <div className="settings-row-name">{fixedLabels[key]}</div>
-                        <div className="settings-row-email">Campo fijo</div>
-                      </div>
-                    </div>
-                  ) : isEditing ? (
-                    <>
-                      <div className="settings-row-info" style={{ flex: 1, flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-                        <input
-                          className="state-name-input"
-                          value={editing.label}
-                          onChange={e => setEditing(ed => ({ ...ed, label: e.target.value }))}
-                          autoFocus
-                        />
-                        {(f.field_type === 'select' || f.field_type === 'multiselect') && (
-                          <ChoicesEditor
-                            choices={editing.options.choices || []}
-                            onChange={choices => setEditing(ed => ({ ...ed, options: { ...ed.options, choices } }))}
-                          />
-                        )}
-                        {f.field_type === 'country' && (
-                          <div className="cf-tracked-row">
-                            <label>
-                              <input
-                                type="checkbox"
-                                checked={!!editing.options.show_flag}
-                                onChange={e => setEditing(ed => ({ ...ed, options: { ...ed.options, show_flag: e.target.checked } }))}
-                              /> Mostrar banderita
-                            </label>
-                          </div>
-                        )}
-                        {f.field_type === 'tracked' && (
-                          <>
-                            {editing.options.underlying_type === 'select' && (
-                              <ChoicesEditor
-                                choices={editing.options.choices || []}
-                                onChange={choices => setEditing(ed => ({ ...ed, options: { ...ed.options, choices } }))}
-                              />
-                            )}
-                            <div className="cf-tracked-row">
-                              <label>Avisar con</label>
-                              <input
-                                type="number" min="1" className="state-name-input" style={{ maxWidth: 80 }}
-                                value={editing.options.alert_days}
-                                onChange={e => setEditing(ed => ({ ...ed, options: { ...ed.options, alert_days: e.target.value } }))}
-                              />
-                              <span>días de {editing.options.trigger_mode === 'deadline' ? 'anticipación' : 'inactividad'}</span>
-                            </div>
-                          </>
-                        )}
-                        <div className="cf-tracked-row">
-                          <label>
-                            <input
-                              type="checkbox"
-                              checked={!!editing.required}
-                              onChange={e => setEditing(ed => ({ ...ed, required: e.target.checked }))}
-                            /> Obligatorio
-                          </label>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="settings-btn-primary" onClick={handleSaveEdit}>Guardar</button>
-                        <button className="settings-btn-secondary" onClick={() => setEditing(null)}>Cancelar</button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="settings-row-info">
-                        <div>
-                          <div className="settings-row-name">{f.label}{f.required && ' *'}</div>
-                          <div className="settings-row-email">
-                            {fieldTypeLabel(f.field_type)}
-                            {f.field_type === 'tracked' && ` · ${f.options.trigger_mode === 'deadline' ? 'fecha límite' : 'inactividad'}, ${f.options.alert_days} días`}
-                            {f.field_type === 'country' && f.options.multiple && ' · varios países'}
-                            {f.required && ' · obligatorio'}
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="settings-btn-secondary" onClick={() => setEditing({ id: f.id, label: f.label, options: f.options, required: f.required })}>
-                          Editar
-                        </button>
-                        {confirmDelete === f.id ? (
-                          <div className="delete-confirm-inline">
-                            <span>¿Seguro?</span>
-                            <button className="settings-btn-danger" onClick={() => handleDelete(f.id)}>Sí</button>
-                            <button className="settings-btn-secondary" onClick={() => setConfirmDelete(null)}>No</button>
-                          </div>
-                        ) : (
-                          <button className="settings-btn-danger" onClick={() => setConfirmDelete(f.id)}>Eliminar</button>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )
+              const f = orderableFields.find(x => x.key === key)
+              if (!f) return null
+              return renderFieldRow(f, idx, true)
             })}
+            {pinnedField && renderFieldRow(pinnedField, null, false)}
           </div>
         )}
 

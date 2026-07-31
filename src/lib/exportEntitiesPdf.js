@@ -139,8 +139,6 @@ function drawEntityPage(doc, entity, { index, customStates, negotiations, pendin
   const body = negotiations.map(n => [
     n.product || n.title || 'Sin nombre',
     n.status || '—',
-    n.nda || '—',
-    (n.territories || []).join(', ') || '—',
     pendingByNeg[n.id] ? String(pendingByNeg[n.id]) : '—',
   ])
 
@@ -150,13 +148,11 @@ function drawEntityPage(doc, entity, { index, customStates, negotiations, pendin
     theme: 'plain',
     styles: { fontSize: 9, cellPadding: 3, valign: 'top', textColor: INK },
     headStyles: { fontStyle: 'bold', textColor: NAVY, fillColor: GRAY_BG },
-    head: [['Producto', 'Estado', 'NDA', 'Territorios', 'Pend.']],
+    head: [['Producto', 'Estado', 'Pend.']],
     columnStyles: {
       0: { cellWidth: 'auto' },
       1: { cellWidth: 38 },
-      2: { cellWidth: 30 },
-      3: { cellWidth: 'auto' },
-      4: { cellWidth: 16, halign: 'center' },
+      2: { cellWidth: 16, halign: 'center' },
     },
     body,
     didParseCell: (data) => {
@@ -182,7 +178,7 @@ export async function exportAllEntitiesPdf({ workspaceId, customStates, workspac
 
   const negIds = [...new Set((negEntities || []).map(ne => ne.negotiation_id))]
   const { data: negsData } = negIds.length > 0
-    ? await supabase.from('negotiations').select('id, product, title, status, nda, territories, currency').in('id', negIds)
+    ? await supabase.from('negotiations').select('id, product, title, status, currency').in('id', negIds)
     : { data: [] }
 
   const negIndex = {}

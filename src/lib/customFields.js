@@ -8,23 +8,24 @@
 
 import { getCountryName } from '../components/CountrySelector'
 
-// Keys de los campos fijos (no custom) de cada objeto, en su orden por
-// defecto — usadas como base para computeFieldOrder y para el listado
-// unificado (fijos + custom) que se ve y reordena desde Settings.
-export const DEFAULT_ENTITY_FIELDS = ['name', 'entity_type', 'country', 'website', 'address', 'company_type']
-export const ENTITY_FIELD_LABELS = { name: 'Nombre', entity_type: 'Tipo', country: 'País de origen', website: 'Sitio web', address: 'Dirección', company_type: 'Tipo de empresa' }
-
-export const DEFAULT_NEGOTIATION_FIELDS = ['product', 'description', 'entities', 'status', 'target_date', 'nda', 'currency', 'participants', 'companies', 'territories']
-export const NEGOTIATION_FIELD_LABELS = { product: 'Producto / Línea', description: 'Descripción', entities: 'Entidades vinculadas', status: 'Estado', target_date: 'Fecha objetivo', nda: 'NDA', currency: 'Moneda', participants: 'Participantes', companies: 'Empresas interesadas', territories: 'Territorios' }
+// Field types "especiales": no son de guardado genérico en el jsonb
+// (`storage_column` apunta a una columna real, o a otra tabla/relación) y
+// tienen su propio widget bespoke — nunca aparecen en el desplegable
+// "+ Agregar campo" de Settings, solo se siembran por SQL.
+export const SPECIAL_FIELD_TYPES = ['entity_type', 'status', 'entities_link', 'financial', 'contacts']
 
 function countryFlagEmoji(code) {
   if (!code || code.length !== 2) return ''
   return String.fromCodePoint(...code.toUpperCase().split('').map(c => 127397 + c.charCodeAt(0)))
 }
 
-function resolveMemberName(members, userId) {
+export function resolveMemberName(members, userId) {
   const m = members?.find(m => (m.user_id || m.id) === userId)
   return m?.profile?.full_name || m?.full_name || ''
+}
+
+export function resolveMemberNames(members, userIds) {
+  return (userIds || []).map(id => resolveMemberName(members, id)).filter(Boolean)
 }
 
 function valuesEqual(a, b) {
@@ -82,17 +83,24 @@ export function renderCustomFieldDisplay(def, rawValue, members) {
     if (!codes.length) return '—'
     return codes.map(code => (showFlag ? countryFlagEmoji(code) + ' ' : '') + getCountryName(code)).join(', ')
   }
-  if (underlyingType === 'user') return resolveMemberName(members, rawValue) || '—'
+  if (underlyingType === 'user') {
+    if (def.options?.multiple) {
+      const names = resolveMemberNames(members, Array.isArray(rawValue) ? rawValue : [])
+      return names.length ? names.join(', ') : '—'
+    }
+    return resolveMemberName(members, rawValue) || '—'
+  }
   return String(rawValue)
 }
 
-// Orden final de un formulario (campos fijos + campos custom mezclados) —
-// mergea el orden guardado por el workspace con la lista real de keys
-// existentes: descarta keys de campos borrados y agrega al final las keys
-// nuevas que el orden guardado todavía no conoce. Si no hay orden guardado
-// devuelve el orden por defecto tal cual (fijos primero, custom después).
-export function computeFieldOrder(objectType, fieldOrder, defaultFixedKeys, customDefs) {
-  const allKeys = [...defaultFixedKeys, ...(customDefs || []).map(d => d.key)]
+// Orden final de un formulario — mergea el orden guardado por el workspace
+// con la lista real de keys existentes (todas viven en
+// custom_field_definitions, no hay más "campos fijos" separados): descarta
+// keys de campos borrados y agrega al final las keys nuevas que el orden
+// guardado todavía no conoce. Sin orden guardado, devuelve customDefs tal
+// cual vienen ordenados (por sort_order).
+export function computeFieldOrder(objectType, fieldOrder, customDefs) {
+  const allKeys = (customDefs || []).map(d => d.key)
   const saved = fieldOrder?.[objectType]
   if (!saved || saved.length === 0) return allKeys
   const savedValid = saved.filter(k => allKeys.includes(k))
@@ -110,8 +118,10 @@ export function getMissingRequiredFields(defs, values) {
 }
 
 // Campos que conviene ocupen el ancho completo de la grilla de 2 columnas
-// (texto largo, selección múltiple, país múltiple) en vez de una celda.
+// (texto largo, selección múltiple, país o usuario múltiple, y los
+// especiales compuestos) en vez de una celda.
 export function isWideCustomField(def) {
   const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
-  return type === 'textarea' || type === 'multiselect' || (type === 'country' && def.options?.multiple)
+  if (SPECIAL_FIELD_TYPES.includes(def.field_type)) return true
+  return type === 'textarea' || type === 'multiselect' || ((type === 'country' || type === 'user') && def.options?.multiple)
 }

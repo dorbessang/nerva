@@ -163,6 +163,7 @@
 
 .cf-reorder-row:active { cursor: grabbing; }
 .cf-reorder-row.drag-over { border-color: #0B1F3A; background: #EFF6FF; }
+.cf-reorder-row--pinned { cursor: default; }
 
 .settings-inactive-badge {
   font-size: 10px;

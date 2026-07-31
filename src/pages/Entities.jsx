@@ -14,7 +14,7 @@ import { notifyTaskAssigned } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { formatAmount } from '../components/DealMilestones'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
-import { computeFieldOrder, DEFAULT_ENTITY_FIELDS } from '../lib/customFields'
+import { computeFieldOrder, getCustomFieldValue } from '../lib/customFields'
 import './Entities.css'
 
 const AVATAR_COLORS = [
@@ -134,7 +134,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     if (negIds.length > 0) {
       const { data } = await supabase
         .from('negotiations')
-        .select('id, product, title, status, nda, target_date, last_activity_at, activity_status, workspace_id')
+        .select('id, product, title, status, target_date, last_activity_at, activity_status, workspace_id')
         .in('id', negIds)
         .order('last_activity_at', { ascending: false })
       negsData = data || []
@@ -600,38 +600,15 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
           <div className="entity-detail-col entity-detail-col--left">
             <div className="detail-section">
               <div className="detail-section-title">Información</div>
-              {(fieldOrder === null ? DEFAULT_ENTITY_FIELDS : computeFieldOrder('entity', fieldOrder, DEFAULT_ENTITY_FIELDS, entityFieldDefs)).map(key => {
-                if (key === 'name' || key === 'entity_type') return null
-                if (key === 'website') return entity.website && (
-                  <div key={key} className="entity-info-row">
-                    <span className="entity-info-label">Sitio web</span>
-                    <a href={entity.website} target="_blank" rel="noreferrer" className="detail-link">{entity.website}</a>
-                  </div>
-                )
-                if (key === 'country') return entity.country_code && (
-                  <div key={key} className="entity-info-row">
-                    <span className="entity-info-label">País</span>
-                    <span className="entity-info-val">{getCountryName(entity.country_code)}</span>
-                  </div>
-                )
-                if (key === 'address') return entity.address && (
-                  <div key={key} className="entity-info-row">
-                    <span className="entity-info-label">Dirección</span>
-                    <span className="entity-info-val">{entity.address}</span>
-                  </div>
-                )
-                if (key === 'company_type') return entity.custom_fields?.company_type && (
-                  <div key={key} className="entity-info-row">
-                    <span className="entity-info-label">Tipo</span>
-                    <span className="entity-info-val">{entity.custom_fields.company_type}</span>
-                  </div>
-                )
+              {(fieldOrder === null ? entityFieldDefs.map(d => d.key) : computeFieldOrder('entity', fieldOrder, entityFieldDefs)).map(key => {
                 const def = entityFieldDefs.find(d => d.key === key)
-                if (!def) return null
+                if (!def || def.field_type === 'entity_type' || def.field_type === 'contacts') return null
+                const value = def.storage_column ? entity[def.storage_column] : getCustomFieldValue(entity.custom_fields, def.key)
+                if (value === undefined || value === null || value === '') return null
                 return (
                   <div key={key} className="entity-info-row">
                     <span className="entity-info-label">{def.label}</span>
-                    <span className="entity-info-val"><CustomFieldReadOnly def={def} cf={entity.custom_fields} members={members} /></span>
+                    <span className="entity-info-val"><CustomFieldReadOnly def={def} value={value} members={members} /></span>
                   </div>
                 )
               })}
@@ -851,9 +828,6 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
                                     )}
                                   </div>
                                   <div className="entity-neg-right">
-                                    {neg.nda && neg.nda !== '—' && neg.nda !== 'No' && (
-                                      <span className="entity-neg-nda">NDA ✓</span>
-                                    )}
                                     <span className="entity-neg-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>
                                       {neg.status}
                                     </span>
@@ -972,10 +946,6 @@ function EntityScorecard({ entity, negs, counts, getStateConfig, scorecard, enti
   const inactiveCount = negs.filter(n => n.activity_status === 'inactive').length
   const pausedCount = negs.filter(n => n.activity_status === 'paused').length
 
-  const ndaCounts = {}
-  negs.forEach(n => { const k = n.nda || '—'; ndaCounts[k] = (ndaCounts[k] || 0) + 1 })
-  const ndaStr = Object.entries(ndaCounts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${k}`).join('   ·   ')
-
   if (negs.length === 0) {
     return <p className="detail-empty">Sin proyectos todavía — el resumen aparece cuando haya al menos uno.</p>
   }
@@ -1053,12 +1023,6 @@ function EntityScorecard({ entity, negs, counts, getStateConfig, scorecard, enti
         )}
       </div>
 
-      {ndaStr && (
-        <div className="detail-section" style={{ marginTop: 18 }}>
-          <div className="detail-section-title">NDA</div>
-          <div className="entity-info-val">{ndaStr}</div>
-        </div>
-      )}
     </div>
   )
 }

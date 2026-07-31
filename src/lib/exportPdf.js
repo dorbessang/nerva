@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable'
 import { supabase } from './supabase'
 import { getCountryName } from '../components/CountrySelector'
 import { formatAmount } from '../components/DealMilestones'
+import { resolveMemberNames } from './customFields'
 import {
   NAVY, ACCENT, GRAY_BG, GRAY_TEXT, BORDER, INK, PAGE_W,
   setText, setFill, formatDatePdf, stateColorRgb, drawPill,
@@ -63,18 +64,10 @@ function drawSummary(doc, { negotiations, customStates, tasksByNeg, pipeline, ge
   y += 8
 
   const counts = customStates.map(s => ({ ...s, count: negotiations.filter(n => n.status === s.name).length }))
-  y = drawStateBarChart(doc, counts, y) + 10
-
-  const ndaCounts = {}
-  negotiations.forEach(n => { const k = n.nda || '—'; ndaCounts[k] = (ndaCounts[k] || 0) + 1 })
-  const ndaStr = Object.entries(ndaCounts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${k}`).join('   ·   ')
-  setText(doc, GRAY_TEXT)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.text(`NDA:   ${ndaStr}`, MARGIN, y)
+  drawStateBarChart(doc, counts, y)
 }
 
-function drawProjectPage(doc, neg, { index, customStates, getPrimaryEntity, tasks }) {
+function drawProjectPage(doc, neg, { index, customStates, getPrimaryEntity, tasks, members }) {
   const cfg = customStates.find(s => s.name === neg.status)
   const stateRgb = cfg?.color ? stateColorRgb(cfg.color) : NAVY
   const stateBgRgb = cfg?.bg_color ? stateColorRgb(cfg.bg_color) : GRAY_BG
@@ -97,15 +90,14 @@ function drawProjectPage(doc, neg, { index, customStates, getPrimaryEntity, task
   let px = MARGIN
   const pillY = 34
   px = drawPill(doc, px, pillY, neg.status || '—', stateRgb, stateBgRgb) + 4
-  px = drawPill(doc, px, pillY, `NDA: ${neg.nda || '—'}`, GRAY_TEXT, GRAY_BG) + 4
   if (neg.target_date) {
     drawPill(doc, px, pillY, `Fecha: ${formatDatePdf(neg.target_date)}`, GRAY_TEXT, GRAY_BG)
   }
 
   const rows = []
   rows.push(['Proveedor', providerLine])
-  if (neg.territories?.length) rows.push(['Territorios', neg.territories.join(', ')])
-  if (neg.participants?.length) rows.push(['Participantes', neg.participants.join(', ')])
+  const participantNames = resolveMemberNames(members, neg.participants)
+  if (participantNames.length) rows.push(['Participantes', participantNames.join(', ')])
   if (neg.companies?.length) rows.push(['Empresas', neg.companies.join(', ')])
   if (neg.description) rows.push(['Descripción', neg.description])
   if (neg.notes_list?.length) {
@@ -136,7 +128,7 @@ function drawProjectPage(doc, neg, { index, customStates, getPrimaryEntity, task
   })
 }
 
-export async function exportNegotiationsPdf({ negotiations, customStates, getPrimaryEntity, getEntityName, pipeline, workspaceName }) {
+export async function exportNegotiationsPdf({ negotiations, customStates, getPrimaryEntity, getEntityName, pipeline, workspaceName, members }) {
   const negIds = negotiations.map(n => n.id)
   const tasksByNeg = await fetchTasksByNegotiation(negIds)
 
@@ -166,6 +158,7 @@ export async function exportNegotiationsPdf({ negotiations, customStates, getPri
       customStates,
       getPrimaryEntity,
       tasks: tasksByNeg[neg.id] || [],
+      members,
     })
   })
 

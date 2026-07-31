@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import CountrySelector, { getAllCountries, getCountryName } from './CountrySelector'
-import { renderCustomFieldDisplay, getCustomFieldValue } from '../lib/customFields'
+import { renderCustomFieldDisplay } from '../lib/customFields'
 
 function CountryMultiSelect({ value, onChange }) {
   const [query, setQuery] = useState('')
@@ -64,10 +64,9 @@ function CountryMultiSelect({ value, onChange }) {
   )
 }
 
-function UserFieldSelect({ value, onChange }) {
+function useWorkspaceMembers() {
   const { workspaceId } = useAuth()
   const [members, setMembers] = useState([])
-
   useEffect(() => {
     if (!workspaceId) return
     supabase
@@ -77,7 +76,68 @@ function UserFieldSelect({ value, onChange }) {
       .eq('status', 'active')
       .then(({ data }) => setMembers(data || []))
   }, [workspaceId])
+  return members
+}
 
+function UserMultiSelect({ value, onChange }) {
+  const members = useWorkspaceMembers()
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const selected = Array.isArray(value) ? value : []
+  const name = m => m.profile?.full_name || 'Usuario'
+  const filtered = members
+    .filter(m => !selected.includes(m.user_id))
+    .filter(m => name(m).toLowerCase().includes(query.toLowerCase()))
+    .slice(0, 8)
+
+  function add(userId) {
+    if (!selected.includes(userId)) onChange([...selected, userId])
+    setQuery('')
+    setOpen(false)
+  }
+  function remove(userId) {
+    onChange(selected.filter(id => id !== userId))
+  }
+
+  return (
+    <div className="cf-country-multi">
+      {selected.length > 0 && (
+        <div className="cf-country-chips">
+          {selected.map(userId => (
+            <span key={userId} className="neg-chip neg-chip-blue">
+              {members.find(m => m.user_id === userId)?.profile?.full_name || 'Usuario'}
+              <button type="button" className="cf-chip-remove" onClick={() => remove(userId)}>✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="cf-country-combobox">
+        <input
+          type="text"
+          placeholder="Buscar y agregar participante..."
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+        />
+        {open && filtered.length > 0 && (
+          <div className="country-dropdown">
+            <div className="country-list">
+              {filtered.map(m => (
+                <div key={m.user_id} className="country-option" onMouseDown={e => { e.preventDefault(); add(m.user_id) }}>
+                  <span>{name(m)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function UserFieldSelect({ value, onChange }) {
+  const members = useWorkspaceMembers()
   return (
     <select className="neg-select" value={value || ''} onChange={e => onChange(e.target.value || null)}>
       <option value="">—</option>
@@ -131,6 +191,7 @@ export function CustomFieldInput({ def, value, onChange }) {
     return <CountrySelector value={value || ''} onChange={onChange} />
   }
   if (type === 'user') {
+    if (def.options?.multiple) return <UserMultiSelect value={value} onChange={onChange} />
     return <UserFieldSelect value={value} onChange={onChange} />
   }
   if (type === 'link') {
@@ -148,8 +209,7 @@ export function CustomFieldInput({ def, value, onChange }) {
 // Render de solo lectura de un campo custom (detalle de proyecto/entidad) —
 // mismo texto que renderCustomFieldDisplay, pero link/email/teléfono salen
 // clickeables (mismo patrón que ya usan los Contactos de una entidad).
-export function CustomFieldReadOnly({ def, cf, members }) {
-  const rawValue = getCustomFieldValue(cf, def.key)
+export function CustomFieldReadOnly({ def, value: rawValue, members }) {
   const text = renderCustomFieldDisplay(def, rawValue, members)
   if (text === '—') return <>{text}</>
   if (def.field_type === 'link') return <a href={rawValue} target="_blank" rel="noreferrer">{rawValue}</a>
