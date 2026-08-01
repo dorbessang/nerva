@@ -233,6 +233,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           entityTypeSingular={entityTypeSingular}
           entityTypeName={entityTypeName}
           workspaceId={workspaceId}
+          entityFieldDefs={entityFieldDefs}
           onClose={() => setShowImportModal(false)}
           onImported={fetchEntities}
         />

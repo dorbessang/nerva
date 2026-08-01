@@ -4,6 +4,14 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-31 (8)
+
+### Feature: import de Entidades data-driven, alineado con la nueva estructura de campos
+- El template de import (`ImportEntitiesModal`) seguía con 4 columnas hardcodeadas (Nombre/País/Sitio web/Tipo de empresa) — no reflejaba los campos reales del workspace (Dirección faltaba, y cualquier campo custom nuevo que alguien agregue en Settings tampoco entraba). Reescrito para construir headers/parseo/guardado 100% a partir de `entityFieldDefs`, mismo criterio data-driven que ya rige el resto de la app desde la refactorización de esta sesión
+- Cada `field_type` tiene su propia lógica de parseo de celda: `select`/`multiselect` resuelven el texto contra las opciones configuradas (label o id, case-insensitive, con warning si no matchea), `country` (simple o múltiple, separado por comas) resuelve nombre o código vía `getCountryCode`, `date` reusa el mismo parser que ya usaba el import de Proyectos, `tracked` sigue el `underlying_type`. Al guardar, cada campo va a su columna real (`storage_column`) o al jsonb `custom_fields` correctamente envuelto en `{value, updated_at}`
+- Quedan fuera del import (documentado, no bug): `entity_type` (implícito en qué pestaña se importa), `contacts` (sub-formulario repetible, no una celda) y `user` (mapear texto libre contra miembros reales del workspace de forma confiable queda para cuando algún preset lo necesite — hoy ninguno lo usa)
+- Probado con Playwright: import con los 7 campos configurados (texto, país, link, texto, select, campo con seguimiento, país múltiple) — vista previa resuelve todos los valores a texto legible, y el insert final separa correctamente columnas reales vs jsonb
+
 ## 2026-07-31 (7)
 
 ### Fix: import de Entidades guardaba "Tipo de empresa" en formato incorrecto
