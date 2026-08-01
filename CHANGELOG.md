@@ -4,6 +4,12 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-31 (9)
+
+### Feature: import de Entidades — contacto principal
+- Se sumaron 4 columnas opcionales al import (`Contacto: Nombre/Cargo/Email/Teléfono`) — solo aparecen si el workspace tiene el preset Contactos activo. Importa un único contacto (el principal) por entidad; si hacen falta más, se agregan a mano después desde el detalle
+- Como `contacts` necesita el `entity_id` recién creado, el insert de entidades ahora pide `.select('id')` de vuelta y el insert de contactos sale en un segundo paso, emparejado por posición
+
 ## 2026-07-31 (8)
 
 ### Feature: import de Entidades data-driven, alineado con la nueva estructura de campos

@@ -86,7 +86,19 @@ function parseFieldValue(def, cell, cellRaw) {
   return { value: cell || null, warning: null }
 }
 
-function buildRows(raw, importFields) {
+// El contacto principal se ofrece como columnas planas aparte de los
+// custom_field_definitions — Contactos es un sub-formulario repetible, no
+// un campo con opciones, así que no encaja en el mismo mecanismo genérico
+// de arriba. Solo se importa uno (el principal); si hacen falta más, se
+// agregan a mano después.
+const CONTACT_FIELDS = [
+  { key: 'contact_name', label: 'Contacto: Nombre' },
+  { key: 'contact_role', label: 'Contacto: Cargo' },
+  { key: 'contact_email', label: 'Contacto: Email' },
+  { key: 'contact_phone', label: 'Contacto: Teléfono' },
+]
+
+function buildRows(raw, importFields, hasContacts) {
   const seen = new Set()
   return raw.map((r, idx) => {
     const values = {}
@@ -103,12 +115,25 @@ function buildRows(raw, importFields) {
     const nameDef = importFields.find(d => d.storage_column === 'name')
     const name = nameDef ? values[nameDef.key] : null
 
+    let contact = null
+    if (hasContacts) {
+      const contactName = getCell(r, 'contacto: nombre')
+      if (contactName) {
+        contact = {
+          name: contactName,
+          role: getCell(r, 'contacto: cargo') || null,
+          email: getCell(r, 'contacto: email') || null,
+          phone: getCell(r, 'contacto: teléfono') || getCell(r, 'contacto: telefono') || null,
+        }
+      }
+    }
+
     const errors = []
     if (!name) errors.push('Falta el nombre')
     if (name && seen.has(name.toLowerCase())) warnings.push('Nombre repetido en el archivo')
     if (name) seen.add(name.toLowerCase())
 
-    return { idx, values, name, errors, warnings }
+    return { idx, values, name, contact, errors, warnings }
   })
 }
 
@@ -119,7 +144,8 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
   const [importing, setImporting] = useState(false)
 
   const importFields = importFieldsOf(entityFieldDefs)
-  const headers = importFields.map(d => d.label)
+  const contactsDef = entityFieldDefs.find(d => d.field_type === 'contacts')
+  const headers = [...importFields.map(d => d.label), ...(contactsDef ? CONTACT_FIELDS.map(c => c.label) : [])]
 
   async function handleFile(e) {
     const file = e.target.files?.[0]
@@ -128,7 +154,7 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
     try {
       const raw = await parseSpreadsheet(file)
       if (raw.length === 0) { setFileError('El archivo no tiene filas.'); return }
-      setRows(buildRows(raw, importFields))
+      setRows(buildRows(raw, importFields, !!contactsDef))
       setStep('preview')
     } catch (err) {
       setFileError('No se pudo leer el archivo. ¿Es un .xlsx o .csv válido?')
@@ -141,7 +167,7 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
   async function handleImport() {
     setImporting(true)
     const now = new Date().toISOString()
-    await supabase.from('entities').insert(validRows.map(r => {
+    const { data: inserted } = await supabase.from('entities').insert(validRows.map(r => {
       const row = { workspace_id: workspaceId, entity_type_id: entityTypeId, status: 'active' }
       const customFields = {}
       for (const def of importFields) {
@@ -154,7 +180,16 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
       }
       row.custom_fields = customFields
       return row
-    }))
+    })).select('id')
+
+    if (inserted) {
+      const contactRows = validRows
+        .map((r, i) => r.contact ? { ...r.contact, entity_id: inserted[i]?.id } : null)
+        .filter(c => c?.entity_id)
+        .map(c => ({ workspace_id: workspaceId, entity_id: c.entity_id, name: c.name, role: c.role, email: c.email, phone: c.phone, is_primary: true }))
+      if (contactRows.length > 0) await supabase.from('contacts').insert(contactRows)
+    }
+
     setImporting(false)
     onImported()
     onClose()
@@ -179,6 +214,7 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
               </p>
               <div className="import-headers-list">
                 {importFields.map(d => <span key={d.key} className={`import-header-chip ${d.required ? 'required' : ''}`}>{d.label}{d.required && ' *'}</span>)}
+                {contactsDef && CONTACT_FIELDS.map(c => <span key={c.key} className="import-header-chip">{c.label}</span>)}
               </div>
               <button
                 className="import-template-btn"
@@ -206,6 +242,7 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
                     <tr>
                       <th>#</th>
                       {importFields.map(d => <th key={d.key}>{d.label}</th>)}
+                      {contactsDef && CONTACT_FIELDS.map(c => <th key={c.key}>{c.label}</th>)}
                       <th>Estado del import</th>
                     </tr>
                   </thead>
@@ -216,6 +253,14 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
                         {importFields.map(d => (
                           <td key={d.key}>{renderCustomFieldDisplay(d, r.values[d.key])}</td>
                         ))}
+                        {contactsDef && (
+                          <>
+                            <td>{r.contact?.name || '—'}</td>
+                            <td>{r.contact?.role || '—'}</td>
+                            <td>{r.contact?.email || '—'}</td>
+                            <td>{r.contact?.phone || '—'}</td>
+                          </>
+                        )}
                         <td>
                           {r.errors.length > 0
                             ? <span className="import-status import-status--error">✗ {r.errors.join(', ')}</span>
