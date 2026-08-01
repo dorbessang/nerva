@@ -58,7 +58,7 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
       name: r.name,
       country_code: r.countryCode || null,
       website: r.website || null,
-      custom_fields: { company_type: r.companyType || '' },
+      custom_fields: r.companyType ? { company_type: { value: r.companyType, updated_at: new Date().toISOString() } } : {},
       status: 'active',
     })))
     setImporting(false)

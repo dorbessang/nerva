@@ -4,6 +4,11 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-31 (7)
+
+### Fix: import de Entidades guardaba "Tipo de empresa" en formato incorrecto
+- `ImportEntitiesModal` escribía `custom_fields: { company_type: texto }` — un escalar suelto, no el formato `{ value, updated_at }` que usa el resto de la app para todo campo custom. El valor importado quedaba invisible (mismo síntoma que el bug del subtítulo de ayer, en la dirección opuesta: acá el dato se guardaba mal, no se leía mal). Corregido antes de que se probara el flujo de import
+
 ## 2026-07-31 (6)
 
 ### Fix: bandera superpuesta con el texto en CountrySelector
