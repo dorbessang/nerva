@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import { notifyRoleChanged } from '../lib/notifications'
-import { computeFieldOrder } from '../lib/customFields'
+import { computeFieldOrder, isFieldFilterable } from '../lib/customFields'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 
@@ -909,6 +909,7 @@ function TabCamposPersonalizados({ workspaceId }) {
   const [newCountryMultiple, setNewCountryMultiple] = useState(false)
   const [newCountryShowFlag, setNewCountryShowFlag] = useState(true)
   const [newRequired, setNewRequired] = useState(false)
+  const [newFilterable, setNewFilterable] = useState(false)
   const [fieldOrder, setFieldOrder] = useState(null)
   const [dragSrc, setDragSrc] = useState(null)
   const [dragOver, setDragOver] = useState(null)
@@ -972,6 +973,7 @@ function TabCamposPersonalizados({ workspaceId }) {
     setNewLabel(''); setNewType('text'); setNewChoices([])
     setNewUnderlyingType('select'); setNewTriggerMode('deadline'); setNewAlertDays(30)
     setNewCountryMultiple(false); setNewCountryShowFlag(true); setNewRequired(false)
+    setNewFilterable(false)
   }
 
   function buildOptions(type, underlyingType, choices, triggerMode, alertDays, countryMultiple, countryShowFlag) {
@@ -996,6 +998,7 @@ function TabCamposPersonalizados({ workspaceId }) {
       field_type: newType,
       options: buildOptions(newType, newUnderlyingType, newChoices, newTriggerMode, newAlertDays, newCountryMultiple, newCountryShowFlag),
       required: newRequired,
+      filterable: newFilterable,
       sort_order: fields.length,
     })
     resetForm()
@@ -1009,6 +1012,7 @@ function TabCamposPersonalizados({ workspaceId }) {
       label: editing.label.trim(),
       options: editing.options,
       required: editing.required,
+      filterable: editing.filterable,
     }).eq('id', editing.id)
     setEditing(null)
     fetchFields()
@@ -1095,6 +1099,17 @@ function TabCamposPersonalizados({ workspaceId }) {
                   </label>
                 </div>
               )}
+              {isFieldFilterable(f) && (
+                <div className="cf-tracked-row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={!!editing.filterable}
+                      onChange={e => setEditing(ed => ({ ...ed, filterable: e.target.checked }))}
+                    /> Mostrar como filtro
+                  </label>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <button className="settings-btn-primary" onClick={handleSaveEdit}>Guardar</button>
@@ -1112,11 +1127,12 @@ function TabCamposPersonalizados({ workspaceId }) {
                   {f.field_type === 'tracked' && ` · ${f.options.trigger_mode === 'deadline' ? 'fecha límite' : 'inactividad'}, ${f.options.alert_days} días`}
                   {f.field_type === 'country' && f.options.multiple && ' · varios países'}
                   {f.required && ' · obligatorio'}
+                  {f.filterable && ' · filtro'}
                 </div>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button className="settings-btn-secondary" onClick={() => setEditing({ id: f.id, label: f.label, options: f.options, required: f.required })}>
+              <button className="settings-btn-secondary" onClick={() => setEditing({ id: f.id, label: f.label, options: f.options, required: f.required, filterable: f.filterable })}>
                 Editar
               </button>
               {!f.is_structural && (
@@ -1235,6 +1251,12 @@ function TabCamposPersonalizados({ workspaceId }) {
           <div className="cf-tracked-row">
             <label><input type="checkbox" checked={newRequired} onChange={e => setNewRequired(e.target.checked)} /> Obligatorio</label>
           </div>
+
+          {isFieldFilterable({ field_type: newType, options: { underlying_type: newUnderlyingType } }) && (
+            <div className="cf-tracked-row">
+              <label><input type="checkbox" checked={newFilterable} onChange={e => setNewFilterable(e.target.checked)} /> Mostrar como filtro</label>
+            </div>
+          )}
 
           <button className="settings-btn-primary" style={{ alignSelf: 'flex-start' }} onClick={handleAdd} disabled={saving}>
             + Agregar campo

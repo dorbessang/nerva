@@ -12,8 +12,8 @@ import Documents from '../components/Documents'
 import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
-import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, SPECIAL_FIELD_TYPES } from '../lib/customFields'
-import { CustomFieldInput, CustomFieldReadOnly } from '../components/CustomFieldInput'
+import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, isFieldFilterable, matchesFieldFilter, SPECIAL_FIELD_TYPES } from '../lib/customFields'
+import { CustomFieldInput, CustomFieldReadOnly, CustomFieldFilter } from '../components/CustomFieldInput'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
@@ -129,7 +129,7 @@ export default function Negotiations() {
   const [customFieldDefs, setCustomFieldDefs] = useState([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 860) ? 'cards' : 'table')
-  const [filterStatus, setFilterStatus] = useState('')
+  const [customFilterValues, setCustomFilterValues] = useState({})
   const [filterEntity, setFilterEntity] = useState('')
   const [filterActivity, setFilterActivity] = useState('active')
   const [search, setSearch] = useState('')
@@ -265,8 +265,11 @@ export default function Negotiations() {
   const day90ago = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
   const day120ago = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString()
 
+  const filterableDefs = customFieldDefs.filter(isFieldFilterable)
+  const statusDef = customFieldDefs.find(d => d.field_type === 'status')
+
   const filtered = negotiations.filter(n => {
-    if (filterStatus && n.status !== filterStatus) return false
+    if (!filterableDefs.every(def => matchesFieldFilter(def, n, customFilterValues[def.key]))) return false
     if (filterEntity) {
       const ids = n.negotiation_entities?.map(ne => ne.entity?.id) || []
       if (!ids.includes(filterEntity)) return false
@@ -421,8 +424,8 @@ export default function Negotiations() {
         {stateCounts.map(s => (
           <div
             key={s.name}
-            className={`neg-stat-card ${filterStatus === s.name ? 'active' : ''}`}
-            onClick={() => setFilterStatus(filterStatus === s.name ? '' : s.name)}
+            className={`neg-stat-card ${statusDef && customFilterValues[statusDef.key] === s.name ? 'active' : ''}`}
+            onClick={() => statusDef && setCustomFilterValues(v => ({ ...v, [statusDef.key]: v[statusDef.key] === s.name ? '' : s.name }))}
             style={{ cursor: 'pointer' }}
           >
             <div className="neg-stat-label">{s.name}</div>
@@ -504,13 +507,18 @@ export default function Negotiations() {
             {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         </div>
-        <div className="filter-field">
-          <label className="filter-field-label">Estado</label>
-          <select className="neg-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-            <option value="">Todos los estados</option>
-            {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-          </select>
-        </div>
+        {filterableDefs.map(def => (
+          <div className="filter-field" key={def.key}>
+            <label className="filter-field-label">{def.label}</label>
+            <CustomFieldFilter
+              def={def}
+              value={customFilterValues[def.key]}
+              onChange={v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v }))}
+              customStates={customStates}
+              members={members}
+            />
+          </div>
+        ))}
         <div className="filter-field">
           <label className="filter-field-label">Actividad</label>
           <select className="neg-select" value={filterActivity} onChange={e => setFilterActivity(e.target.value)}>

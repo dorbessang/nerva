@@ -13,8 +13,8 @@ import Documents from '../components/Documents'
 import { notifyTaskAssigned } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { formatAmount } from '../components/DealMilestones'
-import { CustomFieldReadOnly } from '../components/CustomFieldInput'
-import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay } from '../lib/customFields'
+import { CustomFieldReadOnly, CustomFieldFilter } from '../components/CustomFieldInput'
+import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter } from '../lib/customFields'
 import './Entities.css'
 
 const AVATAR_COLORS = [
@@ -53,6 +53,8 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [bulkWorking, setBulkWorking] = useState(false)
+  const [members, setMembers] = useState([])
+  const [customFilterValues, setCustomFilterValues] = useState({})
 
   function toggleSelect(id) {
     setSelectedIds(prev => {
@@ -91,6 +93,13 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     fetchCustomFieldDefs()
     setSelectedIds(new Set())
   }, [entityTypeId])
+
+  useEffect(() => {
+    supabase.from('workspace_members')
+      .select('user_id, profile:user_id ( full_name )')
+      .eq('workspace_id', workspaceId)
+      .then(({ data }) => setMembers(data || []))
+  }, [workspaceId])
 
   async function fetchCustomFieldDefs() {
     const { data } = await supabase
@@ -172,8 +181,11 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     return counts
   }
 
+  const filterableEntityDefs = entityFieldDefs.filter(isFieldFilterable)
+
   const filtered = entities.filter(e =>
-    e.name.toLowerCase().includes(search.toLowerCase())
+    e.name.toLowerCase().includes(search.toLowerCase()) &&
+    filterableEntityDefs.every(def => matchesFieldFilter(def, e, customFilterValues[def.key]))
   )
 
   return (
@@ -193,6 +205,17 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
+        {filterableEntityDefs.map(def => (
+          <div className="filter-field" key={def.key}>
+            <label className="filter-field-label">{def.label}</label>
+            <CustomFieldFilter
+              def={def}
+              value={customFilterValues[def.key]}
+              onChange={v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v }))}
+              members={members}
+            />
+          </div>
+        ))}
         <div className="entities-view-toggle">
           <button className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')} title="Mosaico">
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

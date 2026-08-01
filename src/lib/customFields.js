@@ -6,7 +6,7 @@
 // (el cron de alertas solo necesita comparar esa fecha, sin bookkeeping
 // aparte por cada punto de guardado).
 
-import { getCountryName } from '../components/CountrySelector'
+import { getCountryName, getAllCountries } from '../components/CountrySelector'
 
 // Field types "especiales": no son de guardado genérico en el jsonb
 // (`storage_column` apunta a una columna real, o a otra tabla/relación) y
@@ -124,4 +124,52 @@ export function isWideCustomField(def) {
   const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
   if (SPECIAL_FIELD_TYPES.includes(def.field_type)) return true
   return type === 'textarea' || type === 'multiselect' || ((type === 'country' || type === 'user') && def.options?.multiple)
+}
+
+// Tipos de campo que encajan con un filtro tipo "elegí un valor de una
+// lista" — texto libre/número/fecha y los compuestos no tienen un widget
+// de filtro genérico razonable (para eso ya está el buscador de texto).
+const FILTERABLE_TYPES = ['select', 'multiselect', 'country', 'user', 'boolean', 'status']
+
+export function isFieldFilterable(def) {
+  const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
+  return FILTERABLE_TYPES.includes(type)
+}
+
+export function isMultiValueFilter(def) {
+  const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
+  if (type === 'multiselect') return true
+  if (type === 'country' || type === 'user') return !!def.options?.multiple
+  return false
+}
+
+// Opciones para el widget de filtro — {id, label} — según el tipo del campo.
+export function filterChoicesFor(def, { customStates, members } = {}) {
+  const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
+  if (type === 'status') return (customStates || []).map(s => ({ id: s.name, label: s.name }))
+  if (type === 'select' || type === 'multiselect') return def.options?.choices || []
+  if (type === 'country') return getAllCountries().map(c => ({ id: c.code, label: c.name }))
+  if (type === 'user') return (members || []).map(m => ({ id: m.user_id, label: m.profile?.full_name || 'Usuario' }))
+  if (type === 'boolean') return [{ id: 'true', label: 'Sí' }, { id: 'false', label: 'No' }]
+  return []
+}
+
+function rawFieldValue(def, obj) {
+  return def.storage_column ? obj[def.storage_column] : getCustomFieldValue(obj.custom_fields, def.key)
+}
+
+// true si `obj` matchea el filtro elegido para este campo — filterValue
+// vacío/undefined siempre matchea (sin filtro activo). Para campos multi
+// (multiselect/país o usuario múltiple) matchea "alguno de los elegidos".
+export function matchesFieldFilter(def, obj, filterValue) {
+  if (filterValue === undefined || filterValue === null || filterValue === '' || (Array.isArray(filterValue) && filterValue.length === 0)) return true
+  const raw = rawFieldValue(def, obj)
+  const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
+  if (type === 'boolean') return String(!!raw) === filterValue
+  if (isMultiValueFilter(def)) {
+    const rawArr = Array.isArray(raw) ? raw : []
+    const wanted = Array.isArray(filterValue) ? filterValue : [filterValue]
+    return wanted.some(v => rawArr.includes(v))
+  }
+  return raw === filterValue
 }

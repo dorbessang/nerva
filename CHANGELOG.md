@@ -4,6 +4,16 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-31 (11)
+
+### Feature: filtros configurables desde Settings, reemplazan a los hardcodeados
+- Nueva columna `custom_field_definitions.filterable boolean` — checkbox "Mostrar como filtro" en Settings (alta y edición), visible solo para tipos que encajan con un widget de filtro genérico: `select`, `multiselect`, `country`, `user`, `boolean`, `status` (y `tracked` cuando su `underlying_type` es uno de esos). Texto libre, número, fecha y los compuestos (Entidades vinculadas/Financiero/Contactos) no muestran el checkbox — no hay un filtro genérico razonable para esos, ya cubre el buscador de texto
+- `CustomFieldFilter` (nuevo, en `CustomFieldInput.jsx`): un `<select>` por campo marcado `filterable`, con las opciones que correspondan (choices configurados, estados, países, miembros del workspace, o Sí/No) — múltiple si el campo lo es (matchea "alguno de los elegidos")
+- El filtro de "Estado" de Proyectos (antes hardcodeado, `filterStatus`) pasa a ser uno más de este mecanismo genérico — las tarjetas de estado (pipeline por estado) siguen funcionando igual, ahora clickean sobre el campo `status` en vez de un state aparte
+- Entidades suma filtros por primera vez (antes solo tenía buscador de texto) — mismo mecanismo, mismo componente
+- Quedan como casos especiales, sin generalizar (documentado, no bug): "Proveedor" en Proyectos (`entities_link`, busca por nombre de entidad, no por una lista de opciones) y "Actividad" (`activity_status`, calculado, no es un campo custom)
+- Probado con Playwright: checkbox visible solo en tipos compatibles, guardado correcto, filtro nuevo aparece en la toolbar apenas se activa desde Settings, y filtrado real funciona en ambas páginas (Proyectos por Estado, Entidades por Tipo de empresa)
+
 ## 2026-07-31 (10)
 
 ### Feature: import de Proyectos data-driven, mismo criterio que Entidades

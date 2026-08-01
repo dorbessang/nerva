@@ -81,7 +81,7 @@ Esta sesión no tiene acceso de red a la Supabase real (confirmado, 403 de polí
 
 ##### Fast-follow explícito (fuera de esta ronda, con motivo)
 - Export a PDF de campos custom (`exportPdf.js`) — no es automático como el Excel, hay que sumar filas `[label, valor]` a la tabla clave-valor que ya existe por página. Mejor hacerlo después de ver qué campos reales termina usando cada cliente. (Dirección y WhatsApp sí se sumaron al PDF de Entidades esta ronda, al ser campos fijos y no custom)
-- Filtrar por valor de campo custom en el toolbar de Proyectos/Entidades — los filtros hoy son 100% hardcodeados por campo (`filterStatus`/`filterEntity`/`filterActivity`), no hay ningún mecanismo genérico de "filtrar por columna" — construir uno es un proyecto aparte
+- ~~Filtrar por valor de campo custom en el toolbar de Proyectos/Entidades~~ — resuelto más abajo (ronda "Filtros configurables desde Settings")
 - Column-editor completo (visibilidad/orden, como ya tiene Proyectos) para Entidades
 - Editar `underlying_type`/`trigger_mode`/`multiple` de un campo "con seguimiento" o "país" ya creado — v1 los deja inmutables después de creados, cambiar la forma de un valor ya guardado es semánticamente complicado
 - Dirección como columna de import (`ImportEntitiesModal`) — no se agregó esta ronda, mismo criterio que el resto del import (headers fijos, sin tocar sin necesidad concreta)
@@ -137,6 +137,19 @@ El usuario preguntó si los Estados (Settings → Estados) se pueden renombrar, 
 - [x] **`negotiations.status` guarda el nombre del estado como texto libre** (matcheo por nombre, no por id) — a diferencia de los campos custom (que matchean por `key` estable), renombrar un estado sin más dejaría "huérfanos" a todos los proyectos que ya tenían ese estado asignado. `handleSaveEdit` hace un `update negotiations set status = nuevoNombre where status = nombreViejo` en cascada, en el mismo flujo que el rename
 - [x] **"Completado" queda sin botón Editar** (solo el badge "🔒 Protegido" de siempre) — su nombre está hardcodeado en varios lugares de la app (conteos de Dashboard, exports a PDF, filtro de actividad, el propio candado de protección) que comparan por el string literal `'Completado'`, no por ninguna referencia estable. Permitir renombrarlo rompería esas comparaciones silenciosamente. El color si se podría habilitar a futuro sin este riesgo, no se hizo esta ronda por acotar el cambio
 - [x] Probado con Playwright: "Completado" sin botón Editar, renombrar un estado regular actualiza tanto `custom_states` como los proyectos existentes que lo tenían asignado (confirmado con mock de datos)
+
+#### Import de Entidades/Proyectos data-driven + filtros configurables desde Settings
+Tras probar el import con planillas de prueba, dos pedidos: que la plantilla de import refleje los campos reales del workspace (no 4 columnas fijas), y que los filtros de las toolbars de Proyectos/Entidades salgan de Settings en vez de estar hardcodeados por campo.
+- [x] `ImportEntitiesModal`/`ImportNegotiationsModal` reescritos data-driven — headers/parseo/guardado 100% desde `entityFieldDefs`/`negotiationFieldDefs`. Cada `field_type` tiene su lógica de parseo de celda (select/multiselect resuelven contra las opciones configuradas, país vía `getCountryCode`, fecha con el parser ya existente). Casos especiales que se mantienen aparte: "Proveedor" (Proyectos, matchea por nombre de entidad — `entities_link` no es una celda simple) y "Estado" (matchea contra `custom_states`, no contra `options.choices`, con el mismo fallback al primer estado configurado)
+- [x] Import de Entidades suma 4 columnas opcionales para el contacto principal (`Contacto: Nombre/Cargo/Email/Teléfono`), solo si el workspace tiene el preset Contactos activo — importa uno solo, el resto se agrega a mano
+- [x] Quedan fuera del import (documentado): `user` (participantes/asignados — mapear texto libre contra miembros reales de forma confiable es un problema aparte) y `financial` (compuesto, no una celda)
+- [x] **Filtros configurables**: columna nueva `custom_field_definitions.filterable boolean` — checkbox "Mostrar como filtro" en Settings, visible solo para tipos que encajan con un filtro tipo "elegí un valor de una lista" (`select`, `multiselect`, `country`, `user`, `boolean`, `status`, y `tracked` con `underlying_type` compatible). El filtro de Estado de Proyectos (antes hardcodeado) pasa a ser un caso más de este mecanismo; Entidades suma filtros por primera vez (antes solo tenía buscador de texto)
+- [x] Nuevo componente `CustomFieldFilter` (en `CustomFieldInput.jsx`) — un `<select>` (múltiple si el campo lo es) con las opciones que correspondan según el tipo. Quedan como casos especiales sin generalizar: "Proveedor" (Proyectos) y "Actividad" (`activity_status`, calculado, no es un campo custom)
+- [x] Probado con Playwright: import con campos select/tracked/país múltiple/contacto principal resolviendo y guardando bien en ambas páginas; checkbox de filtro visible solo en tipos compatibles, filtro aparece en la toolbar apenas se activa desde Settings, y filtrado real funcionando en Proyectos (Estado) y Entidades (Tipo de empresa)
+
+##### SQL pendiente de aplicar
+- [ ] `alter table public.custom_field_definitions add column if not exists filterable boolean not null default false;`
+- [ ] `update public.custom_field_definitions set filterable = true where field_type = 'status';` (para no perder el filtro de Estado que ya existía)
 
 ### Bulk actions y import desde Excel/CSV
 - [x] **Selección múltiple + acciones en lote** — en Proyectos (tabla y mosaico, ya existían los checkboxes para la card de pipeline) y en Entidades (nuevo, checkboxes agregados a ambas vistas). Al tildar filas aparece una barra/card con la cantidad seleccionada

@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import CountrySelector, { getAllCountries, getCountryName } from './CountrySelector'
-import { renderCustomFieldDisplay } from '../lib/customFields'
+import { renderCustomFieldDisplay, filterChoicesFor, isMultiValueFilter } from '../lib/customFields'
 
 function CountryMultiSelect({ value, onChange }) {
   const [query, setQuery] = useState('')
@@ -209,6 +209,32 @@ export function CustomFieldInput({ def, value, onChange }) {
 // Render de solo lectura de un campo custom (detalle de proyecto/entidad) —
 // mismo texto que renderCustomFieldDisplay, pero link/email/teléfono salen
 // clickeables (mismo patrón que ya usan los Contactos de una entidad).
+// Widget de filtro para toolbars (Proyectos/Entidades) — un <select> con
+// las opciones que correspondan al tipo (choices configurados, estados,
+// países, miembros del workspace, o Sí/No), múltiple si el campo lo es.
+export function CustomFieldFilter({ def, value, onChange, customStates, members }) {
+  const choices = filterChoicesFor(def, { customStates, members })
+  if (isMultiValueFilter(def)) {
+    const selected = Array.isArray(value) ? value : []
+    return (
+      <select
+        className="neg-select"
+        multiple
+        value={selected}
+        onChange={e => onChange(Array.from(e.target.selectedOptions).map(o => o.value))}
+      >
+        {choices.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+      </select>
+    )
+  }
+  return (
+    <select className="neg-select" value={value || ''} onChange={e => onChange(e.target.value || null)}>
+      <option value="">Todos</option>
+      {choices.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+    </select>
+  )
+}
+
 export function CustomFieldReadOnly({ def, value: rawValue, members }) {
   const text = renderCustomFieldDisplay(def, rawValue, members)
   if (text === '—') return <>{text}</>
