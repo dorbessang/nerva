@@ -166,7 +166,7 @@ export default function CountrySelector({ value, onChange }) {
           onKeyDown={handleKeyDown}
           autoComplete="new-password"
           placeholder="— Seleccioná un país —"
-          style={{ paddingLeft: selected && mode === 'idle' ? 28 : 12 }}
+          style={{ paddingLeft: selected && mode === 'idle' ? 36 : 12 }}
         />
         {/* Flecha para abrir el dropdown completo */}
         <button

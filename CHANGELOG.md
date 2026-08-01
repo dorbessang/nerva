@@ -4,6 +4,11 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-31 (6)
+
+### Fix: bandera superpuesta con el texto en CountrySelector
+- El padding-left del input cuando hay país seleccionado (28px) no alcanzaba para la bandera (arranca en 10px, 20px de ancho → termina en 30px) — se superponían 2px. Subido a 36px
+
 ## 2026-07-31 (5)
 
 ### Fix: bugs de País de origen tras la migración de campos custom
