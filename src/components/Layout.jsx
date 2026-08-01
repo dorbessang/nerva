@@ -7,6 +7,7 @@ import * as LucideIcons from "lucide-react";
 import RoleImpersonator from "./RoleImpersonator";
 import NotificationBell from "./NotificationBell";
 import GlobalSearch from "./GlobalSearch";
+import WelcomeSetup from "../pages/WelcomeSetup";
 import "./Layout.css";
 
 function EntityIcon({ name, size = 18 }) {
@@ -41,6 +42,8 @@ export default function Layout({ children }) {
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const isPersonalWorkspace = activeWorkspace?.type === 'personal';
+  const needsOnboarding = activeWorkspace && activeWorkspace.type !== 'personal' && activeWorkspace.onboarded === false;
+  const showWelcome = needsOnboarding && activeWorkspace.role === 'owner';
 
   useEffect(() => {
     fetchEntityTypes();
@@ -282,6 +285,12 @@ export default function Layout({ children }) {
       )}
 
       <div className="layout-body">
+        {showWelcome ? (
+          <main className="layout-main" style={{ marginLeft: 0, width: "100%" }}>
+            <WelcomeSetup workspace={activeWorkspace} />
+          </main>
+        ) : (
+        <>
         {isMobile && mobileNavOpen && (
           <div
             className="sidebar-backdrop"
@@ -419,6 +428,8 @@ export default function Layout({ children }) {
         >
           {children}
         </main>
+        </>
+        )}
       </div>
       <RoleImpersonator />
     </div>

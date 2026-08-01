@@ -44,7 +44,7 @@ export function AuthProvider({ children }) {
     const [membersRes, profileRes] = await Promise.all([
       supabase
         .from('workspace_members')
-        .select('role, workspace_id, workspace:workspace_id(id, name, type)')
+        .select('role, workspace_id, workspace:workspace_id(id, name, type, onboarded)')
         .eq('user_id', userId)
         .eq('status', 'active'),
       supabase

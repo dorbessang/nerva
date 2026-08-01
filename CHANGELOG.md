@@ -4,6 +4,18 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-01 (1)
+
+### Feature: pantalla de bienvenida para workspaces nuevos sin configurar
+- Problema: el bootstrap manual de un workspace de equipo (SQL que corre Gervasio para dar de alta a un cliente nuevo) deja el workspace con 0 `entity_types`/`custom_states`/`custom_field_definitions` — el owner entraba a una app completamente en blanco y tenía que armar todo a mano desde Configuración antes de poder cargar el primer dato
+- Nueva columna `workspaces.onboarded boolean not null default true` — default `true` para no afectar retroactivamente a ningún workspace ya en uso; los workspaces nuevos se crean explícitamente con `onboarded = false`
+- `WelcomeSetup.jsx` (nueva pantalla): se muestra en vez del contenido normal cuando el workspace activo es de equipo (`type != 'personal'`), `onboarded = false` y el usuario logueado es `owner` de ese workspace — otros miembros invitados a un workspace ya configurado nunca la ven, porque para cuando se los invita `onboarded` ya es `true`. Ofrece dos caminos:
+  - **Configuración recomendada**: siembra el dominio típico de licensing farmacéutico — 3 tipos de entidad (Proveedor/Cliente/Distribuidor), pipeline de 5 estados y los 14 campos (5 estructurales + 9 regulares) que ya usa el resto de la app, todo editable después desde Configuración
+  - **Armarlo yo mismo**: siembra solo los 5 campos estructurales indispensables (Nombre, Tipo, Contactos, Nombre del proyecto, Estado) + 2 estados básicos, sin tipos de entidad ni campos sugeridos — el resto lo elige el owner
+  - Cualquiera de las dos opciones marca `onboarded = true` al terminar y no vuelve a aparecer
+- `src/lib/seedWorkspaceDefaults.js` (nuevo): la lógica de siembra en JS, mismo shape de datos que ya se usa en Settings (via inserts a `entity_types`/`custom_states`/`custom_field_definitions`, respetando RLS del owner)
+- `AuthContext.jsx` suma `onboarded` al select de `workspace:workspace_id(...)`; `Layout.jsx` calcula el gate y renderiza `WelcomeSetup` en vez del sidebar+contenido cuando corresponde
+
 ## 2026-07-31 (11)
 
 ### Feature: filtros configurables desde Settings, reemplazan a los hardcodeados

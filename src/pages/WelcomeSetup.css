@@ -1,0 +1,93 @@
+.welcome-setup {
+  min-height: calc(100vh - 56px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  background: #F7F8FA;
+}
+
+.welcome-setup-card {
+  width: 100%;
+  max-width: 760px;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(11, 31, 58, 0.1);
+  padding: 40px;
+}
+
+.welcome-setup-title {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 700;
+  color: #0B1F3A;
+}
+
+.welcome-setup-subtitle {
+  margin: 0 0 28px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.welcome-setup-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+@media (max-width: 720px) {
+  .welcome-setup-options { grid-template-columns: 1fr; }
+}
+
+.welcome-option {
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.welcome-option h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0B1F3A;
+}
+
+.welcome-option p {
+  margin: 0 0 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #6b7280;
+  flex: 1;
+}
+
+.welcome-option-btn {
+  background-color: transparent;
+  color: #374151;
+  border: 1.5px solid #d1d5db;
+  padding: 11px 18px;
+  border-radius: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.welcome-option-btn:hover { background-color: #f9fafb; border-color: #9ca3af; }
+.welcome-option-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.welcome-option-btn--primary {
+  background: linear-gradient(135deg, #0B1F3A 0%, #1a3a6b 100%);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 12px rgba(11, 31, 58, 0.25);
+}
+
+.welcome-option-btn--primary:hover { background: linear-gradient(135deg, #0B1F3A 0%, #1a3a6b 100%); opacity: 0.95; }
+
+.welcome-setup-error {
+  margin: 20px 0 0;
+  font-size: 13px;
+  color: #DC2626;
+}

@@ -151,6 +151,18 @@ Tras probar el import con planillas de prueba, dos pedidos: que la plantilla de 
 - [ ] `alter table public.custom_field_definitions add column if not exists filterable boolean not null default false;`
 - [ ] `update public.custom_field_definitions set filterable = true where field_type = 'status';` (para no perder el filtro de Estado que ya existía)
 
+### Pantalla de bienvenida para workspaces nuevos sin configurar
+Al abrir el primer cliente pagador (workspace de equipo creado a mano vía SQL, sin flujo de alta propio todavía), el owner entraba a una app completamente vacía — sin tipos de entidad, sin estados, sin campos custom — y tenía que armar todo desde Configuración antes de poder cargar el primer dato. Se pidió una pantalla de bienvenida que ofrezca eso de entrada.
+- [x] Columna nueva `workspaces.onboarded boolean not null default true` — default `true` a propósito, para que ningún workspace ya en uso muestre esta pantalla retroactivamente. Los workspaces nuevos se crean con `onboarded = false` explícito en el insert de bootstrap
+- [x] `WelcomeSetup.jsx` (nuevo): se muestra en vez del sidebar+contenido normal cuando el workspace activo es de equipo, `onboarded = false` y el usuario es `owner` — un miembro invitado después a un workspace ya configurado no la ve nunca, porque para cuando se lo invita `onboarded` ya quedó en `true`
+- [x] Dos opciones, ambas marcan `onboarded = true` al terminar: **Configuración recomendada** (siembra 3 tipos de entidad, pipeline de 5 estados y los 14 campos — mismo dominio de licensing farmacéutico que ya usa el resto de la app) y **Armarlo yo mismo** (siembra solo los 5 campos estructurales indispensables + 2 estados básicos, sin tipos de entidad ni campos sugeridos)
+- [x] `src/lib/seedWorkspaceDefaults.js` (nuevo) — la siembra vive en JS (mismos inserts que ya hace Settings a mano), no en el SQL de bootstrap, así puede ofrecerse como elección en la UI en vez de ser todo-o-nada
+- [ ] Sin probar con Playwright — no se puede simular un workspace nuevo real sin la columna `onboarded` ya corrida en Supabase (esta sesión no tiene acceso a la Supabase real). Verificado por build + lectura de código; pendiente de confirmación manual del usuario tras correr el SQL
+
+##### SQL pendiente de aplicar
+- [ ] `alter table public.workspaces add column if not exists onboarded boolean not null default true;`
+- [ ] Al crear un workspace de equipo nuevo a mano, agregar `onboarded: false` explícito al insert de bootstrap (si no, hereda el default `true` y nunca vería la pantalla)
+
 ### Bulk actions y import desde Excel/CSV
 - [x] **Selección múltiple + acciones en lote** — en Proyectos (tabla y mosaico, ya existían los checkboxes para la card de pipeline) y en Entidades (nuevo, checkboxes agregados a ambas vistas). Al tildar filas aparece una barra/card con la cantidad seleccionada
   - Proyectos: cambiar estado en lote (dispara el mismo efecto secundario que un cambio individual — `notifyNegotiationStatusChanged` + `logActivity` por cada proyecto afectado, no un atajo que se salte las notificaciones) y eliminar en lote, gateado a owner (mismo permiso que el borrado individual)
