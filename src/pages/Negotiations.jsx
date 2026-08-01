@@ -577,6 +577,7 @@ export default function Negotiations() {
           workspaceId={workspaceId}
           entities={entities}
           customStates={customStates}
+          negotiationFieldDefs={customFieldDefs}
           onClose={() => setShowImportModal(false)}
           onImported={fetchAll}
         />

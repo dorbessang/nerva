@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { parseSpreadsheet, getCell, getCellRaw, downloadTemplate } from '../lib/importXlsx'
+import { renderCustomFieldDisplay } from '../lib/customFields'
 import './ImportModal.css'
-
-const HEADERS = ['Producto', 'Proveedor', 'Estado', 'Fecha objetivo']
 
 function parseDate(v) {
   if (!v) return null
@@ -15,43 +14,108 @@ function parseDate(v) {
   return null
 }
 
-function buildRows(raw, entities, customStates) {
-  return raw.map((r, idx) => {
-    const product = getCell(r, 'producto')
-    const providerName = getCell(r, 'proveedor')
-    const statusRaw = getCell(r, 'estado')
-    const dateRaw = getCellRaw(r, 'fecha objetivo')
-    const dateDisplay = dateRaw instanceof Date ? dateRaw.toLocaleDateString('es-AR') : String(dateRaw).trim()
+// Entidades vinculadas se maneja aparte (columna "Proveedor", matchea por
+// nombre contra entidades ya cargadas — solo la principal, igual que
+// siempre). Financiero es un compuesto (moneda + hitos), no una celda.
+// Participantes (usuario) requeriría mapear texto libre contra miembros
+// reales del workspace, igual que en el import de Entidades — se deja
+// afuera hasta que algún preset lo necesite de verdad.
+const SKIP_TYPES = ['entities_link', 'financial', 'user']
 
-    const errors = []
-    if (!product) errors.push('Falta el producto')
+function importFieldsOf(negotiationFieldDefs) {
+  return (negotiationFieldDefs || []).filter(d => !SKIP_TYPES.includes(d.field_type))
+}
 
+function resolveChoiceId(def, text) {
+  const choices = def.options?.choices || []
+  const match = choices.find(c => c.label.toLowerCase() === text.toLowerCase() || c.id.toLowerCase() === text.toLowerCase())
+  if (match) return { value: match.id, warning: null }
+  return { value: text, warning: `"${def.label}": "${text}" no coincide con ninguna opción configurada` }
+}
+
+function parseFieldValue(def, cell, cellRaw, customStates) {
+  const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
+
+  if (type === 'status') {
+    const fallback = customStates[0]?.name || 'Contactado'
+    if (!cell) return { value: fallback, warning: null }
+    const match = customStates.find(s => s.name.toLowerCase() === cell.toLowerCase())
+    if (match) return { value: match.name, warning: null }
+    return { value: fallback, warning: `"${def.label}": "${cell}" no reconocido, se usó "${fallback}"` }
+  }
+  if (type === 'select') {
+    if (!cell) return { value: null, warning: null }
+    return resolveChoiceId(def, cell)
+  }
+  if (type === 'multiselect') {
+    if (!cell) return { value: [], warning: null }
+    const tokens = cell.split(',').map(t => t.trim()).filter(Boolean)
     const warnings = []
+    const ids = tokens.map(t => {
+      const r = resolveChoiceId(def, t)
+      if (r.warning) warnings.push(r.warning)
+      return r.value
+    })
+    return { value: ids, warning: warnings.join('; ') || null }
+  }
+  if (type === 'boolean') {
+    if (!cell) return { value: false, warning: null }
+    return { value: ['si', 'sí', 'true', 'x', '1'].includes(cell.trim().toLowerCase()), warning: null }
+  }
+  if (type === 'number') {
+    if (!cell) return { value: null, warning: null }
+    const n = Number(cell)
+    return { value: isNaN(n) ? null : n, warning: isNaN(n) ? `"${def.label}": "${cell}" no es un número` : null }
+  }
+  if (type === 'date') {
+    const display = cellRaw instanceof Date ? cellRaw.toLocaleDateString('es-AR') : String(cellRaw || '').trim()
+    if (!display) return { value: null, warning: null }
+    const parsed = parseDate(cellRaw)
+    return { value: parsed, warning: parsed ? null : `"${def.label}": fecha "${display}" no reconocida` }
+  }
+  // text, textarea, link, email, phone
+  return { value: cell || null, warning: null }
+}
+
+function buildRows(raw, importFields, entities, customStates) {
+  return raw.map((r, idx) => {
+    const values = {}
+    const warnings = []
+    for (const def of importFields) {
+      const header = def.label.toLowerCase()
+      const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
+      const cell = type === 'date' ? '' : getCell(r, header)
+      const cellRaw = type === 'date' ? getCellRaw(r, header) : ''
+      const { value, warning } = parseFieldValue(def, cell, cellRaw, customStates)
+      values[def.key] = value
+      if (warning) warnings.push(warning)
+    }
+    const productDef = importFields.find(d => d.storage_column === 'product')
+    const product = productDef ? values[productDef.key] : null
+
+    const providerName = getCell(r, 'proveedor')
     let entityMatch = null
     if (providerName) {
       entityMatch = entities.find(e => e.name.toLowerCase() === providerName.toLowerCase())
       if (!entityMatch) warnings.push(`Proveedor "${providerName}" no encontrado`)
     }
 
-    let status = customStates[0]?.name || 'Contactado'
-    if (statusRaw) {
-      const match = customStates.find(s => s.name.toLowerCase() === statusRaw.toLowerCase())
-      if (match) status = match.name
-      else warnings.push(`Estado "${statusRaw}" no reconocido, se usó "${status}"`)
-    }
+    const errors = []
+    if (!product) errors.push('Falta el producto')
 
-    const target_date = dateDisplay ? parseDate(dateRaw) : null
-    if (dateDisplay && !target_date) warnings.push(`Fecha "${dateDisplay}" no reconocida, se omitió`)
-
-    return { idx, product, providerName, entityId: entityMatch?.id || null, status, target_date, errors, warnings }
+    return { idx, values, product, providerName, entityId: entityMatch?.id || null, errors, warnings }
   })
 }
 
-export default function ImportNegotiationsModal({ workspaceId, entities, customStates, onClose, onImported }) {
+export default function ImportNegotiationsModal({ workspaceId, entities, customStates, negotiationFieldDefs = [], onClose, onImported }) {
   const [step, setStep] = useState('upload')
   const [rows, setRows] = useState([])
   const [fileError, setFileError] = useState('')
   const [importing, setImporting] = useState(false)
+
+  const importFields = importFieldsOf(negotiationFieldDefs)
+  const hasEntitiesLink = negotiationFieldDefs.some(d => d.field_type === 'entities_link')
+  const headers = [...importFields.map(d => d.label), ...(hasEntitiesLink ? ['Proveedor'] : [])]
 
   async function handleFile(e) {
     const file = e.target.files?.[0]
@@ -60,7 +124,7 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
     try {
       const raw = await parseSpreadsheet(file)
       if (raw.length === 0) { setFileError('El archivo no tiene filas.'); return }
-      setRows(buildRows(raw, entities, customStates))
+      setRows(buildRows(raw, importFields, entities, customStates))
       setStep('preview')
     } catch (err) {
       setFileError('No se pudo leer el archivo. ¿Es un .xlsx o .csv válido?')
@@ -72,17 +136,28 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
 
   async function handleImport() {
     setImporting(true)
-    const { data } = await supabase.from('negotiations').insert(validRows.map(r => ({
-      workspace_id: workspaceId,
-      title: r.product,
-      product: r.product,
-      status: r.status,
-      target_date: r.target_date,
-      companies: [],
-      participants: [],
-      primary_entity_id: r.entityId,
-      currency: 'USD',
-    }))).select('id')
+    const now = new Date().toISOString()
+    const { data } = await supabase.from('negotiations').insert(validRows.map(r => {
+      const row = {
+        workspace_id: workspaceId,
+        primary_entity_id: r.entityId,
+        currency: 'USD',
+        participants: [],
+        companies: [],
+      }
+      const customFields = {}
+      for (const def of importFields) {
+        const v = r.values[def.key]
+        if (def.storage_column) {
+          row[def.storage_column] = v
+        } else if (v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)) {
+          customFields[def.key] = { value: v, updated_at: now }
+        }
+      }
+      row.title = r.product
+      row.custom_fields = customFields
+      return row
+    })).select('id')
 
     if (data) {
       const links = validRows
@@ -111,14 +186,15 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
                 Subí un Excel (.xlsx) o CSV con una fila por proyecto. La primera fila tiene que tener los encabezados:
               </p>
               <div className="import-headers-list">
-                {HEADERS.map(h => <span key={h} className={`import-header-chip ${h === 'Producto' ? 'required' : ''}`}>{h}{h === 'Producto' && ' *'}</span>)}
+                {importFields.map(d => <span key={d.key} className={`import-header-chip ${d.required ? 'required' : ''}`}>{d.label}{d.required && ' *'}</span>)}
+                {hasEntitiesLink && <span className="import-header-chip">Proveedor</span>}
               </div>
               <p className="import-hint import-hint--small">
                 "Proveedor" tiene que coincidir con el nombre exacto de una entidad ya cargada. "Estado" tiene que coincidir con uno de los estados configurados en Settings — si no coincide o se deja vacío, se usa el primero de la lista.
               </p>
               <button
                 className="import-template-btn"
-                onClick={() => downloadTemplate(HEADERS, 'plantilla-proyectos.xlsx')}
+                onClick={() => downloadTemplate(headers, 'plantilla-proyectos.xlsx')}
               >
                 ⬇ Descargar plantilla vacía
               </button>
@@ -140,17 +216,20 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
                 <table className="import-preview-table">
                   <thead>
                     <tr>
-                      <th>#</th><th>Producto</th><th>Proveedor</th><th>Estado</th><th>Fecha</th><th>Estado del import</th>
+                      <th>#</th>
+                      {importFields.map(d => <th key={d.key}>{d.label}</th>)}
+                      {hasEntitiesLink && <th>Proveedor</th>}
+                      <th>Estado del import</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map(r => (
                       <tr key={r.idx} className={r.errors.length > 0 ? 'import-row-error' : r.warnings.length > 0 ? 'import-row-warning' : ''}>
                         <td>{r.idx + 1}</td>
-                        <td>{r.product || '—'}</td>
-                        <td>{r.providerName || '—'}</td>
-                        <td>{r.status}</td>
-                        <td>{r.target_date || '—'}</td>
+                        {importFields.map(d => (
+                          <td key={d.key}>{renderCustomFieldDisplay(d, r.values[d.key])}</td>
+                        ))}
+                        {hasEntitiesLink && <td>{r.providerName || '—'}</td>}
                         <td>
                           {r.errors.length > 0
                             ? <span className="import-status import-status--error">✗ {r.errors.join(', ')}</span>

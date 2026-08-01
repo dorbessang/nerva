@@ -4,6 +4,14 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-07-31 (10)
+
+### Feature: import de Proyectos data-driven, mismo criterio que Entidades
+- `ImportNegotiationsModal` tenía las mismas 4 columnas hardcodeadas de siempre (Producto/Proveedor/Estado/Fecha objetivo) — no reflejaba Descripción, Clientes/Potenciales clientes, ni ningún campo custom nuevo. Reescrito con la misma arquitectura que el import de Entidades: headers/parseo/guardado 100% desde `negotiationFieldDefs`
+- "Estado" tiene su propia resolución (matchea contra `custom_states`, no contra `options.choices`, con el mismo fallback al primer estado configurado que ya tenía antes) y "Proveedor" sigue siendo una columna aparte que matchea por nombre contra entidades ya cargadas (concepto de `entities_link`, no una celda simple) — ambos casos especiales se mantienen, todo lo demás (Descripción, Clientes, y cualquier campo select/multiselect/fecha/número que se agregue a futuro) sale del mecanismo genérico
+- Quedan fuera del import (documentado): `financial` (compuesto: moneda + hitos) y `participants` (usuario, mismo motivo que en Entidades)
+- Probado con Playwright: import con Descripción + Clientes (multiselect resuelto) + Prioridad (select custom) + Proveedor, preview y guardado correctos, columnas reales vs jsonb bien separadas
+
 ## 2026-07-31 (9)
 
 ### Feature: import de Entidades — contacto principal
