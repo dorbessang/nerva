@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { extractFunctionError } from '../lib/edgeFunctionError'
 import './Settings.css'
 
 export default function Profile() {
-  const { user, profile, refreshProfile } = useAuth()
+  const { user, profile, isStaff, refreshProfile } = useAuth()
   const [fullName, setFullName] = useState('')
   const [savingName, setSavingName] = useState(false)
   const [nameSuccess, setNameSuccess] = useState(false)
@@ -17,6 +18,13 @@ export default function Profile() {
   const [savingPassword, setSavingPassword] = useState(false)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
   const [passwordError, setPasswordError] = useState(null)
+
+  const [clientWsName, setClientWsName] = useState('')
+  const [clientEmail, setClientEmail] = useState('')
+  const [creatingClient, setCreatingClient] = useState(false)
+  const [clientError, setClientError] = useState(null)
+  const [clientSuccess, setClientSuccess] = useState(null)
+  const [clientInviteLink, setClientInviteLink] = useState(null)
 
   useEffect(() => {
     setFullName(profile?.full_name || '')
@@ -51,6 +59,39 @@ export default function Profile() {
     setNewPassword('')
     setConfirmPassword('')
     setTimeout(() => setPasswordSuccess(false), 2000)
+  }
+
+  async function handleCreateClient() {
+    setClientError(null)
+    setClientSuccess(null)
+    setClientInviteLink(null)
+    if (!clientWsName.trim()) { setClientError('El nombre del workspace es obligatorio'); return }
+    if (!clientEmail.trim()) { setClientError('El email es obligatorio'); return }
+    setCreatingClient(true)
+
+    const { data, error } = await supabase.functions.invoke('invite-user', {
+      body: { action: 'invite_client', email: clientEmail.trim().toLowerCase(), workspaceName: clientWsName.trim() },
+    })
+
+    setCreatingClient(false)
+    if (error || data?.error) {
+      setClientError(data?.error || (await extractFunctionError(error)) || 'Error al crear el cliente.')
+      return
+    }
+    if (data?.direct) {
+      setClientSuccess(`${clientEmail.trim()} ya tenía cuenta — se creó "${clientWsName.trim()}" y se lo sumó directo como owner.`)
+    } else {
+      setClientSuccess(`Workspace "${clientWsName.trim()}" creado. Copiá el link y mandáselo a ${clientEmail.trim()} (todavía no se manda mail automático).`)
+      setClientInviteLink(data?.inviteLink || null)
+    }
+    setClientWsName('')
+    setClientEmail('')
+  }
+
+  async function handleCopyClientLink() {
+    if (!clientInviteLink) return
+    await navigator.clipboard.writeText(clientInviteLink)
+    setClientSuccess('Link copiado al portapapeles.')
   }
 
   return (
@@ -106,6 +147,45 @@ export default function Profile() {
             {savingPassword ? 'Guardando...' : 'Cambiar contraseña'}
           </button>
         </div>
+
+        {isStaff && (
+          <div className="settings-block">
+            <h2 className="settings-block-title">Panel de Staff — Dar de alta un cliente nuevo</h2>
+            <p style={{ fontSize: 13, color: '#6b7280', marginTop: -8, marginBottom: 16 }}>
+              Crea un workspace de equipo nuevo y a esa persona como su owner — distinto de "Invitar usuario",
+              que suma a alguien a un workspace que ya existe (eso se hace desde Configuración → Miembros, dentro de ese workspace).
+            </p>
+            <div className="form-group" style={{ maxWidth: 400 }}>
+              <label>NOMBRE DEL WORKSPACE</label>
+              <input
+                type="text"
+                value={clientWsName}
+                onChange={e => setClientWsName(e.target.value)}
+                placeholder="Ej: Farmacéutica XYZ"
+              />
+            </div>
+            <div className="form-group" style={{ maxWidth: 400 }}>
+              <label>EMAIL DEL CLIENTE</label>
+              <input
+                type="email"
+                value={clientEmail}
+                onChange={e => setClientEmail(e.target.value)}
+                placeholder="cliente@empresa.com"
+              />
+            </div>
+            {clientError && <p className="settings-error">{clientError}</p>}
+            {clientSuccess && <p className="settings-success">{clientSuccess}</p>}
+            {clientInviteLink && (
+              <div className="invite-link-row">
+                <input className="invite-link-input" type="text" readOnly value={clientInviteLink} onFocus={e => e.target.select()} />
+                <button className="settings-btn-secondary" onClick={handleCopyClientLink}>Copiar</button>
+              </div>
+            )}
+            <button className="settings-btn-primary" onClick={handleCreateClient} disabled={creatingClient}>
+              {creatingClient ? 'Creando...' : 'Crear cliente'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

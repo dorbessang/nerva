@@ -4,6 +4,20 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-02 (2)
+
+### Feature: invitar cliente nuevo (solo Staff) + fix del bug real detrás de "invitación no funcionaba"
+- **Bug real, más profundo de lo que parecía**: investigando por qué la invitación por email nunca dejó al cliente con acceso, se encontró que `invite-user` (para un invitado nuevo, nunca antes registrado) creaba el usuario de auth y el link, pero **nunca insertaba la fila en `workspace_members`** — ni la función ni `SetPassword.jsx` (que solo cambia la contraseña, no lee `invited_workspace_id`/`invited_role` de los metadatos). El redirect a `/set-password` siempre estuvo bien configurado; el problema real era que ni con el link nunca terminaba con acceso al workspace
+- Fix: se extrajo la lógica de "sumar a alguien a un workspace" (generar link o sumar directo si ya tiene cuenta) a un helper compartido `addOrInviteUser()`, que ahora inserta `workspace_members` inmediatamente con el id que `generateLink` ya devuelve — sin depender de ningún paso posterior que en los hechos no existía
+- Nueva acción `invite_client` en el mismo Edge Function: crea un workspace de equipo nuevo (`onboarded: false`) y suma al email dado como `owner`, reusando `addOrInviteUser()` — gateado a `profiles.is_staff` (no a ownership de ningún workspace, porque todavía no existe ninguno). Reemplaza el flujo manual por SQL que se venía usando para dar de alta clientes
+- `Profile.jsx` suma un bloque "Panel de Staff — Dar de alta un cliente nuevo" (nombre del workspace + email), visible solo si `isStaff`
+
+### Fixes: feedback del primer cliente real
+- **Bug real**: el picker de columnas de Proyectos (`ALL_COLUMNS` en `Negotiations.jsx`) tenía 6 keys hardcodeados que duplicaban campos ya definidos en `custom_field_definitions` (`product`/`entities`/`status`/`description`/`companies`/`participants`), con labels viejos que tapaban al label real configurado en Settings — se veía tanto en el picker como en los encabezados de la tabla y del export a Excel. Se sacaron esos 6 keys de la lista estática (solo quedan los que genuinamente no son un campo: fecha, notas, aclaraciones, actividad, última actividad), se invirtió la prioridad de resolución de label a favor de `custom_field_definitions`, y se corrigió el default de "visible" para columnas nuevas (antes arrancaban ocultas, dejando la tabla vacía en un workspace recién creado)
+- **Bug real**: el primer login de un usuario nuevo caía siempre en su workspace personal (autogenerado al firmar) en vez del workspace de equipo al que fue invitado, porque `AuthContext` no priorizaba nada entre ambos al elegir el activo por defecto — se agregó esa prioridad (después de lo guardado en localStorage y del workspace de testing, que sigue siendo prioridad para uso interno)
+- Confirmado sin necesidad de cambios: Estados de Proyectos ya funciona como se pidió — campo obligatorio/estructural, pero sus opciones (`custom_states`) 100% configurables por owner
+- Documentado (sin implementar todavía, a la espera de decisión/alcance): un mini-tutorial guiado para el primer ingreso, y encabezados de tabla tipo Excel con filtro+orden por columna en Proyectos/Entidades (para Entidades hace falta primero construir un sistema de columnas configurables, que hoy no existe)
+
 ## 2026-08-02 (1)
 
 ### Fixes: feedback del primer cliente real
