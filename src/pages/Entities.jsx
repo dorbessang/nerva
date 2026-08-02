@@ -16,6 +16,8 @@ import { formatAmount } from '../components/DealMilestones'
 import { CustomFieldReadOnly, CustomFieldFilter } from '../components/CustomFieldInput'
 import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter } from '../lib/customFields'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
+import ColumnHeaderCell from '../components/ColumnHeaderCell'
+import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
 import './Entities.css'
 
 // Columnas que no son un campo custom configurable — calculadas a partir de
@@ -33,6 +35,18 @@ const AVATAR_COLORS = [
   ['#FFFBEB', '#D97706'],
   ['#FEF2F2', '#DC2626'],
 ]
+
+// Valor comparable por columna para el click-para-ordenar del encabezado —
+// null siempre ordena al final, ver sortRows en lib/tableSort.js.
+function getEntitySortValue(key, entity, entityFieldDefs, members) {
+  switch (key) {
+    case 'name': return entity.name?.toLowerCase() || null
+    case 'entity_type': return entity.entity_type?.name?.toLowerCase() || null
+    case 'contacts_count': return entity.contacts?.length || null
+    case 'projects_total': return entity.negotiation_entities?.length || null
+    default: return customFieldSortValue(entityFieldDefs?.find(d => d.key === key), entity, members, getCustomFieldValue, renderCustomFieldDisplay)
+  }
+}
 
 function getInitials(name) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -65,6 +79,14 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [bulkWorking, setBulkWorking] = useState(false)
   const [members, setMembers] = useState([])
   const [customFilterValues, setCustomFilterValues] = useState({})
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState(null)
+
+  function handleSort(key) {
+    const dir = nextSortDir(key, sortKey, sortDir)
+    setSortDir(dir)
+    setSortKey(dir ? key : null)
+  }
 
   // Columnas de la vista Tabla — igual criterio que Proyectos: los campos
   // reales (custom_field_definitions) tienen prioridad de label, "contacts"
@@ -218,6 +240,12 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     setSelectedIds(allVisibleSelected ? new Set() : new Set(filtered.map(e => e.id)))
   }
 
+  // Orden por columna (click en el encabezado de Tabla, o el selector de
+  // Tarjetas) — mismo estado para ambas vistas, así se mantienen en sync.
+  const sorted = sortKey
+    ? sortRows(filtered, e => getEntitySortValue(sortKey, e, entityFieldDefs, members), sortDir)
+    : filtered
+
   return (
     <div className="entities-container">
       <div className="entities-header">
@@ -261,6 +289,22 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
             </svg>
           </button>
         </div>
+        {view === 'cards' && (
+          <div className="neg-sort-select">
+            <select
+              value={sortKey || ''}
+              onChange={e => { const k = e.target.value; setSortKey(k || null); setSortDir(k ? (sortDir || 'asc') : null) }}
+            >
+              <option value="">Ordenar por...</option>
+              {allColumns.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+            {sortKey && (
+              <button type="button" className="entities-export-btn" onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')} title="Cambiar dirección">
+                {sortDir === 'desc' ? '▼' : '▲'}
+              </button>
+            )}
+          </div>
+        )}
         {view === 'table' && (
           <button
             className={`entities-export-btn ${showColEditor ? 'active' : ''}`}
@@ -332,7 +376,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
         <div className="entities-empty"><p>No hay {entityTypeName?.toLowerCase() || 'proveedores'} todavía.</p></div>
       ) : view === 'table' ? (
         <EntitiesGridTable
-          entities={filtered}
+          entities={sorted}
           entityFieldDefs={entityFieldDefs}
           cols={cols}
           allColumns={allColumns}
@@ -343,10 +387,15 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           onToggleSelect={toggleSelect}
           allVisibleSelected={allVisibleSelected}
           onToggleSelectAll={toggleSelectAll}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={handleSort}
+          customFilterValues={customFilterValues}
+          onFilterChange={(key, v) => setCustomFilterValues(prev => ({ ...prev, [key]: v }))}
         />
       ) : (
         <div className="entities-grid">
-          {filtered.map(entity => {
+          {sorted.map(entity => {
             const [bgColor, textColor] = getAvatarColor(entity.name)
             const counts = getStateCounts(entity.negotiation_entities)
             return (
@@ -456,7 +505,7 @@ function renderEntityCell(key, entity, entityFieldDefs, members) {
 // la vieja `EntitiesTable` de filas fijas. Reusa las clases `neg-table-*`
 // de Negotiations.css: son estilos de tabla genéricos, ya bundleados en la
 // misma hoja de estilos global de la app.
-function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, members, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll }) {
+function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, members, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange }) {
   const visibleCols = cols.filter(c => c.visible)
   return (
     <div className="neg-table-wrapper">
@@ -470,7 +519,24 @@ function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, member
             )}
             {visibleCols.map(c => {
               const def = allColumns.find(x => x.key === c.key)
-              return <th key={c.key}>{def?.label}</th>
+              const fieldDef = entityFieldDefs.find(d => d.key === c.key)
+              const filterable = fieldDef ? isFieldFilterable(fieldDef) : false
+              const filterValue = customFilterValues?.[c.key]
+              const filterActive = filterValue !== undefined && filterValue !== '' && filterValue !== null && !(Array.isArray(filterValue) && filterValue.length === 0)
+              return (
+                <ColumnHeaderCell
+                  key={c.key}
+                  label={def?.label}
+                  sortDir={sortKey === c.key ? sortDir : null}
+                  onSort={() => onSort(c.key)}
+                  filterable={filterable}
+                  filterActive={filterActive}
+                >
+                  {filterable && (
+                    <CustomFieldFilter def={fieldDef} value={filterValue} onChange={v => onFilterChange(c.key, v)} members={members} />
+                  )}
+                </ColumnHeaderCell>
+              )
             })}
           </tr>
         </thead>

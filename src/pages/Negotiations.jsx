@@ -15,6 +15,8 @@ import { logActivity } from '../lib/activity'
 import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, isFieldFilterable, matchesFieldFilter, SPECIAL_FIELD_TYPES } from '../lib/customFields'
 import { CustomFieldInput, CustomFieldReadOnly, CustomFieldFilter } from '../components/CustomFieldInput'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
+import ColumnHeaderCell from '../components/ColumnHeaderCell'
+import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
@@ -61,6 +63,25 @@ function getExportValue(key, neg, getEntityName, customFieldDefs, members) {
   }
 }
 
+// Valor comparable por columna para el click-para-ordenar del encabezado —
+// null siempre ordena al final, ver sortRows en lib/tableSort.js.
+function getNegSortValue(key, neg, getEntityName, customFieldDefs, members) {
+  switch (key) {
+    case 'product': return (neg.product || neg.title || '').toLowerCase() || null
+    case 'entities': { const name = getEntityName(neg); return name && name !== '—' ? name.toLowerCase() : null }
+    case 'status': return neg.status?.toLowerCase() || null
+    case 'description': return neg.description?.toLowerCase() || null
+    case 'companies': return neg.companies?.length ? neg.companies.join(', ').toLowerCase() : null
+    case 'target_date': { const t = neg.target_date ? new Date(neg.target_date).getTime() : NaN; return Number.isNaN(t) ? null : t }
+    case 'participants': { const names = resolveMemberNames(members, neg.participants); return names.length ? names.join(', ').toLowerCase() : null }
+    case 'notes': return neg.notes_list?.length || null
+    case 'observations': return neg.observations?.toLowerCase() || null
+    case 'activity_status': return neg.activity_status || null
+    case 'last_activity_at': { const t = neg.last_activity_at ? new Date(neg.last_activity_at).getTime() : NaN; return Number.isNaN(t) ? null : t }
+    default: return customFieldSortValue(customFieldDefs?.find(d => d.key === key), neg, members, getCustomFieldValue, renderCustomFieldDisplay)
+  }
+}
+
 // Excel real (.xlsx) en vez de CSV: evita de raíz los problemas de
 // delimitador (coma vs ";" según configuración regional) y de codificación
 // de acentos que sí aparecen con texto plano tipo CSV.
@@ -102,6 +123,14 @@ export default function Negotiations() {
   const [customFilterValues, setCustomFilterValues] = useState({})
   const [filterEntity, setFilterEntity] = useState('')
   const [filterActivity, setFilterActivity] = useState('active')
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState(null)
+
+  function handleSort(key) {
+    const dir = nextSortDir(key, sortKey, sortDir)
+    setSortDir(dir)
+    setSortKey(dir ? key : null)
+  }
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [selectedNeg, setSelectedNeg] = useState(null)
@@ -259,6 +288,12 @@ export default function Negotiations() {
     if (search && !n.title?.toLowerCase().includes(search.toLowerCase()) && !n.product?.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
+
+  // Orden por columna (click en el encabezado de Tabla, o el selector de
+  // Tarjetas) — mismo estado para ambas vistas, así se mantienen en sync.
+  const sorted = sortKey
+    ? sortRows(filtered, n => getNegSortValue(sortKey, n, getEntityName, customFieldDefs, members), sortDir)
+    : filtered
 
   // Suma los hitos de pago de un set de proyectos, agrupados por moneda (sin conversión)
   function pipelineByCurrency(negIds) {
@@ -509,6 +544,22 @@ export default function Negotiations() {
           <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Vista cards">⊞</button>
           <button className={`neg-view-btn ${view === 'kanban' ? 'active' : ''}`} onClick={() => setView('kanban')} title="Vista kanban">▦</button>
         </div>
+        {view === 'cards' && (
+          <div className="neg-sort-select">
+            <select
+              value={sortKey || ''}
+              onChange={e => { const k = e.target.value; setSortKey(k || null); setSortDir(k ? (sortDir || 'asc') : null) }}
+            >
+              <option value="">Ordenar por...</option>
+              {allColumns.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+            {sortKey && (
+              <button type="button" className="neg-col-btn" onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')} title="Cambiar dirección">
+                {sortDir === 'desc' ? '▼' : '▲'}
+              </button>
+            )}
+          </div>
+        )}
         <button
           className={`neg-col-btn ${showColEditor ? 'active' : ''}`}
           onClick={() => setShowColEditor(v => !v)}
@@ -571,10 +622,12 @@ export default function Negotiations() {
       ) : filtered.length === 0 ? (
         <div className="neg-empty">No hay proyectos todavía.</div>
       ) : view === 'table' ? (
-        <TableView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} allColumns={allColumns} customFieldDefs={customFieldDefs} members={members}
-          selectedIds={selectedIds} onToggleSelect={toggleSelect} allVisibleSelected={allVisibleSelected} onToggleSelectAll={toggleSelectAllVisible} />
+        <TableView negotiations={sorted} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} allColumns={allColumns} customFieldDefs={customFieldDefs} members={members}
+          selectedIds={selectedIds} onToggleSelect={toggleSelect} allVisibleSelected={allVisibleSelected} onToggleSelectAll={toggleSelectAllVisible}
+          sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
+          customStates={customStates} customFilterValues={customFilterValues} onFilterChange={(key, v) => setCustomFilterValues(prev => ({ ...prev, [key]: v }))} />
       ) : view === 'cards' ? (
-        <CardsView negotiations={filtered} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} customFieldDefs={customFieldDefs} members={members}
+        <CardsView negotiations={sorted} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} customFieldDefs={customFieldDefs} members={members}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} />
       ) : (
         <KanbanView negotiations={filtered} customStates={customStates} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} cols={cols} customFieldDefs={customFieldDefs} members={members}
@@ -704,7 +757,7 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
   }
 }
 
-function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll }) {
+function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customStates, customFilterValues, onFilterChange }) {
   const visibleCols = cols.filter(c => c.visible)
 
   return (
@@ -717,7 +770,24 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
             </th>
             {visibleCols.map(c => {
               const def = allColumns.find(x => x.key === c.key)
-              return <th key={c.key}>{def?.label}</th>
+              const fieldDef = customFieldDefs.find(d => d.key === c.key)
+              const filterable = fieldDef ? isFieldFilterable(fieldDef) : false
+              const filterValue = customFilterValues?.[c.key]
+              const filterActive = filterValue !== undefined && filterValue !== '' && filterValue !== null && !(Array.isArray(filterValue) && filterValue.length === 0)
+              return (
+                <ColumnHeaderCell
+                  key={c.key}
+                  label={def?.label}
+                  sortDir={sortKey === c.key ? sortDir : null}
+                  onSort={() => onSort(c.key)}
+                  filterable={filterable}
+                  filterActive={filterActive}
+                >
+                  {filterable && (
+                    <CustomFieldFilter def={fieldDef} value={filterValue} onChange={v => onFilterChange(c.key, v)} customStates={customStates} members={members} />
+                  )}
+                </ColumnHeaderCell>
+              )
             })}
           </tr>
         </thead>

@@ -257,6 +257,22 @@
 .neg-col-btn.active { background: #0B1F3A; color: #fff; border-color: #0B1F3A; }
 .neg-col-btn:disabled { opacity: 0.6; cursor: default; }
 
+.neg-sort-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.neg-sort-select select {
+  height: 36px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #374151;
+  background: #ffffff;
+}
+.neg-sort-select .neg-col-btn { padding: 0 10px; }
+
 /* Menú de export (Excel / PDF) */
 .neg-export-menu { position: relative; }
 
@@ -480,6 +496,68 @@
   color: #374151;
   vertical-align: middle;
 }
+
+/* Encabezado tipo Excel — click en el label para ordenar, ▾ para filtrar
+   por esa columna (popover). Compartido entre Proyectos y Entidades. */
+.sortable-th { padding: 0 !important; }
+
+.sortable-th-inner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+}
+
+.sortable-th-label {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+}
+
+.sortable-th-arrow {
+  font-size: 9px;
+  opacity: 0;
+  color: #0B1F3A;
+}
+.sortable-th-arrow.visible { opacity: 1; }
+
+.sortable-th-filter {
+  position: relative;
+  margin-left: auto;
+}
+
+.sortable-th-filter-btn {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.sortable-th-filter-btn:hover { background: #eef0f3; color: #374151; }
+.sortable-th-filter-btn.open { background: #eef0f3; color: #0B1F3A; }
+.sortable-th-filter-btn.active { color: #1D4ED8; }
+
+.sortable-th-filter-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  margin-top: 4px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  padding: 10px;
+  min-width: 180px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+.sortable-th-filter-popover select { width: 100%; }
 
 .neg-td-product { font-weight: 600; color: #0F172A !important; font-size: 14px !important; }
 .neg-td-entity { color: #475569 !important; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

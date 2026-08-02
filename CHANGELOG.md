@@ -4,6 +4,14 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-02 (4)
+
+### Feature: encabezado de tabla tipo Excel — ordenar y filtrar por columna
+- `src/lib/tableSort.js` (nuevo): `sortRows`/`nextSortDir`/`customFieldSortValue` compartidos entre Proyectos y Entidades — nulls/vacíos siempre al final sin importar la dirección, number/date ordenan por su valor real, el resto por el string ya mostrado (case-insensitive)
+- `src/components/ColumnHeaderCell.jsx` (nuevo): `<th>` con label clickeable para ordenar (ciclo asc → desc → sin ordenar, con flechita) y un botón `▾` que abre un popover con el mismo `CustomFieldFilter` que ya usaba la toolbar — escriben al mismo estado de filtros, conviven sin duplicar el mecanismo
+- `getNegSortValue`/`getEntitySortValue` (uno por página) resuelven el valor comparable por columna, mismo criterio que `getExportValue`/`renderCell`: casos especiales primero (producto, entidad principal, estado, etc.), default a `customFieldSortValue` para cualquier campo custom
+- Selector de orden simple en la vista Tarjetas de ambas páginas, compartiendo el mismo estado que la Tabla — cambiar de vista no pierde el orden elegido
+
 ## 2026-08-02 (3)
 
 ### Feature: tabla configurable para Entidades (primer incremento del encabezado tipo Excel)
