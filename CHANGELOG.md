@@ -4,6 +4,13 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-02 (3)
+
+### Feature: tabla configurable para Entidades (primer incremento del encabezado tipo Excel)
+- `src/components/ColumnEditor.jsx` (nuevo): `useColumnPrefs`/`ColumnEditor` que antes vivían solo dentro de `Negotiations.jsx`, ahora compartidos y parametrizados (`storageKey`/`staticColumns`/`defaultVisible` en vez de constantes de módulo) — `Negotiations.jsx` pasa a consumirlos sin cambiar de comportamiento
+- Vista Tabla de Entidades reemplazada: `EntitiesGridTable` (columnas 100% desde `entityFieldDefs`, con la misma prioridad de label que Proyectos, más 2 columnas calculadas — Contactos y Proyectos totales) sustituye a la vieja `EntitiesTable` de filas fijas con conteo por estado. Nuevo botón "⚙ Columnas" en la toolbar, mismo patrón que Proyectos. Selección múltiple suma "seleccionar todos los visibles" (no existía antes en Entidades)
+- Decidido con el usuario, pendiente de construir: click-para-ordenar por columna (ambas tablas) y filtro por columna en el encabezado (convive con los filtros de toolbar existentes, no los reemplaza), más un selector de orden simple en la vista Tarjetas de ambas páginas
+
 ## 2026-08-02 (2)
 
 ### Feature: invitar cliente nuevo (solo Staff) + fix del bug real detrás de "invitación no funcionaba"

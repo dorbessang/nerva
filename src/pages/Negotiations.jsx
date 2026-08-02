@@ -14,6 +14,7 @@ import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
 import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, isFieldFilterable, matchesFieldFilter, SPECIAL_FIELD_TYPES } from '../lib/customFields'
 import { CustomFieldInput, CustomFieldReadOnly, CustomFieldFilter } from '../components/CustomFieldInput'
+import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
@@ -81,40 +82,6 @@ async function exportNegotiationsXlsx(negotiations, cols, getEntityName, customF
   XLSX.writeFile(wb, `nerva-proyectos-${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
-function useColumnPrefs(userId, customFieldDefs) {
-  const key = `nerva_col_prefs_${userId}`
-  const [cols, setCols] = useState(() => {
-    try {
-      const saved = localStorage.getItem(key)
-      if (saved) return JSON.parse(saved)
-    } catch {}
-    return ALL_COLUMNS.map(c => ({ key: c.key, visible: DEFAULT_VISIBLE.includes(c.key) }))
-  })
-
-  // Mergea cualquier columna que falte en las prefs guardadas — tanto las
-  // estáticas de ALL_COLUMNS como los campos custom fetcheados del
-  // workspace (que llegan async, después del primer render). Las que están
-  // en DEFAULT_VISIBLE (product/entities/status/companies/target_date)
-  // arrancan visibles — si no, un workspace nuevo (sin prefs guardadas
-  // todavía) vería la tabla vacía hasta que los campos custom llegaran del
-  // servidor, porque al momento del primer render ALL_COLUMNS ya no las
-  // incluye (viven en custom_field_definitions, no acá).
-  useEffect(() => {
-    const allKnown = [...ALL_COLUMNS, ...customFieldDefs.map(d => ({ key: d.key }))]
-    setCols(prev => {
-      const known = new Set(prev.map(c => c.key))
-      const missing = allKnown.filter(c => !known.has(c.key)).map(c => ({ key: c.key, visible: DEFAULT_VISIBLE.includes(c.key) }))
-      return missing.length > 0 ? [...prev, ...missing] : prev
-    })
-  }, [customFieldDefs])
-
-  function saveCols(newCols) {
-    setCols(newCols)
-    localStorage.setItem(key, JSON.stringify(newCols))
-  }
-
-  return [cols, saveCols]
-}
 
 export default function Negotiations() {
   const { user, workspaceId, effectiveRole, activeWorkspace } = useAuth()
@@ -140,7 +107,12 @@ export default function Negotiations() {
   const [selectedNeg, setSelectedNeg] = useState(null)
   const [editingNeg, setEditingNeg] = useState(null)
   const [showColEditor, setShowColEditor] = useState(false)
-  const [cols, saveCols] = useColumnPrefs(user?.id, customFieldDefs)
+  const [cols, saveCols] = useColumnPrefs({
+    storageKey: `nerva_col_prefs_${user?.id}`,
+    staticColumns: ALL_COLUMNS,
+    defaultVisible: DEFAULT_VISIBLE,
+    customFieldDefs,
+  })
   const allColumns = [...customFieldDefs.map(d => ({ key: d.key, label: d.label, alwaysVisible: d.key === 'product' })), ...ALL_COLUMNS]
   const [highlightTaskId, setHighlightTaskId] = useState(null)
   const [milestones, setMilestones] = useState([])
@@ -656,74 +628,6 @@ export default function Negotiations() {
 }
 
 // Editor de columnas — drag & drop para reordenar, toggle para mostrar/ocultar
-function ColumnEditor({ cols, allColumns, onChange, onClose }) {
-  const [dragSrc, setDragSrc] = useState(null)
-  const [dragOver, setDragOver] = useState(null)
-
-  function toggleVisible(key) {
-    const col = allColumns.find(c => c.key === key)
-    if (col?.alwaysVisible) return
-    onChange(cols.map(c => c.key === key ? { ...c, visible: !c.visible } : c))
-  }
-
-  function handleDragStart(e, idx) {
-    setDragSrc(idx)
-    e.dataTransfer.effectAllowed = 'move'
-  }
-
-  function handleDragOver(e, idx) {
-    e.preventDefault()
-    setDragOver(idx)
-  }
-
-  function handleDrop(idx) {
-    if (dragSrc === null || dragSrc === idx) { setDragSrc(null); setDragOver(null); return }
-    const next = [...cols]
-    const [moved] = next.splice(dragSrc, 1)
-    next.splice(idx, 0, moved)
-    onChange(next)
-    setDragSrc(null)
-    setDragOver(null)
-  }
-
-  return (
-    <div className="col-editor">
-      <div className="col-editor-header">
-        <span className="col-editor-title">Campos visibles</span>
-        <span className="col-editor-hint">Arrastrá para reordenar · Clic para mostrar/ocultar · Aplica a las 3 vistas</span>
-        <button className="col-editor-close" onClick={onClose}>✕</button>
-      </div>
-      <div className="col-editor-list">
-        {cols.map((c, idx) => {
-          const def = allColumns.find(x => x.key === c.key)
-          if (!def) return null
-          return (
-            <div
-              key={c.key}
-              className={`col-editor-item ${dragOver === idx ? 'drag-over' : ''} ${!c.visible ? 'hidden' : ''}`}
-              draggable
-              onDragStart={e => handleDragStart(e, idx)}
-              onDragOver={e => handleDragOver(e, idx)}
-              onDrop={() => handleDrop(idx)}
-              onDragEnd={() => { setDragSrc(null); setDragOver(null) }}
-            >
-              <span className="col-drag-handle">⠿</span>
-              <input
-                type="checkbox"
-                checked={c.visible}
-                onChange={() => toggleVisible(c.key)}
-                disabled={def.alwaysVisible}
-              />
-              <span className="col-editor-label">{def.label}</span>
-              {def.alwaysVisible && <span className="col-always">siempre</span>}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 // Render de una celda según el key de columna
 function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members) {
   const cfg = getStateConfig(neg.status)

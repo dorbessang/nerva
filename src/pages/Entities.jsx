@@ -15,7 +15,16 @@ import { logActivity } from '../lib/activity'
 import { formatAmount } from '../components/DealMilestones'
 import { CustomFieldReadOnly, CustomFieldFilter } from '../components/CustomFieldInput'
 import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter } from '../lib/customFields'
+import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
 import './Entities.css'
+
+// Columnas que no son un campo custom configurable — calculadas a partir de
+// relaciones (contactos, proyectos vinculados), no de custom_field_definitions.
+const ENTITY_STATIC_COLUMNS = [
+  { key: 'contacts_count', label: 'Contactos' },
+  { key: 'projects_total', label: 'Proyectos totales' },
+]
+const ENTITY_DEFAULT_VISIBLE = ['name', 'entity_type', 'country', 'contacts_count', 'projects_total']
 
 const AVATAR_COLORS = [
   ['#EFF6FF', '#1D4ED8'],
@@ -34,7 +43,7 @@ function getAvatarColor(name) {
 }
 
 export default function Entities({ entityTypeId, entityTypeName, entityTypeSingular }) {
-  const { workspaceId, activeWorkspace, effectiveRole } = useAuth()
+  const { user, workspaceId, activeWorkspace, effectiveRole } = useAuth()
   const canBulkDelete = effectiveRole === 'owner'
   const canImport = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
   const location = useLocation()
@@ -45,6 +54,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [view, setView] = useState('cards')
   const [showModal, setShowModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
+  const [showColEditor, setShowColEditor] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [negotiationStates, setNegotiationStates] = useState([])
   const [entityFieldDefs, setEntityFieldDefs] = useState([])
@@ -55,6 +65,21 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [bulkWorking, setBulkWorking] = useState(false)
   const [members, setMembers] = useState([])
   const [customFilterValues, setCustomFilterValues] = useState({})
+
+  // Columnas de la vista Tabla — igual criterio que Proyectos: los campos
+  // reales (custom_field_definitions) tienen prioridad de label, "contacts"
+  // no entra (es un sub-formulario repetible, no una celda; su versión
+  // tabular es el conteo en ENTITY_STATIC_COLUMNS).
+  const [cols, saveCols] = useColumnPrefs({
+    storageKey: `nerva_entity_col_prefs_${user?.id}_${entityTypeId}`,
+    staticColumns: ENTITY_STATIC_COLUMNS,
+    defaultVisible: ENTITY_DEFAULT_VISIBLE,
+    customFieldDefs: entityFieldDefs.filter(d => d.field_type !== 'contacts'),
+  })
+  const allColumns = [
+    ...entityFieldDefs.filter(d => d.field_type !== 'contacts').map(d => ({ key: d.key, label: d.label, alwaysVisible: d.key === 'name' })),
+    ...ENTITY_STATIC_COLUMNS,
+  ]
 
   function toggleSelect(id) {
     setSelectedIds(prev => {
@@ -188,6 +213,11 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     filterableEntityDefs.every(def => matchesFieldFilter(def, e, customFilterValues[def.key]))
   )
 
+  const allVisibleSelected = filtered.length > 0 && filtered.every(e => selectedIds.has(e.id))
+  function toggleSelectAll() {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(filtered.map(e => e.id)))
+  }
+
   return (
     <div className="entities-container">
       <div className="entities-header">
@@ -231,6 +261,15 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
             </svg>
           </button>
         </div>
+        {view === 'table' && (
+          <button
+            className={`entities-export-btn ${showColEditor ? 'active' : ''}`}
+            onClick={() => setShowColEditor(v => !v)}
+            title="Elegir qué columnas mostrar"
+          >
+            ⚙ Columnas
+          </button>
+        )}
         {canImport && (
           <button
             className="entities-export-btn"
@@ -249,6 +288,10 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           {exportingPdf ? 'Generando…' : '⬇ Exportar PDF'}
         </button>
       </div>
+
+      {showColEditor && view === 'table' && (
+        <ColumnEditor cols={cols} allColumns={allColumns} onChange={saveCols} onClose={() => setShowColEditor(false)} />
+      )}
 
       {showImportModal && (
         <ImportEntitiesModal
@@ -288,15 +331,18 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
       ) : filtered.length === 0 ? (
         <div className="entities-empty"><p>No hay {entityTypeName?.toLowerCase() || 'proveedores'} todavía.</p></div>
       ) : view === 'table' ? (
-        <EntitiesTable
+        <EntitiesGridTable
           entities={filtered}
-          negotiationStates={negotiationStates}
-          getStateConfig={getStateConfig}
-          getStateCounts={getStateCounts}
+          entityFieldDefs={entityFieldDefs}
+          cols={cols}
+          allColumns={allColumns}
+          members={members}
           onSelect={setSelectedEntity}
           canBulkDelete={canBulkDelete}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
+          allVisibleSelected={allVisibleSelected}
+          onToggleSelectAll={toggleSelectAll}
         />
       ) : (
         <div className="entities-grid">
@@ -378,61 +424,69 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   )
 }
 
-function EntitiesTable({ entities, negotiationStates, getStateConfig, getStateCounts, onSelect, canBulkDelete, selectedIds, onToggleSelect }) {
+// Celda de una columna de la grilla de Entidades — despacha por key igual
+// que renderCell en Negotiations.jsx: primero los casos especiales (no son
+// un campo custom simple: nombre con bandera, tipo resuelto vía el join,
+// los 2 calculados de ENTITY_STATIC_COLUMNS) y default a `entityFieldDefs`.
+function renderEntityCell(key, entity, entityFieldDefs, members) {
+  switch (key) {
+    case 'name':
+      return (
+        <td key={key} className="entities-td-name">
+          {entity.country_code && <img src={getFlagUrl(entity.country_code)} alt="" className="entity-flag" />}
+          {entity.name}
+        </td>
+      )
+    case 'entity_type':
+      return <td key={key}>{entity.entity_type?.name || '—'}</td>
+    case 'contacts_count':
+      return <td key={key}>{entity.contacts?.length || 0}</td>
+    case 'projects_total':
+      return <td key={key}>{entity.negotiation_entities?.length || 0}</td>
+    default: {
+      const def = entityFieldDefs?.find(d => d.key === key)
+      if (!def) return <td key={key}>—</td>
+      const raw = def.storage_column ? entity[def.storage_column] : getCustomFieldValue(entity.custom_fields, key)
+      return <td key={key} className="entities-td-text">{renderCustomFieldDisplay(def, raw, members)}</td>
+    }
+  }
+}
+
+// Grilla con columnas configurables (Settings + "⚙ Columnas") — reemplaza
+// la vieja `EntitiesTable` de filas fijas. Reusa las clases `neg-table-*`
+// de Negotiations.css: son estilos de tabla genéricos, ya bundleados en la
+// misma hoja de estilos global de la app.
+function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, members, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll }) {
+  const visibleCols = cols.filter(c => c.visible)
   return (
-    <div className="entities-list">
-      {entities.map(entity => {
-        const [bgColor, textColor] = getAvatarColor(entity.name)
-        const counts = getStateCounts(entity.negotiation_entities)
-        const total = Object.values(counts).reduce((a, b) => a + b, 0)
-        const contactCount = entity.contacts?.length || 0
-        const subParts = [
-          entity.country_code && getCountryName(entity.country_code),
-          contactCount > 0 ? `${contactCount} contacto${contactCount !== 1 ? 's' : ''}` : 'sin contactos',
-        ].filter(Boolean)
-        return (
-          <div key={entity.id} className="entities-list-row" onClick={() => onSelect(entity)}>
+    <div className="neg-table-wrapper">
+      <table className="neg-table">
+        <thead>
+          <tr>
             {canBulkDelete && (
-              <input
-                type="checkbox"
-                className="entities-list-checkbox"
-                checked={selectedIds.has(entity.id)}
-                onClick={e => e.stopPropagation()}
-                onChange={() => onToggleSelect(entity.id)}
-              />
+              <th className="neg-th-check">
+                <input type="checkbox" checked={allVisibleSelected} onChange={onToggleSelectAll} title="Seleccionar todos los visibles" />
+              </th>
             )}
-            <div className="entities-tbl-entity">
-              <div className="entity-avatar" style={{ width: 32, height: 32, fontSize: 11, backgroundColor: bgColor, color: textColor, flexShrink: 0 }}>
-                {getInitials(entity.name)}
-              </div>
-              <div>
-                <div className="entities-tbl-name">
-                  {entity.country_code && <img src={getFlagUrl(entity.country_code)} alt="" className="entity-flag" />}
-                  {entity.name}
-                </div>
-                <div className="entities-tbl-country">{subParts.join(' · ')}</div>
-              </div>
-            </div>
-            <div className="entities-list-stats">
-              <div className="entities-list-vdiv" />
-              <div className="entities-list-stat">
-                <div className="entities-list-stat-n">{total}</div>
-                <div className="entities-list-stat-l">Total</div>
-              </div>
-              {negotiationStates.flatMap(s => [
-                <div key={`div-${s.name}`} className="entities-list-vdiv" />,
-                <div key={s.name} className="entities-list-stat">
-                  <div className="entities-list-stat-n" style={{ color: counts[s.name] ? s.color : '#d1d5db' }}>
-                    {counts[s.name] || '—'}
-                  </div>
-                  <div className="entities-list-stat-l">{s.name}</div>
-                </div>
-              ])}
-            </div>
-            <span className="entities-list-arrow">›</span>
-          </div>
-        )
-      })}
+            {visibleCols.map(c => {
+              const def = allColumns.find(x => x.key === c.key)
+              return <th key={c.key}>{def?.label}</th>
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {entities.map(entity => (
+            <tr key={entity.id} onClick={() => onSelect(entity)} className="neg-table-row">
+              {canBulkDelete && (
+                <td className="neg-td-check" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedIds.has(entity.id)} onChange={() => onToggleSelect(entity.id)} />
+                </td>
+              )}
+              {visibleCols.map(c => renderEntityCell(c.key, entity, entityFieldDefs, members))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
