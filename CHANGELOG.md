@@ -4,6 +4,13 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-02 (1)
+
+### Fixes: feedback del primer cliente real
+- **Bug real**: el picker de columnas de Proyectos (`ALL_COLUMNS` en `Negotiations.jsx`) tenía 6 keys hardcodeados que duplicaban campos ya definidos en `custom_field_definitions` (`product`/`entities`/`status`/`description`/`companies`/`participants`), con labels viejos que tapaban al label real configurado en Settings — se veía tanto en el picker como en los encabezados de la tabla y del export a Excel. Se sacaron esos 6 keys de la lista estática (solo quedan los que genuinamente no son un campo: fecha, notas, aclaraciones, actividad, última actividad), se invirtió la prioridad de resolución de label a favor de `custom_field_definitions`, y se corrigió el default de "visible" para columnas nuevas (antes arrancaban ocultas, dejando la tabla vacía en un workspace recién creado)
+- **Bug real**: el primer login de un usuario nuevo caía siempre en su workspace personal (autogenerado al firmar) en vez del workspace de equipo al que fue invitado, porque `AuthContext` no priorizaba nada entre ambos al elegir el activo por defecto — se agregó esa prioridad (después de lo guardado en localStorage y del workspace de testing, que sigue siendo prioridad para uso interno)
+- Documentado (sin implementar todavía, a la espera de decisión/alcance): la invitación por email no manda mail automático hoy (depende de que el owner copie/pegue el link a mano — falta configurar SMTP propio), un mini-tutorial guiado para el primer ingreso, y encabezados de tabla tipo Excel con filtro+orden por columna en Proyectos/Entidades (para Entidades hace falta primero construir un sistema de columnas configurables, que hoy no existe)
+
 ## 2026-08-01 (1)
 
 ### Feature: pantalla de bienvenida para workspaces nuevos sin configurar

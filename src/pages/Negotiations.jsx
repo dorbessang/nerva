@@ -18,15 +18,14 @@ import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
 
-// Todas las columnas disponibles para la tabla
+// Columnas que NO son un campo custom configurable (calculadas o legacy) —
+// product/entities/status/description/companies/participants viven en
+// custom_field_definitions y su label sale de ahí, nunca de acá, para no
+// duplicar la columna con un label viejo que ignore lo que se configuró en
+// Settings (bug real: esta lista tenía esos 6 keys hardcodeados y `.find()`
+// devolvía siempre esta entrada primero, tapando el label real).
 const ALL_COLUMNS = [
-  { key: 'product',          label: 'Producto',         alwaysVisible: true  },
-  { key: 'entities',         label: 'Proveedor'                              },
-  { key: 'status',           label: 'Estado'                                 },
-  { key: 'description',      label: 'Descripción'                            },
-  { key: 'companies',        label: 'Empresas'                               },
   { key: 'target_date',      label: 'Fecha'                                  },
-  { key: 'participants',     label: 'Participantes'                          },
   { key: 'notes',            label: 'Notas'                                  },
   { key: 'observations',     label: 'Aclaraciones'                           },
   { key: 'activity_status',  label: 'Actividad'                              },
@@ -70,7 +69,7 @@ function getExportValue(key, neg, getEntityName, customFieldDefs, members) {
 async function exportNegotiationsXlsx(negotiations, cols, getEntityName, customFieldDefs, members) {
   const XLSX = await import('xlsx')
   const visibleCols = cols.filter(c => c.visible)
-  const headers = visibleCols.map(c => ALL_COLUMNS.find(x => x.key === c.key)?.label || customFieldDefs.find(d => d.key === c.key)?.label || c.key)
+  const headers = visibleCols.map(c => customFieldDefs.find(d => d.key === c.key)?.label || ALL_COLUMNS.find(x => x.key === c.key)?.label || c.key)
   const rows = [
     headers,
     ...negotiations.map(neg => visibleCols.map(c => getExportValue(c.key, neg, getEntityName, customFieldDefs, members))),
@@ -94,13 +93,17 @@ function useColumnPrefs(userId, customFieldDefs) {
 
   // Mergea cualquier columna que falte en las prefs guardadas — tanto las
   // estáticas de ALL_COLUMNS como los campos custom fetcheados del
-  // workspace (que llegan async, después del primer render) — como oculta
-  // por defecto.
+  // workspace (que llegan async, después del primer render). Las que están
+  // en DEFAULT_VISIBLE (product/entities/status/companies/target_date)
+  // arrancan visibles — si no, un workspace nuevo (sin prefs guardadas
+  // todavía) vería la tabla vacía hasta que los campos custom llegaran del
+  // servidor, porque al momento del primer render ALL_COLUMNS ya no las
+  // incluye (viven en custom_field_definitions, no acá).
   useEffect(() => {
     const allKnown = [...ALL_COLUMNS, ...customFieldDefs.map(d => ({ key: d.key }))]
     setCols(prev => {
       const known = new Set(prev.map(c => c.key))
-      const missing = allKnown.filter(c => !known.has(c.key)).map(c => ({ key: c.key, visible: false }))
+      const missing = allKnown.filter(c => !known.has(c.key)).map(c => ({ key: c.key, visible: DEFAULT_VISIBLE.includes(c.key) }))
       return missing.length > 0 ? [...prev, ...missing] : prev
     })
   }, [customFieldDefs])
@@ -138,7 +141,7 @@ export default function Negotiations() {
   const [editingNeg, setEditingNeg] = useState(null)
   const [showColEditor, setShowColEditor] = useState(false)
   const [cols, saveCols] = useColumnPrefs(user?.id, customFieldDefs)
-  const allColumns = [...ALL_COLUMNS, ...customFieldDefs.map(d => ({ key: d.key, label: d.label }))]
+  const allColumns = [...customFieldDefs.map(d => ({ key: d.key, label: d.label, alwaysVisible: d.key === 'product' })), ...ALL_COLUMNS]
   const [highlightTaskId, setHighlightTaskId] = useState(null)
   const [milestones, setMilestones] = useState([])
   const [selectedIds, setSelectedIds] = useState(() => new Set())

@@ -70,7 +70,13 @@ export function AuthProvider({ children }) {
     const savedId = localStorage.getItem('nerva_active_workspace')
     const savedExists = memberWorkspaces.find(w => w.id === savedId)
     const testingWs = memberWorkspaces.find(w => w.type === 'testing')
-    const active = savedExists || testingWs || memberWorkspaces[0]
+    // El WS personal se crea automático al firmar (trigger de signup), antes
+    // de que se lo invite a ningún WS de equipo — sin este orden explícito,
+    // sin nada guardado todavía cae en el personal por ser el primero
+    // creado, aunque el usuario haya entrado específicamente para trabajar
+    // en el WS de equipo al que lo invitaron.
+    const teamWs = memberWorkspaces.find(w => w.type !== 'personal')
+    const active = savedExists || testingWs || teamWs || memberWorkspaces[0]
 
     const realRole = data.find(m => m.workspace_id === active.id)?.role ?? null
     setWorkspaceId(active.id)
