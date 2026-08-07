@@ -220,12 +220,17 @@ Diseño: sin tablas ni columnas nuevas — `negotiation_entities` (entity_id) y 
 
 - [x] `NegotiationModal`: estado interno pasa de `entity_ids` (array con rol libre) a `entity_by_type` (objeto `{entityTypeId: entityId}`) — un `<select>` por tipo de entidad configurado, con las entidades de ese tipo como opciones
 - [x] Guardado: `primary_entity_id` sale del primer tipo (en orden de `sort_order`) que tenga una entidad asignada; `negotiation_entities` se inserta sin columna `role` (ya no aplica, el "rol" ahora es el tipo de entidad en sí)
-- [x] Toolbar: un filtro por tipo de entidad (`entityTypeFilters`, uno por `entity_type`) reemplaza al viejo filtro único de "Proveedor"
-- [x] Tabla/Tarjetas/Kanban: columnas virtuales `entity_type:<id>` (una por tipo configurado) reemplazan a la columna única `entities` — mismo sistema de columnas configurables/ordenables que ya tenían Proyectos y Entidades, incluido filtro en el propio encabezado de columna (conviven con los filtros de toolbar, escriben al mismo estado)
+- [x] Tabla/Tarjetas/Kanban: columnas virtuales `entity_type:<id>` (una por tipo configurado) reemplazan a la columna única `entities` — mismo sistema de columnas configurables/ordenables que ya tenían Proyectos y Entidades, incluido filtro en el propio encabezado de columna
 - [x] Export a Excel: encabezados de las columnas por tipo resuelven al nombre real del tipo (plural si está configurado), no al UUID crudo
 - [x] Detalle de proyecto: la sección "Entidades vinculadas" pasa de mostrar principal+secundarias a una fila por tipo de entidad con datos asignados
 - [ ] **Explícitamente fuera de alcance esta ronda, no investigado**: el import de Proyectos (`ImportNegotiationsModal`) sigue con su columna única "Proveedor" (matchea por nombre contra cualquier entidad, solo setea `primary_entity_id`, no crea filas por tipo) — no lo tocó el usuario en este pedido, queda como limitación conocida del import masivo
 - [ ] Sin SQL nuevo — no hace falta correr nada en Supabase para esta ronda
+
+##### Follow-up inmediato: toolbar con demasiados filtros duplicados + buscador incompleto
+Al probarlo, feedback de que la toolbar quedó con demasiados filtros (uno por tipo de entidad + uno por cada campo custom filtrable, todos duplicando el filtro `▾` que ya vive en el encabezado de cada columna) y que el buscador ("Proyecto o producto...") en realidad solo buscaba por nombre de proyecto, nunca por el producto vinculado.
+- [x] Se sacaron de la toolbar todos los filtros por tipo de entidad y por campo custom — quedan solo Buscar y Actividad. El filtrado por columna pasa a vivir exclusivamente en el encabezado de la tabla (mismo estado `entityTypeFilters`/`customFilterValues` de antes, misma vista Tabla que ya lo soportaba, ahora es la única forma de filtrar por esas columnas)
+- [x] Buscador ahora matchea también contra el producto principal vinculado (`negotiation_products` vía `getProductName`), no solo contra el nombre del proyecto
+- [ ] Trade-off a tener en cuenta: si una columna filtrable está oculta (vista "⚙ Vista"), su filtro deja de estar disponible hasta volver a mostrarla — comportamiento esperado del patrón "tipo Excel" pedido, no un bug
 
 ### Pantalla de bienvenida para workspaces nuevos sin configurar
 Al abrir el primer cliente pagador (workspace de equipo creado a mano vía SQL, sin flujo de alta propio todavía), el owner entraba a una app completamente vacía — sin tipos de entidad, sin estados, sin campos custom — y tenía que armar todo desde Configuración antes de poder cargar el primer dato. Se pidió una pantalla de bienvenida que ofrezca eso de entrada.

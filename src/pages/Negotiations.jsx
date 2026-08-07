@@ -330,7 +330,13 @@ export default function Negotiations() {
       if (!(n.activity_status === 'active' && n.status !== 'Completado' &&
             n.last_activity_at < day90ago && n.last_activity_at >= day120ago)) return false
     }
-    if (search && !n.title?.toLowerCase().includes(search.toLowerCase()) && !n.product?.toLowerCase().includes(search.toLowerCase())) return false
+    if (search) {
+      const q = search.toLowerCase()
+      const matchesProject = n.title?.toLowerCase().includes(q) || n.product?.toLowerCase().includes(q)
+      const linkedProduct = getProductName(n)
+      const matchesProduct = linkedProduct !== '—' && linkedProduct.toLowerCase().includes(q)
+      if (!matchesProject && !matchesProduct) return false
+    }
     return true
   })
 
@@ -555,31 +561,6 @@ export default function Negotiations() {
           <label className="filter-field-label">Buscar</label>
           <input className="neg-search" type="text" placeholder="🔍 Proyecto o producto..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        {entitiesLinkDef && entityTypes.map(et => (
-          <div className="filter-field" key={et.id}>
-            <label className="filter-field-label">{et.name}</label>
-            <select
-              className="neg-select"
-              value={entityTypeFilters[et.id] || ''}
-              onChange={e => setEntityTypeFilters(prev => ({ ...prev, [et.id]: e.target.value }))}
-            >
-              <option value="">Todos</option>
-              {entities.filter(en => en.entity_type_id === et.id).map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
-            </select>
-          </div>
-        ))}
-        {filterableDefs.map(def => (
-          <div className="filter-field" key={def.key}>
-            <label className="filter-field-label">{def.label}</label>
-            <CustomFieldFilter
-              def={def}
-              value={customFilterValues[def.key]}
-              onChange={v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v }))}
-              customStates={customStates}
-              members={members}
-            />
-          </div>
-        ))}
         <div className="filter-field">
           <label className="filter-field-label">Actividad</label>
           <select className="neg-select" value={filterActivity} onChange={e => setFilterActivity(e.target.value)}>

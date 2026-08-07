@@ -4,6 +4,12 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-07 (2)
+
+### Fix: toolbar de Proyectos con demasiados filtros duplicados + buscador que no encontraba por producto vinculado
+- La toolbar tenía un filtro por cada tipo de entidad (Cliente, Proveedor, Distribuidor...) más uno por cada campo custom filtrable (Estado, Participantes, etc.), duplicando exactamente lo que ya ofrecía el filtro `▾` en el propio encabezado de cada columna (mismo estado, dos UIs). Se sacaron todos esos filtros de la toolbar — quedan solo Buscar y Actividad — y el filtrado por columna pasa a vivir 100% en el encabezado, estilo Excel
+- El buscador ("Proyecto o producto...") solo miraba el nombre del proyecto — nunca el producto vinculado desde el módulo de Productos/Servicios, aunque el placeholder ya lo prometía. Ahora también matchea contra el producto principal vinculado (`negotiation_products`), para cubrir el caso real: a veces el nombre del proyecto no repite el nombre del producto
+
 ## 2026-08-07 (1)
 
 ### Feature: Proyectos — una columna por tipo de entidad (reemplaza "Entidades vinculadas" genérico)
