@@ -159,17 +159,19 @@ function rawFieldValue(def, obj) {
 }
 
 // true si `obj` matchea el filtro elegido para este campo — filterValue
-// vacío/undefined siempre matchea (sin filtro activo). Para campos multi
-// (multiselect/país o usuario múltiple) matchea "alguno de los elegidos".
+// vacío/undefined siempre matchea (sin filtro activo). `filterValue` puede
+// ser un valor único (widget viejo, un <select>) o un array (checklist tipo
+// Excel, varios valores tildados) — en ambos casos matchea "alguno de los
+// elegidos" contra el valor real del campo.
 export function matchesFieldFilter(def, obj, filterValue) {
   if (filterValue === undefined || filterValue === null || filterValue === '' || (Array.isArray(filterValue) && filterValue.length === 0)) return true
   const raw = rawFieldValue(def, obj)
   const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
-  if (type === 'boolean') return String(!!raw) === filterValue
+  const wanted = Array.isArray(filterValue) ? filterValue : [filterValue]
+  if (type === 'boolean') return wanted.includes(String(!!raw))
   if (isMultiValueFilter(def)) {
     const rawArr = Array.isArray(raw) ? raw : []
-    const wanted = Array.isArray(filterValue) ? filterValue : [filterValue]
     return wanted.some(v => rawArr.includes(v))
   }
-  return raw === filterValue
+  return wanted.includes(raw)
 }

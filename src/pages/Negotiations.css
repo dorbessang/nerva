@@ -552,12 +552,64 @@
   border-radius: 8px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
   padding: 10px;
-  min-width: 180px;
+  min-width: 220px;
   text-transform: none;
   letter-spacing: normal;
   font-weight: 400;
 }
 .sortable-th-filter-popover select { width: 100%; }
+
+/* Filtro de columna estilo Excel — buscador + checklist de valores */
+.col-filter-menu { display: flex; flex-direction: column; gap: 6px; }
+
+.col-filter-search {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: #0B1F3A;
+}
+.col-filter-search:focus { outline: none; border-color: #93b4fb; }
+
+.col-filter-actions { display: flex; gap: 10px; }
+.col-filter-actions button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #1D4ED8;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.col-filter-actions button:hover { text-decoration: underline; }
+
+.col-filter-list {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 6px;
+}
+
+.col-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: #334155;
+}
+.col-filter-item:hover { background: #f8fafc; }
+.col-filter-item input { margin: 0; flex-shrink: 0; }
+.col-filter-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.col-filter-empty { padding: 6px 4px; font-size: 12px; color: #9ca3af; }
 
 .neg-td-product { font-weight: 600; color: #0F172A !important; font-size: 14px !important; }
 .neg-td-entity { color: #475569 !important; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

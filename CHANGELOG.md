@@ -4,6 +4,13 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-07 (3)
+
+### Feature: filtro de columna estilo Excel — buscador + checklist multi-valor
+- `src/components/ColumnFilterMenu.jsx` (nuevo): reemplaza al `<select>` de una sola opción del filtro de encabezado por un buscador + lista de checkboxes (con "Todos"/"Ninguno"/"Limpiar") — se puede tildar varios valores a la vez, como el autofiltro de Excel. Aplica tanto a los campos custom filtrables (Estado, Participantes, etc.) como a las columnas por tipo de entidad
+- `matchesFieldFilter` (customFields.js) generalizado para aceptar tanto un valor único (compatibilidad con lo que ya escribía la tarjeta de stats de Estado) como un array (el nuevo checklist) — mismo semántica "alguno de los elegidos" en ambos casos
+- Fix de paso: al hacer click en una tarjeta de stats de Estado ahora hace toggle correctamente sobre el array de estados filtrados en vez de pisarlo con un solo valor, así conviven sin perder selección con el filtro nuevo del encabezado
+
 ## 2026-08-07 (2)
 
 ### Fix: toolbar de Proyectos con demasiados filtros duplicados + buscador que no encontraba por producto vinculado

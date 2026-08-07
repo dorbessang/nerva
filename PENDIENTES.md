@@ -232,6 +232,13 @@ Al probarlo, feedback de que la toolbar quedó con demasiados filtros (uno por t
 - [x] Buscador ahora matchea también contra el producto principal vinculado (`negotiation_products` vía `getProductName`), no solo contra el nombre del proyecto
 - [ ] Trade-off a tener en cuenta: si una columna filtrable está oculta (vista "⚙ Vista"), su filtro deja de estar disponible hasta volver a mostrarla — comportamiento esperado del patrón "tipo Excel" pedido, no un bug
 
+##### Follow-up inmediato (2): el filtro de encabezado era un `<select>` de una sola opción, no "tipo Excel" de verdad
+Feedback tras probar el punto anterior: el filtro `▾` de cada columna era un desplegable de una sola opción (había que scrollear a buscar y solo se podía elegir un valor) — pidió que fuera más parecido al autofiltro real de Excel: buscador + poder tildar varios valores.
+- [x] `ColumnFilterMenu.jsx` (nuevo, componente compartido): buscador de texto + checklist de checkboxes con "Todos"/"Ninguno"/"Limpiar", reemplaza al `<select>` en el filtro de encabezado de Proyectos — tanto para las columnas por tipo de entidad como para cualquier campo custom filtrable (Estado, Participantes, etc.)
+- [x] `matchesFieldFilter` generalizado para aceptar valor único o array indistintamente (compatibilidad con la tarjeta de stats de Estado, que sigue escribiendo un valor a la vez) — mismo semántica "alguno de los elegidos"
+- [x] Fix de paso: el click en una tarjeta de stats de Estado ahora hace toggle sobre el array en vez de pisarlo, para no perder selección si ya había filtros tildados desde el encabezado
+- [ ] Deliberadamente no tocado: la página de Entidades (toolbar y encabezado de su propia tabla) sigue con el `<select>` viejo (`CustomFieldFilter`) — no era parte de este pedido, que fue específico a Proyectos
+
 ### Pantalla de bienvenida para workspaces nuevos sin configurar
 Al abrir el primer cliente pagador (workspace de equipo creado a mano vía SQL, sin flujo de alta propio todavía), el owner entraba a una app completamente vacía — sin tipos de entidad, sin estados, sin campos custom — y tenía que armar todo desde Configuración antes de poder cargar el primer dato. Se pidió una pantalla de bienvenida que ofrezca eso de entrada.
 - [x] Columna nueva `workspaces.onboarded boolean not null default true` — default `true` a propósito, para que ningún workspace ya en uso muestre esta pantalla retroactivamente. Los workspaces nuevos se crean con `onboarded = false` explícito en el insert de bootstrap

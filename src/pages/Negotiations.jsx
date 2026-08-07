@@ -12,10 +12,11 @@ import Documents from '../components/Documents'
 import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
-import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, isFieldFilterable, matchesFieldFilter, SPECIAL_FIELD_TYPES } from '../lib/customFields'
-import { CustomFieldInput, CustomFieldReadOnly, CustomFieldFilter } from '../components/CustomFieldInput'
+import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, isFieldFilterable, matchesFieldFilter, filterChoicesFor, SPECIAL_FIELD_TYPES } from '../lib/customFields'
+import { CustomFieldInput, CustomFieldReadOnly } from '../components/CustomFieldInput'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
 import ColumnHeaderCell from '../components/ColumnHeaderCell'
+import ColumnFilterMenu from '../components/ColumnFilterMenu'
 import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
 import './Negotiations.css'
 
@@ -50,6 +51,12 @@ function getProductName(neg) {
 // una entidad por tipo, confirmado con el usuario).
 function getEntitiesOfType(neg, typeId) {
   return (neg.negotiation_entities || []).filter(ne => ne.entity?.entity_type_id === typeId).map(ne => ne.entity)
+}
+
+// El filtro de Estado puede venir de la tarjeta de stats (valor único) o del
+// checklist tipo Excel del encabezado de columna (array) — normaliza ambos.
+function statusFilterIncludes(filterValue, name) {
+  return Array.isArray(filterValue) ? filterValue.includes(name) : filterValue === name
 }
 
 // Valor de texto plano por columna para el export CSV — separado de
@@ -318,10 +325,10 @@ export default function Negotiations() {
 
   const filtered = negotiations.filter(n => {
     if (!filterableDefs.every(def => matchesFieldFilter(def, n, customFilterValues[def.key]))) return false
-    for (const [typeId, entityId] of Object.entries(entityTypeFilters)) {
-      if (!entityId) continue
+    for (const [typeId, entityIds] of Object.entries(entityTypeFilters)) {
+      if (!entityIds || entityIds.length === 0) continue
       const ids = (n.negotiation_entities || []).filter(ne => ne.entity?.entity_type_id === typeId).map(ne => ne.entity.id)
-      if (!ids.includes(entityId)) return false
+      if (!entityIds.some(id => ids.includes(id))) return false
     }
     if (filterActivity === 'active') { if (n.activity_status !== 'active') return false }
     if (filterActivity === 'paused') { if (n.activity_status !== 'paused') return false }
@@ -485,8 +492,15 @@ export default function Negotiations() {
         {stateCounts.map(s => (
           <div
             key={s.name}
-            className={`neg-stat-card ${statusDef && customFilterValues[statusDef.key] === s.name ? 'active' : ''}`}
-            onClick={() => statusDef && setCustomFilterValues(v => ({ ...v, [statusDef.key]: v[statusDef.key] === s.name ? '' : s.name }))}
+            className={`neg-stat-card ${statusDef && statusFilterIncludes(customFilterValues[statusDef.key], s.name) ? 'active' : ''}`}
+            onClick={() => {
+              if (!statusDef) return
+              setCustomFilterValues(v => {
+                const cur = v[statusDef.key]
+                const arr = Array.isArray(cur) ? cur : (cur ? [cur] : [])
+                return { ...v, [statusDef.key]: arr.includes(s.name) ? arr.filter(x => x !== s.name) : [...arr, s.name] }
+              })
+            }}
             style={{ cursor: 'pointer' }}
           >
             <div className="neg-stat-label">{s.name}</div>
@@ -813,21 +827,18 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
               const def = allColumns.find(x => x.key === c.key)
               if (c.key.startsWith('entity_type:')) {
                 const typeId = c.key.slice('entity_type:'.length)
-                const filterValue = entityTypeFilters?.[typeId]
-                const filterActive = !!filterValue
+                const selected = entityTypeFilters?.[typeId] || []
+                const options = entities.filter(en => en.entity_type_id === typeId).map(en => ({ id: en.id, label: en.name }))
                 return (
-                  <ColumnHeaderCell key={c.key} label={def?.label} sortDir={sortKey === c.key ? sortDir : null} onSort={() => onSort(c.key)} filterable filterActive={filterActive}>
-                    <select className="neg-select" value={filterValue || ''} onChange={e => onEntityTypeFilterChange(typeId, e.target.value)}>
-                      <option value="">Todos</option>
-                      {entities.filter(en => en.entity_type_id === typeId).map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
-                    </select>
+                  <ColumnHeaderCell key={c.key} label={def?.label} sortDir={sortKey === c.key ? sortDir : null} onSort={() => onSort(c.key)} filterable filterActive={selected.length > 0}>
+                    <ColumnFilterMenu options={options} selected={selected} onChange={v => onEntityTypeFilterChange(typeId, v)} />
                   </ColumnHeaderCell>
                 )
               }
               const fieldDef = customFieldDefs.find(d => d.key === c.key)
               const filterable = fieldDef ? isFieldFilterable(fieldDef) : false
               const filterValue = customFilterValues?.[c.key]
-              const filterActive = filterValue !== undefined && filterValue !== '' && filterValue !== null && !(Array.isArray(filterValue) && filterValue.length === 0)
+              const selected = Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : [])
               return (
                 <ColumnHeaderCell
                   key={c.key}
@@ -835,10 +846,10 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
                   sortDir={sortKey === c.key ? sortDir : null}
                   onSort={() => onSort(c.key)}
                   filterable={filterable}
-                  filterActive={filterActive}
+                  filterActive={selected.length > 0}
                 >
                   {filterable && (
-                    <CustomFieldFilter def={fieldDef} value={filterValue} onChange={v => onFilterChange(c.key, v)} customStates={customStates} members={members} />
+                    <ColumnFilterMenu options={filterChoicesFor(fieldDef, { customStates, members })} selected={selected} onChange={v => onFilterChange(c.key, v)} />
                   )}
                 </ColumnHeaderCell>
               )
