@@ -39,12 +39,21 @@ const DEFAULT_VISIBLE = ['product','entities','status','companies','target_date'
 
 const ACTIVITY_LABELS = { active: 'En curso', paused: 'Pausado', inactive: 'Inactivo' }
 
+// Solo depende de `neg` (a diferencia de getEntityName/getEntityFlag, que
+// necesitan la lista completa de entidades como fallback) — no hace falta
+// pasarla como parámetro en ningún lado.
+function getProductName(neg) {
+  const primary = neg.primary_product || neg.negotiation_products?.map(np => np.product).filter(Boolean)[0] || null
+  return primary?.name || '—'
+}
+
 // Valor de texto plano por columna para el export CSV — separado de
 // renderCell/renderCardField porque esos devuelven JSX con badges/chips.
 function getExportValue(key, neg, getEntityName, customFieldDefs, members) {
   switch (key) {
     case 'product': return neg.product || neg.title || ''
     case 'entities': return getEntityName(neg)
+    case 'products': { const name = getProductName(neg); return name === '—' ? '' : name }
     case 'status': return neg.status || ''
     case 'description': return neg.description || ''
     case 'companies': return (neg.companies || []).join(', ')
@@ -69,6 +78,7 @@ function getNegSortValue(key, neg, getEntityName, customFieldDefs, members) {
   switch (key) {
     case 'product': return (neg.product || neg.title || '').toLowerCase() || null
     case 'entities': { const name = getEntityName(neg); return name && name !== '—' ? name.toLowerCase() : null }
+    case 'products': { const name = getProductName(neg); return name !== '—' ? name.toLowerCase() : null }
     case 'status': return neg.status?.toLowerCase() || null
     case 'description': return neg.description?.toLowerCase() || null
     case 'companies': return neg.companies?.length ? neg.companies.join(', ').toLowerCase() : null
@@ -115,6 +125,7 @@ export default function Negotiations() {
   const exportMenuRef = useRef(null)
   const [negotiations, setNegotiations] = useState([])
   const [entities, setEntities] = useState([])
+  const [products, setProducts] = useState([])
   const [members, setMembers] = useState([])
   const [customStates, setCustomStates] = useState([])
   const [customFieldDefs, setCustomFieldDefs] = useState([])
@@ -173,9 +184,10 @@ export default function Negotiations() {
 
   async function fetchAll() {
     setLoading(true)
-    const [negsRes, entitiesRes, membersRes, statesRes, milestonesRes, customFieldsRes] = await Promise.all([
-      supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code)').order('created_at', { ascending: false }),
+    const [negsRes, entitiesRes, productsRes, membersRes, statesRes, milestonesRes, customFieldsRes] = await Promise.all([
+      supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code), primary_product:primary_product_id(id, name)').order('created_at', { ascending: false }),
       supabase.from('entities').select('id, name, country_code').order('name'),
+      supabase.from('products').select('id, name').order('name'),
       supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`).eq('workspace_id', workspaceId),
       supabase.from('custom_states').select('*').eq('object_type', 'negotiation').order('sort_order'),
       supabase.from('deal_milestones').select('negotiation_id, amount').eq('workspace_id', workspaceId),
@@ -187,10 +199,14 @@ export default function Negotiations() {
     setMilestones(milestonesRes.data || [])
 
     const negIds = negsRes.data.map(n => n.id)
-    const [{ data: negEntities }, { data: negNotes }] = await Promise.all([
+    const [{ data: negEntities }, { data: negProducts }, { data: negNotes }] = await Promise.all([
       supabase
         .from('negotiation_entities')
         .select('negotiation_id, entity_id, role, entity:entity_id(id, name, country_code)')
+        .in('negotiation_id', negIds),
+      supabase
+        .from('negotiation_products')
+        .select('negotiation_id, product_id, product:product_id(id, name)')
         .in('negotiation_id', negIds),
       supabase
         .from('negotiation_notes')
@@ -202,24 +218,27 @@ export default function Negotiations() {
     const combined = negsRes.data.map(neg => ({
       ...neg,
       negotiation_entities: (negEntities || []).filter(ne => ne.negotiation_id === neg.id),
+      negotiation_products: (negProducts || []).filter(np => np.negotiation_id === neg.id),
       notes_list: (negNotes || []).filter(n => n.negotiation_id === neg.id),
     }))
 
     setNegotiations(combined)
     if (entitiesRes.data) setEntities(entitiesRes.data)
+    if (productsRes.data) setProducts(productsRes.data)
     if (membersRes.data) setMembers(membersRes.data)
     if (statesRes.data) setCustomStates(statesRes.data)
     setLoading(false)
   }
 
   async function refetchSingleNeg(id) {
-    const [{ data: neg }, { data: ents }, { data: notesList }] = await Promise.all([
-      supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code)').eq('id', id).single(),
+    const [{ data: neg }, { data: ents }, { data: prods }, { data: notesList }] = await Promise.all([
+      supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code), primary_product:primary_product_id(id, name)').eq('id', id).single(),
       supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code)').eq('negotiation_id', id),
+      supabase.from('negotiation_products').select('negotiation_id, product_id, product:product_id(id, name)').eq('negotiation_id', id),
       supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', id).order('note_date'),
     ])
     if (!neg) return null
-    return { ...neg, negotiation_entities: ents || [], notes_list: notesList || [] }
+    return { ...neg, negotiation_entities: ents || [], negotiation_products: prods || [], notes_list: notesList || [] }
   }
 
   function getStateConfig(status) {
@@ -638,6 +657,7 @@ export default function Negotiations() {
         <NegotiationModal
           initial={editingNeg}
           entities={entities}
+          products={products}
           members={members}
           customStates={customStates}
           customFieldDefs={customFieldDefs}
@@ -705,6 +725,8 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
           </span>
         </td>
       )
+    case 'products':
+      return <td key={key}>{getProductName(neg)}</td>
     case 'status':
       return <td key={key}><span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span></td>
     case 'companies':
@@ -821,6 +843,11 @@ function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag,
           {name}
         </div>
       )
+    }
+    case 'products': {
+      const name = getProductName(neg)
+      if (name === '—') return null
+      return <div key={key} className="neg-card-entity">{name}</div>
     }
     case 'companies':
       if (!neg.companies?.length) return null
@@ -987,7 +1014,7 @@ function KanbanView({ negotiations, customStates, getStateConfig, getEntityName,
 // explícito, ver PENDIENTES.md), este es el patrón a reusar — buscar en
 // el historial de git este archivo si hace falta el código exacto.
 
-export function NegotiationModal({ initial, presetEntity, entities, members, customStates, customFieldDefs = [], onClose, onCancel, onSaved, workspaceId, userId }) {
+export function NegotiationModal({ initial, presetEntity, entities, products = [], members, customStates, customFieldDefs = [], onClose, onCancel, onSaved, workspaceId, userId }) {
   const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
   const financialDef = customFieldDefs.find(d => d.field_type === 'financial')
 
@@ -996,6 +1023,7 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
     target_date: '', description: '', observations: '',
     companies: [], participants: [],
     entity_ids: presetEntity ? [{ id: presetEntity.id, role: '' }] : [], // [{ id, role }]
+    product_ids: [], // [{ id }]
     tasks: [],
     currency: 'USD', milestones: [], custom_fields: {}
   }
@@ -1006,6 +1034,11 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
       const primaryIdx = ids.findIndex(e => e.id === initial.primary_entity_id)
       return primaryIdx > 0 ? [ids[primaryIdx], ...ids.filter((_, i) => i !== primaryIdx)] : ids
     })(),
+    product_ids: (() => {
+      const ids = initial.negotiation_products?.map(np => ({ id: np.product?.id })).filter(p => p.id) || []
+      const primaryIdx = ids.findIndex(p => p.id === initial.primary_product_id)
+      return primaryIdx > 0 ? [ids[primaryIdx], ...ids.filter((_, i) => i !== primaryIdx)] : ids
+    })(),
     tasks: [],
     currency: initial.currency || 'USD', milestones: [],
     custom_fields: Object.fromEntries(Object.entries(initial.custom_fields || {}).map(([k, v]) => [k, v?.value])),
@@ -1013,6 +1046,9 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
   const [entitySearch, setEntitySearch] = useState('')
   const [entityDropdownOpen, setEntityDropdownOpen] = useState(false)
   const entityRef = useRef(null)
+  const [productSearch, setProductSearch] = useState('')
+  const [productDropdownOpen, setProductDropdownOpen] = useState(false)
+  const productRef = useRef(null)
   const [newTask, setNewTask] = useState('')
   const [newTaskAssignee, setNewTaskAssignee] = useState('')
   const [newMilestoneName, setNewMilestoneName] = useState('')
@@ -1032,6 +1068,7 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
 
   function fieldValue(def) {
     if (def.field_type === 'entities_link') return form.entity_ids
+    if (def.field_type === 'products_link') return form.product_ids
     return def.storage_column ? form[def.storage_column] : form.custom_fields[def.key]
   }
 
@@ -1050,11 +1087,12 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
       created_by: userId,
       observations: form.observations,
       primary_entity_id: form.entity_ids[0]?.id || null,
+      primary_product_id: form.product_ids[0]?.id || null,
     }
     if (financialDef) row.currency = form.currency
     const jsonbValues = {}
     for (const def of gridDefs) {
-      if (def.field_type === 'entities_link') continue
+      if (def.field_type === 'entities_link' || def.field_type === 'products_link') continue
       if (def.storage_column) row[def.storage_column] = form[def.storage_column]
       else jsonbValues[def.key] = form.custom_fields[def.key]
     }
@@ -1093,6 +1131,12 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
       if (form.entity_ids.length > 0) {
         await supabase.from('negotiation_entities').insert(
           form.entity_ids.map(e => ({ negotiation_id: negId, entity_id: e.id, role: e.role || null }))
+        )
+      }
+      await supabase.from('negotiation_products').delete().eq('negotiation_id', negId)
+      if (form.product_ids.length > 0) {
+        await supabase.from('negotiation_products').insert(
+          form.product_ids.map(p => ({ negotiation_id: negId, product_id: p.id }))
         )
       }
       if (form.tasks.length > 0) {
@@ -1205,6 +1249,83 @@ export function NegotiationModal({ initial, presetEntity, entities, members, cus
                       type="button"
                       className="entity-remove-btn"
                       onClick={() => set('entity_ids', form.entity_ids.filter(x => x.id !== e.id))}
+                    >×</button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )
+    }
+    if (def.field_type === 'products_link') {
+      return (
+        <div key={def.key} className="form-group form-group--wide" ref={productRef}>
+          <label>{def.label}{def.required ? ' *' : ''}</label>
+          <div className="entity-combobox">
+            <input
+              type="text"
+              className="entity-search-input"
+              placeholder="Buscar y agregar producto..."
+              value={productSearch}
+              autoComplete="off"
+              onChange={e => { setProductSearch(e.target.value); setProductDropdownOpen(true) }}
+              onFocus={() => setProductDropdownOpen(true)}
+              onBlur={() => setTimeout(() => setProductDropdownOpen(false), 150)}
+            />
+            {productDropdownOpen && (
+              <div className="entity-dropdown">
+                {products
+                  .filter(p =>
+                    !form.product_ids.find(x => x.id === p.id) &&
+                    p.name.toLowerCase().includes(productSearch.toLowerCase())
+                  )
+                  .slice(0, 6)
+                  .map(p => (
+                    <div
+                      key={p.id}
+                      className="entity-dropdown-option"
+                      onMouseDown={() => {
+                        set('product_ids', [...form.product_ids, { id: p.id }])
+                        setProductSearch('')
+                      }}
+                    >
+                      {p.name}
+                    </div>
+                  ))
+                }
+                {products.filter(p =>
+                  !form.product_ids.find(x => x.id === p.id) &&
+                  p.name.toLowerCase().includes(productSearch.toLowerCase())
+                ).length === 0 && (
+                  <div className="entity-dropdown-empty">Sin resultados</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {form.product_ids.length > 0 && (
+            <div className="entity-selected-list">
+              {form.product_ids.map((p, idx) => {
+                const prod = products.find(x => x.id === p.id)
+                const isPrimary = idx === 0
+                return (
+                  <div key={p.id} className={`entity-selected-row ${isPrimary ? 'entity-selected-row--primary' : ''}`}>
+                    {isPrimary ? (
+                      <span className="entity-primary-badge" title="Se muestra en tabla y mosaico">★ Principal</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="entity-make-primary-btn"
+                        title="Marcar como principal"
+                        onClick={() => set('product_ids', [p, ...form.product_ids.filter(x => x.id !== p.id)])}
+                      >☆</button>
+                    )}
+                    <span className="entity-selected-name">{prod?.name}</span>
+                    <button
+                      type="button"
+                      className="entity-remove-btn"
+                      onClick={() => set('product_ids', form.product_ids.filter(x => x.id !== p.id))}
                     >×</button>
                   </div>
                 )
@@ -1371,10 +1492,13 @@ export function NegotiationDetail({ neg, entities, customStates, customFieldDefs
   const primaryEntity = neg.primary_entity || neg.negotiation_entities?.map(ne => ne.entity).filter(Boolean)[0] || null
   const entityNames = primaryEntity?.name || '—'
   const secondaryEntities = (neg.negotiation_entities || []).filter(ne => ne.entity?.id && ne.entity.id !== primaryEntity?.id)
+  const primaryProduct = neg.primary_product || neg.negotiation_products?.map(np => np.product).filter(Boolean)[0] || null
+  const secondaryProducts = (neg.negotiation_products || []).filter(np => np.product?.id && np.product.id !== primaryProduct?.id)
   const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
   const financialDef = customFieldDefs.find(d => d.field_type === 'financial')
   const entitiesLinkDef = customFieldDefs.find(d => d.field_type === 'entities_link')
-  const inlineDetailDefs = gridDefs.filter(d => d.field_type !== 'status' && d.field_type !== 'entities_link' && d.key !== 'product')
+  const productsLinkDef = customFieldDefs.find(d => d.field_type === 'products_link')
+  const inlineDetailDefs = gridDefs.filter(d => d.field_type !== 'status' && d.field_type !== 'entities_link' && d.field_type !== 'products_link' && d.key !== 'product')
 
   function fieldValue(def) {
     return def.storage_column ? columnValues[def.key] : getCustomFieldValue(customFieldValues, def.key)
@@ -1528,6 +1652,24 @@ export function NegotiationDetail({ neg, entities, customStates, customFieldDefs
                     )}
                     <span className="neg-secondary-entity-name">{ne.entity.name}</span>
                     {ne.role && <span className="neg-secondary-entity-role">{ne.role}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {productsLinkDef && (primaryProduct || secondaryProducts.length > 0) && (
+            <div className="neg-detail-section">
+              <div className="detail-section-title">{productsLinkDef.label}</div>
+              <div className="neg-secondary-entities">
+                {primaryProduct && (
+                  <div key={primaryProduct.id} className="neg-secondary-entity-row">
+                    <span className="neg-secondary-entity-name">{primaryProduct.name}</span>
+                    <span className="neg-secondary-entity-role">★ Principal</span>
+                  </div>
+                )}
+                {secondaryProducts.map(np => (
+                  <div key={np.product.id} className="neg-secondary-entity-row">
+                    <span className="neg-secondary-entity-name">{np.product.name}</span>
                   </div>
                 ))}
               </div>

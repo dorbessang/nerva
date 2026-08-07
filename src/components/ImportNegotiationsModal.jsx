@@ -20,7 +20,7 @@ function parseDate(v) {
 // Participantes (usuario) requeriría mapear texto libre contra miembros
 // reales del workspace, igual que en el import de Entidades — se deja
 // afuera hasta que algún preset lo necesite de verdad.
-const SKIP_TYPES = ['entities_link', 'financial', 'user']
+const SKIP_TYPES = ['entities_link', 'products_link', 'financial', 'user']
 
 function importFieldsOf(negotiationFieldDefs) {
   return (negotiationFieldDefs || []).filter(d => !SKIP_TYPES.includes(d.field_type))

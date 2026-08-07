@@ -12,7 +12,7 @@ import { getCountryName, getAllCountries } from '../components/CountrySelector'
 // (`storage_column` apunta a una columna real, o a otra tabla/relación) y
 // tienen su propio widget bespoke — nunca aparecen en el desplegable
 // "+ Agregar campo" de Settings, solo se siembran por SQL.
-export const SPECIAL_FIELD_TYPES = ['entity_type', 'status', 'entities_link', 'financial', 'contacts']
+export const SPECIAL_FIELD_TYPES = ['entity_type', 'status', 'entities_link', 'financial', 'contacts', 'product_type', 'product_entity', 'products_link']
 
 function countryFlagEmoji(code) {
   if (!code || code.length !== 2) return ''

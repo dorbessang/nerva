@@ -5,6 +5,7 @@ import { useAuth } from '../lib/AuthContext'
 import EntityModal from '../components/EntityModal'
 import ImportEntitiesModal from '../components/ImportEntitiesModal'
 import { NegotiationDetail, NegotiationModal } from './Negotiations'
+import { ProductDetailModal } from './Products'
 import { getFlagUrl, getCountryName } from '../components/CountrySelector'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import NotesPostIts from '../components/NotesPostIts'
@@ -73,6 +74,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [negotiationStates, setNegotiationStates] = useState([])
   const [entityFieldDefs, setEntityFieldDefs] = useState([])
   const [negotiationFieldDefs, setNegotiationFieldDefs] = useState([])
+  const [productFieldDefs, setProductFieldDefs] = useState([])
   const [exportingPdf, setExportingPdf] = useState(false)
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
@@ -156,6 +158,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
       .order('sort_order')
     setEntityFieldDefs((data || []).filter(d => d.object_type === 'entity'))
     setNegotiationFieldDefs((data || []).filter(d => d.object_type === 'negotiation'))
+    setProductFieldDefs((data || []).filter(d => d.object_type === 'product'))
   }
 
   // Si viene de la búsqueda global (u otra pantalla), abre directo el detalle
@@ -467,6 +470,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           getStateConfig={getStateConfig}
           entityFieldDefs={entityFieldDefs}
           negotiationFieldDefs={negotiationFieldDefs}
+          productFieldDefs={productFieldDefs}
         />
       )}
     </div>
@@ -557,7 +561,7 @@ function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, member
   )
 }
 
-function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpdated, entityTypeName, entityTypeSingular, getStateConfig, entityFieldDefs = [], negotiationFieldDefs = [] }) {
+function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpdated, entityTypeName, entityTypeSingular, getStateConfig, entityFieldDefs = [], negotiationFieldDefs = [], productFieldDefs = [] }) {
   const { workspaceId, user, effectiveRole } = useAuth()
   const canDelete = effectiveRole === 'owner'
   const canCreateProject = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
@@ -574,6 +578,9 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
   const [rightTab, setRightTab] = useState('resumen')
   const [entityTasks, setEntityTasks] = useState([])
   const [members, setMembers] = useState([])
+  const [products, setProducts] = useState([])
+  const [entityProducts, setEntityProducts] = useState([])
+  const [selectedProduct, setSelectedProduct] = useState(null)
   const [fieldOrder, setFieldOrder] = useState(null)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
@@ -582,7 +589,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
   const [savingTask, setSavingTask] = useState(false)
   const [scorecard, setScorecard] = useState({ pipeline: [], pendingProjectTasks: 0 })
 
-  useEffect(() => { fetchEntityTasks(); fetchMembers(); fetchFieldOrder() }, [entity.id])
+  useEffect(() => { fetchEntityTasks(); fetchMembers(); fetchProducts(); fetchEntityProducts(); fetchFieldOrder() }, [entity.id])
 
   useEffect(() => {
     const negIds = (entity.negotiation_entities || []).map(n => n.negotiation?.id).filter(Boolean)
@@ -611,6 +618,20 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
       .eq('entity_id', entity.id)
       .order('created_at', { ascending: false })
     if (data) setEntityTasks(data)
+  }
+
+  async function fetchProducts() {
+    const { data } = await supabase.from('products').select('id, name').order('name')
+    if (data) setProducts(data)
+  }
+
+  async function fetchEntityProducts() {
+    const { data } = await supabase
+      .from('products')
+      .select('*, product_type:product_type_id ( id, name )')
+      .eq('entity_id', entity.id)
+      .order('name')
+    if (data) setEntityProducts(data)
   }
 
   async function fetchMembers() {
@@ -675,13 +696,14 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
   negs.forEach(n => { counts[n.status] = (counts[n.status] || 0) + 1 })
 
   async function fetchFullNeg(neg) {
-    const [{ data: full }, { data: ents }, { data: notesList }] = await Promise.all([
+    const [{ data: full }, { data: ents }, { data: prods }, { data: notesList }] = await Promise.all([
       supabase.from('negotiations').select('*').eq('id', neg.id).single(),
       supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code)').eq('negotiation_id', neg.id),
+      supabase.from('negotiation_products').select('negotiation_id, product_id, product:product_id(id, name)').eq('negotiation_id', neg.id),
       supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', neg.id).order('note_date'),
     ])
     if (!full) return null
-    return { ...full, negotiation_entities: ents || [], notes_list: notesList || [] }
+    return { ...full, negotiation_entities: ents || [], negotiation_products: prods || [], notes_list: notesList || [] }
   }
 
   async function handleSelectNeg(neg) {
@@ -702,13 +724,14 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
   }
 
   async function refetchNeg(id) {
-    const [{ data: full }, { data: ents }, { data: notesList }] = await Promise.all([
+    const [{ data: full }, { data: ents }, { data: prods }, { data: notesList }] = await Promise.all([
       supabase.from('negotiations').select('*').eq('id', id).single(),
       supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code)').eq('negotiation_id', id),
+      supabase.from('negotiation_products').select('negotiation_id, product_id, product:product_id(id, name)').eq('negotiation_id', id),
       supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', id).order('note_date'),
     ])
     if (!full) return null
-    return { ...full, negotiation_entities: ents || [], notes_list: notesList || [] }
+    return { ...full, negotiation_entities: ents || [], negotiation_products: prods || [], notes_list: notesList || [] }
   }
 
   const customStates = negotiationStates
@@ -816,6 +839,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
                 { key: 'resumen', label: 'Resumen' },
                 { key: 'actividad', label: 'Actividad' },
                 { key: 'proyectos', label: `Proyectos (${negs.length})` },
+                ...(productFieldDefs.length > 0 ? [{ key: 'productos', label: `Productos (${entityProducts.length})` }] : []),
                 { key: 'notas', label: 'Notas' },
                 { key: 'tareas', label: 'Tareas' },
                 { key: 'documentos', label: 'Documentos' },
@@ -1003,6 +1027,26 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
             )}
             </>
             )}
+
+            {rightTab === 'productos' && (
+              entityProducts.length === 0 ? (
+                <p className="detail-empty">Sin productos vinculados todavía.</p>
+              ) : (
+                <div className="entity-negs-list">
+                  {entityProducts.map(p => (
+                    <div key={p.id} className="entity-neg-row" onClick={() => setSelectedProduct(p)}>
+                      <div className="entity-neg-main">
+                        <div className="entity-neg-product">{p.name}</div>
+                      </div>
+                      <div className="entity-neg-right">
+                        {p.product_type?.name && <span className="entity-neg-badge" style={{ backgroundColor: '#F1F5F9', color: '#64748B' }}>{p.product_type.name}</span>}
+                        <span className="entity-neg-arrow">›</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
           </div>
         </div>
       </div>
@@ -1031,6 +1075,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
           initial={editingNeg}
           presetEntity={!editingNeg ? entity : undefined}
           entities={entities}
+          products={products}
           members={members}
           customStates={customStates}
           customFieldDefs={negotiationFieldDefs}
@@ -1069,6 +1114,20 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
           onDeleted={() => { setSelectedNeg(null); onUpdated() }}
           onActivityChanged={() => {}}
           onNotesChanged={() => {}}
+        />
+      )}
+
+      {selectedProduct && (
+        <ProductDetailModal
+          product={selectedProduct}
+          negotiationStates={negotiationStates}
+          onClose={() => setSelectedProduct(null)}
+          onUpdated={fetchEntityProducts}
+          productTypeName={selectedProduct.product_type?.name}
+          productTypeSingular={selectedProduct.product_type?.name}
+          getStateConfig={getStateConfig}
+          productFieldDefs={productFieldDefs}
+          negotiationFieldDefs={negotiationFieldDefs}
         />
       )}
     </div>

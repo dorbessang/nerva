@@ -34,6 +34,7 @@ export default function Layout({ children }) {
   const location = useLocation();
   const isMobile = useIsMobile();
   const [entityTypes, setEntityTypes] = useState([]);
+  const [productTypes, setProductTypes] = useState([]);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [wsDropdownOpen, setWsDropdownOpen] = useState(false);
@@ -47,6 +48,7 @@ export default function Layout({ children }) {
 
   useEffect(() => {
     fetchEntityTypes();
+    fetchProductTypes();
   }, [workspaceId, location.pathname]);
 
   useEffect(() => {
@@ -91,6 +93,16 @@ export default function Layout({ children }) {
       .eq("workspace_id", workspaceId)
       .order("sort_order");
     if (data) setEntityTypes(data);
+  }
+
+  async function fetchProductTypes() {
+    if (!workspaceId || isPersonalWorkspace) { setProductTypes([]); return; }
+    const { data } = await supabase
+      .from("product_types")
+      .select("id, name, icon, plural")
+      .eq("workspace_id", workspaceId)
+      .order("sort_order");
+    if (data) setProductTypes(data);
   }
 
   async function handleSignOut() {
@@ -358,6 +370,32 @@ export default function Layout({ children }) {
                 {showLabels && (
                   <span className="nav-label">
                     {et.plural || (et.name.endsWith('s') ? et.name : et.name.endsWith('r') ? et.name + 'es' : et.name + 's')}
+                  </span>
+                )}
+              </button>
+            ))}
+
+            {productTypes.length > 0 && <div className="nav-divider" />}
+
+            {productTypes.map((pt) => (
+              <button
+                key={pt.id}
+                onClick={() => navigate(`/products/${pt.id}`)}
+                className={`nav-item ${location.pathname === `/products/${pt.id}` ? "active" : ""}`}
+                title={showLabels ? "" : pt.name}
+              >
+                <span className="nav-icon">
+                  {pt.icon
+                    ? <EntityIcon name={pt.icon} size={18} />
+                    : <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="6" width="14" height="10" rx="1.5" />
+                        <path d="M2 6l7-4 7 4" />
+                      </svg>
+                  }
+                </span>
+                {showLabels && (
+                  <span className="nav-label">
+                    {pt.plural || (pt.name.endsWith('s') ? pt.name : pt.name.endsWith('r') ? pt.name + 'es' : pt.name + 's')}
                   </span>
                 )}
               </button>

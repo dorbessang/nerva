@@ -13,6 +13,7 @@ import SetPassword from "./pages/SetPassword";
 import Layout from "./components/Layout";
 import Tasks from "./pages/Tasks";
 import Entities from "./pages/Entities";
+import Products from "./pages/Products";
 import Negotiations from "./pages/Negotiations";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
@@ -55,6 +56,39 @@ function EntityRoute() {
       entityTypeId={entityType.id}
       entityTypeName={pluralName}
       entityTypeSingular={singularName}
+    />
+  );
+}
+
+function ProductRoute() {
+  const { id } = useParams();
+  const [productType, setProductType] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from("product_types")
+      .select("id, name, plural")
+      .eq("id", id)
+      .single()
+      .then(({ data }) => {
+        setProductType(data);
+        setLoading(false);
+      });
+  }, [id]);
+
+  if (loading) return <div style={styles.loading}>Cargando...</div>;
+  if (!productType) return <Navigate to="/dashboard" replace />;
+
+  const singularName = productType.name;
+  const pluralName = productType.plural ||
+    (productType.name.endsWith("r") ? productType.name + "es" : productType.name + "s");
+
+  return (
+    <Products
+      productTypeId={productType.id}
+      productTypeName={pluralName}
+      productTypeSingular={singularName}
     />
   );
 }
@@ -103,6 +137,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <EntityRoute />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/products/:id"
+            element={
+              <ProtectedRoute>
+                <ProductRoute />
               </ProtectedRoute>
             }
           />

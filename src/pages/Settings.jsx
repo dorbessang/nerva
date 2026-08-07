@@ -23,7 +23,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (activeTab === 'usuarios' && !canInvite) setActiveTab(showModuleTabs ? 'estados' : 'notificaciones')
-    if (['estados', 'entidades', 'campos'].includes(activeTab) && !showModuleTabs) setActiveTab(isAdminOrOwner ? 'workspace' : 'notificaciones')
+    if (['estados', 'entidades', 'productos', 'campos'].includes(activeTab) && !showModuleTabs) setActiveTab(isAdminOrOwner ? 'workspace' : 'notificaciones')
     if (activeTab === 'workspace' && !isAdminOrOwner) setActiveTab('notificaciones')
   }, [canInvite, showModuleTabs, isAdminOrOwner, activeTab])
 
@@ -41,6 +41,7 @@ export default function Settings() {
           ...(canInvite ? [{ key: 'usuarios', label: 'Usuarios' }] : []),
           ...(showModuleTabs ? [{ key: 'estados', label: 'Estados' }] : []),
           ...(showModuleTabs ? [{ key: 'entidades', label: 'Tipos de entidad' }] : []),
+          ...(showModuleTabs ? [{ key: 'productos', label: 'Tipos de producto' }] : []),
           ...(showModuleTabs ? [{ key: 'campos', label: 'Campos personalizados' }] : []),
           ...(isAdminOrOwner ? [{ key: 'workspace', label: 'Workspace' }] : []),
           { key: 'notificaciones', label: 'Notificaciones' },
@@ -60,6 +61,7 @@ export default function Settings() {
         {activeTab === 'usuarios' && canInvite && <TabUsuarios workspaceId={workspaceId} />}
         {activeTab === 'estados' && showModuleTabs && <TabEstados workspaceId={workspaceId} />}
         {activeTab === 'entidades' && showModuleTabs && <TabEntidades workspaceId={workspaceId} />}
+        {activeTab === 'productos' && showModuleTabs && <TabProductos workspaceId={workspaceId} />}
         {activeTab === 'campos' && showModuleTabs && <TabCamposPersonalizados workspaceId={workspaceId} />}
         {activeTab === 'workspace' && isAdminOrOwner && <TabWorkspace workspaceId={workspaceId} />}
         {activeTab === 'notificaciones' && <TabNotificaciones workspaceId={workspaceId} />}
@@ -802,6 +804,227 @@ function TabEntidades({ workspaceId }) {
   )
 }
 
+// ─── TAB TIPOS DE PRODUCTO ────────────────────────────────────────────────────
+
+function TabProductos({ workspaceId }) {
+  const [productTypes, setProductTypes] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [newName, setNewName] = useState('')
+  const [newPlural, setNewPlural] = useState('')
+  const [newIcon, setNewIcon] = useState('Package')
+  const [showIconPicker, setShowIconPicker] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [editing, setEditing] = useState(null) // { id, name, plural, icon }
+  const iconPickerRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (iconPickerRef.current && !iconPickerRef.current.contains(e.target)) {
+        setShowIconPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  useEffect(() => {
+    fetchProductTypes()
+  }, [workspaceId])
+
+  async function fetchProductTypes() {
+    setLoading(true)
+    const { data } = await supabase
+      .from('product_types')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .order('sort_order')
+    if (data) setProductTypes(data)
+    setLoading(false)
+  }
+
+  async function handleAdd() {
+    if (!newName.trim()) return
+    setSaving(true)
+    await supabase.from('product_types').insert({
+      workspace_id: workspaceId,
+      name: newName.trim(),
+      plural: newPlural.trim() || null,
+      icon: newIcon,
+      sort_order: productTypes.length,
+    })
+    setNewName('')
+    setNewPlural('')
+    setNewIcon('Package')
+    setSaving(false)
+    fetchProductTypes()
+  }
+
+  async function handleSaveEdit() {
+    if (!editing?.name?.trim()) return
+    await supabase.from('product_types').update({
+      name: editing.name.trim(),
+      plural: editing.plural?.trim() || null,
+      icon: editing.icon,
+    }).eq('id', editing.id)
+    setEditing(null)
+    fetchProductTypes()
+  }
+
+  async function handleDelete(id) {
+    await supabase.from('product_types').delete().eq('id', id)
+    setConfirmDelete(null)
+    fetchProductTypes()
+  }
+
+  return (
+    <div className="settings-section">
+      <div className="settings-block">
+        <div className="settings-block-header">
+          <h2 className="settings-block-title">Tipos de producto</h2>
+        </div>
+
+        <p className="settings-hint">
+          Cada tipo genera una sección en el sidebar. Al eliminar un tipo se eliminan todos los productos asociados.
+        </p>
+
+        {loading ? <div className="settings-loading">Cargando...</div> : (
+          <div className="settings-table">
+            {productTypes.map(pt => (
+              <div key={pt.id} className="settings-row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                {editing?.id === pt.id ? (
+                  // Modo edición inline
+                  <>
+                    <div className="settings-row-info" style={{ flex: 1, flexWrap: 'wrap', gap: 8 }}>
+                      <div style={{ position: 'relative' }} ref={iconPickerRef}>
+                        <button
+                          type="button"
+                          className="icon-picker-trigger"
+                          onClick={() => setShowIconPicker(v => !v)}
+                          title="Cambiar ícono"
+                        >
+                          <EntityIcon name={editing.icon || 'Package'} size={18} />
+                        </button>
+                        {showIconPicker && (
+                          <div className="icon-picker-dropdown">
+                            {ENTITY_ICONS.map(iconName => (
+                              <button
+                                key={iconName}
+                                type="button"
+                                className={`icon-picker-option ${editing.icon === iconName ? 'selected' : ''}`}
+                                onClick={() => { setEditing(ed => ({ ...ed, icon: iconName })); setShowIconPicker(false) }}
+                                title={iconName}
+                              >
+                                <EntityIcon name={iconName} size={18} />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        className="state-name-input"
+                        style={{ maxWidth: 160 }}
+                        value={editing.name}
+                        onChange={e => setEditing(ed => ({ ...ed, name: e.target.value }))}
+                        placeholder="Singular"
+                        autoFocus
+                      />
+                      <input
+                        className="state-name-input"
+                        style={{ maxWidth: 160 }}
+                        value={editing.plural || ''}
+                        onChange={e => setEditing(ed => ({ ...ed, plural: e.target.value }))}
+                        placeholder="Plural (opcional)"
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="settings-btn-primary" onClick={handleSaveEdit}>Guardar</button>
+                      <button className="settings-btn-secondary" onClick={() => setEditing(null)}>Cancelar</button>
+                    </div>
+                  </>
+                ) : (
+                  // Modo vista
+                  <>
+                    <div className="settings-row-info">
+                      {pt.icon && <span className="entity-type-icon-preview"><EntityIcon name={pt.icon} size={16} /></span>}
+                      <div>
+                        <div className="settings-row-name">{pt.name}</div>
+                        {pt.plural && <div className="settings-row-email">plural: {pt.plural}</div>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="settings-btn-secondary" onClick={() => setEditing({ id: pt.id, name: pt.name, plural: pt.plural || '', icon: pt.icon })}>
+                        Editar
+                      </button>
+                      {confirmDelete === pt.id ? (
+                        <div className="delete-confirm-inline">
+                          <span>¿Eliminar con todos sus datos?</span>
+                          <button className="settings-btn-danger" onClick={() => handleDelete(pt.id)}>Sí, eliminar</button>
+                          <button className="settings-btn-secondary" onClick={() => setConfirmDelete(null)}>Cancelar</button>
+                        </div>
+                      ) : (
+                        <button className="settings-btn-danger" onClick={() => setConfirmDelete(pt.id)}>Eliminar</button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="state-add-form" style={{ flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ position: 'relative' }} ref={iconPickerRef}>
+            <button
+              type="button"
+              className="icon-picker-trigger"
+              onClick={() => setShowIconPicker(v => !v)}
+              title="Elegir ícono"
+            >
+              <EntityIcon name={newIcon} size={18} />
+            </button>
+            {showIconPicker && (
+              <div className="icon-picker-dropdown">
+                {ENTITY_ICONS.map(iconName => (
+                  <button
+                    key={iconName}
+                    type="button"
+                    className={`icon-picker-option ${newIcon === iconName ? 'selected' : ''}`}
+                    onClick={() => { setNewIcon(iconName); setShowIconPicker(false) }}
+                    title={iconName}
+                  >
+                    <EntityIcon name={iconName} size={18} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <input
+            type="text"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder="Singular (ej: API)"
+            className="state-name-input"
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          />
+          <input
+            type="text"
+            value={newPlural}
+            onChange={e => setNewPlural(e.target.value)}
+            placeholder="Plural (ej: APIs)"
+            className="state-name-input"
+            style={{ maxWidth: 180 }}
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          />
+          <button className="settings-btn-primary" onClick={handleAdd} disabled={saving}>
+            + Agregar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── TAB CAMPOS PERSONALIZADOS ────────────────────────────────────────────────
 
 const FIELD_TYPES = [
@@ -825,6 +1048,7 @@ const FIELD_TYPES = [
 const SPECIAL_FIELD_TYPE_LABELS = {
   entity_type: 'Tipo de entidad', status: 'Estado del proyecto',
   entities_link: 'Entidades vinculadas', financial: 'Financiero', contacts: 'Contactos',
+  product_type: 'Tipo de producto', product_entity: 'Proveedor del producto', products_link: 'Productos vinculados',
 }
 
 function fieldTypeLabel(key) {
@@ -1151,6 +1375,7 @@ function TabCamposPersonalizados({ workspaceId }) {
             {[
               { key: 'negotiation', label: 'Proyectos' },
               { key: 'entity', label: 'Entidades' },
+              { key: 'product', label: 'Productos' },
             ].map(t => (
               <button
                 key={t.key}

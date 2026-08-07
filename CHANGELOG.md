@@ -4,6 +4,19 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-02 (5)
+
+### Feature: módulo de Productos/Servicios — tercer polo conectado a Entidades por vínculo
+- Repensado de arquitectura antes de construir: sigue el patrón ya decidido en la sesión de repensada estratégica ("todos los módulos se conectan a `entities` vía tabla de vínculo, ningún módulo posee la entidad") — Productos es el primer caso real de ese patrón, no se metió adentro de `entities`
+- 3 tablas nuevas (`product_types`, `products`, `negotiation_products`) + `negotiations.primary_product_id`, mismo esqueleto que Entidades/Proyectos. Un producto pertenece a una sola entidad (su proveedor); un proyecto puede vincular varios productos
+- `custom_field_definitions` suma `object_type='product'` y 3 `field_type` especiales (`product_type`, `product_entity`, `products_link`), mismo criterio que los 5 ya existentes (solo sembrables por SQL)
+- `Products.jsx` (nuevo): página con Tarjetas + Tabla configurable, mismo sistema de columnas/orden/filtro que Proyectos y Entidades. `ProductModal.jsx` (nuevo): alta/edición
+- Sidebar suma sección de tipos de producto; Configuración suma pestaña "Tipos de producto" y "Productos" al toggle de Campos personalizados
+- `NegotiationModal`/`NegotiationDetail`/tabla/tarjetas/export de Proyectos: dispatch completo para `products_link`. Entidades suma pestaña "Productos" en el detalle
+- Preset base mínimo a pedido explícito: solo Nombre + Descripción sembrados, sin tipos de producto pre-cargados (el owner arma los suyos)
+- Explícitamente fuera de alcance esta ronda: import/export de Productos, notas/tareas/documentos/timeline y Estados en un producto
+- **Pendiente crítico sin resolver**: las tablas nuevas necesitan RLS con las mismas policies que ya protegen `entities`/`entity_types`/`negotiation_entities` — esta sesión no tiene visibilidad de esas policies, hay que copiarlas a mano desde el Dashboard de Supabase
+
 ## 2026-08-02 (4)
 
 ### Feature: encabezado de tabla tipo Excel — ordenar y filtrar por columna

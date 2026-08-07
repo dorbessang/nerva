@@ -1,0 +1,686 @@
+import { useState, useEffect } from 'react'
+import { useAuth } from '../lib/AuthContext'
+import { supabase } from '../lib/supabase'
+import ProductModal from '../components/ProductModal'
+import { NegotiationDetail, NegotiationModal } from './Negotiations'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import { CustomFieldReadOnly, CustomFieldFilter } from '../components/CustomFieldInput'
+import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter } from '../lib/customFields'
+import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
+import ColumnHeaderCell from '../components/ColumnHeaderCell'
+import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
+import './Entities.css'
+
+// Columnas que no son un campo custom configurable — calculada a partir de
+// negotiation_products, no de custom_field_definitions.
+const PRODUCT_STATIC_COLUMNS = [
+  { key: 'projects_total', label: 'Proyectos totales' },
+]
+const PRODUCT_DEFAULT_VISIBLE = ['name', 'product_type', 'entity', 'projects_total']
+
+const AVATAR_COLORS = [
+  ['#EFF6FF', '#1D4ED8'],
+  ['#F5F3FF', '#6D28D9'],
+  ['#ECFDF5', '#059669'],
+  ['#FFFBEB', '#D97706'],
+  ['#FEF2F2', '#DC2626'],
+]
+
+function getInitials(name) {
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+}
+
+function getAvatarColor(name) {
+  return AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length]
+}
+
+function getProductSortValue(key, product, productFieldDefs) {
+  switch (key) {
+    case 'name': return product.name?.toLowerCase() || null
+    case 'product_type': return product.product_type?.name?.toLowerCase() || null
+    case 'entity': return product.entity?.name?.toLowerCase() || null
+    case 'projects_total': return product.negotiation_products?.length || null
+    default: return customFieldSortValue(productFieldDefs?.find(d => d.key === key), product, null, getCustomFieldValue, renderCustomFieldDisplay)
+  }
+}
+
+export default function Products({ productTypeId, productTypeName, productTypeSingular }) {
+  const { user, workspaceId, effectiveRole } = useAuth()
+  const canBulkDelete = effectiveRole === 'owner'
+  const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [view, setView] = useState('cards')
+  const [showModal, setShowModal] = useState(false)
+  const [showColEditor, setShowColEditor] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [negotiationStates, setNegotiationStates] = useState([])
+  const [productFieldDefs, setProductFieldDefs] = useState([])
+  const [negotiationFieldDefs, setNegotiationFieldDefs] = useState([])
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
+  const [bulkWorking, setBulkWorking] = useState(false)
+  const [members, setMembers] = useState([])
+  const [customFilterValues, setCustomFilterValues] = useState({})
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState(null)
+
+  function handleSort(key) {
+    const dir = nextSortDir(key, sortKey, sortDir)
+    setSortDir(dir)
+    setSortKey(dir ? key : null)
+  }
+
+  const [cols, saveCols] = useColumnPrefs({
+    storageKey: `nerva_product_col_prefs_${user?.id}_${productTypeId}`,
+    staticColumns: PRODUCT_STATIC_COLUMNS,
+    defaultVisible: PRODUCT_DEFAULT_VISIBLE,
+    customFieldDefs: productFieldDefs,
+  })
+  const allColumns = [
+    ...productFieldDefs.map(d => ({ key: d.key, label: d.label, alwaysVisible: d.key === 'name' })),
+    ...PRODUCT_STATIC_COLUMNS,
+  ]
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  async function handleBulkDelete() {
+    setBulkWorking(true)
+    await supabase.from('products').delete().in('id', [...selectedIds])
+    setSelectedIds(new Set())
+    setShowBulkDeleteConfirm(false)
+    setBulkWorking(false)
+    fetchProducts()
+  }
+
+  useEffect(() => {
+    fetchProducts()
+    fetchNegotiationStates()
+    fetchCustomFieldDefs()
+    setSelectedIds(new Set())
+  }, [productTypeId])
+
+  useEffect(() => {
+    supabase.from('workspace_members')
+      .select('user_id, profile:user_id ( full_name )')
+      .eq('workspace_id', workspaceId)
+      .then(({ data }) => setMembers(data || []))
+  }, [workspaceId])
+
+  async function fetchCustomFieldDefs() {
+    const { data } = await supabase
+      .from('custom_field_definitions')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .order('sort_order')
+    setProductFieldDefs((data || []).filter(d => d.object_type === 'product'))
+    setNegotiationFieldDefs((data || []).filter(d => d.object_type === 'negotiation'))
+  }
+
+  async function fetchProducts() {
+    setLoading(true)
+    const { data: productsData, error } = await supabase
+      .from('products')
+      .select(`*, entity:entity_id ( id, name, country_code ), product_type:product_type_id ( name )`)
+      .eq('product_type_id', productTypeId)
+      .order('name')
+
+    if (error) { setLoading(false); return }
+
+    const productIds = productsData.map(p => p.id)
+    const { data: negProducts } = await supabase
+      .from('negotiation_products')
+      .select('product_id, negotiation_id')
+      .in('product_id', productIds)
+
+    const negIds = [...new Set((negProducts || []).map(np => np.negotiation_id))]
+    let negsData = []
+    if (negIds.length > 0) {
+      const { data } = await supabase
+        .from('negotiations')
+        .select('id, product, title, status, target_date, last_activity_at, activity_status, workspace_id')
+        .in('id', negIds)
+        .order('last_activity_at', { ascending: false })
+      negsData = data || []
+    }
+
+    const combined = productsData.map(product => ({
+      ...product,
+      negotiation_products: (negProducts || [])
+        .filter(np => np.product_id === product.id)
+        .map(np => ({ ...np, negotiation: negsData.find(n => n.id === np.negotiation_id) || null })),
+    }))
+
+    setProducts(combined)
+    setLoading(false)
+  }
+
+  async function fetchNegotiationStates() {
+    const { data } = await supabase
+      .from('custom_states')
+      .select('name, color, bg_color')
+      .eq('object_type', 'negotiation')
+      .order('sort_order')
+    if (data) setNegotiationStates(data)
+  }
+
+  function getStateConfig(stateName) {
+    const found = negotiationStates.find(s => s.name === stateName)
+    return found || { color: '#64748B', bg_color: '#F1F5F9' }
+  }
+
+  function getStateCounts(negotiationProducts) {
+    const negs = (negotiationProducts || []).map(n => n.negotiation).filter(Boolean)
+    const counts = {}
+    negs.forEach(n => { counts[n.status] = (counts[n.status] || 0) + 1 })
+    return counts
+  }
+
+  const filterableProductDefs = productFieldDefs.filter(isFieldFilterable)
+
+  const filtered = products.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase()) &&
+    filterableProductDefs.every(def => matchesFieldFilter(def, p, customFilterValues[def.key]))
+  )
+
+  const allVisibleSelected = filtered.length > 0 && filtered.every(p => selectedIds.has(p.id))
+  function toggleSelectAll() {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(filtered.map(p => p.id)))
+  }
+
+  const sorted = sortKey
+    ? sortRows(filtered, p => getProductSortValue(sortKey, p, productFieldDefs), sortDir)
+    : filtered
+
+  return (
+    <div className="entities-container">
+      <div className="entities-header">
+        <h1 className="entities-title">{productTypeName || 'Productos'}</h1>
+        <button className="entities-new-btn" onClick={() => setShowModal(true)}>
+          + Nuevo {productTypeSingular?.toLowerCase() || 'producto'}
+        </button>
+      </div>
+
+      <div className="entities-toolbar">
+        <input
+          className="entities-search"
+          type="text"
+          placeholder={`🔍 Buscar ${productTypeSingular?.toLowerCase() || 'producto'}...`}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        {filterableProductDefs.map(def => (
+          <div className="filter-field" key={def.key}>
+            <label className="filter-field-label">{def.label}</label>
+            <CustomFieldFilter
+              def={def}
+              value={customFilterValues[def.key]}
+              onChange={v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v }))}
+              members={members}
+            />
+          </div>
+        ))}
+        <div className="entities-view-toggle">
+          <button className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')} title="Mosaico">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/>
+              <rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/>
+            </svg>
+          </button>
+          <button className={view === 'table' ? 'active' : ''} onClick={() => setView('table')} title="Tabla">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="1" y="1" width="14" height="14" rx="2"/>
+              <line x1="1" y1="5.5" x2="15" y2="5.5"/><line x1="1" y1="10" x2="15" y2="10"/>
+              <line x1="5" y1="5.5" x2="5" y2="15"/>
+            </svg>
+          </button>
+        </div>
+        {view === 'cards' && (
+          <div className="neg-sort-select">
+            <select
+              value={sortKey || ''}
+              onChange={e => { const k = e.target.value; setSortKey(k || null); setSortDir(k ? (sortDir || 'asc') : null) }}
+            >
+              <option value="">Ordenar por...</option>
+              {allColumns.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+            {sortKey && (
+              <button type="button" className="entities-export-btn" onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')} title="Cambiar dirección">
+                {sortDir === 'desc' ? '▼' : '▲'}
+              </button>
+            )}
+          </div>
+        )}
+        {view === 'table' && (
+          <button
+            className={`entities-export-btn ${showColEditor ? 'active' : ''}`}
+            onClick={() => setShowColEditor(v => !v)}
+            title="Elegir qué columnas mostrar"
+          >
+            ⚙ Columnas
+          </button>
+        )}
+      </div>
+
+      {showColEditor && view === 'table' && (
+        <ColumnEditor cols={cols} allColumns={allColumns} onChange={saveCols} onClose={() => setShowColEditor(false)} />
+      )}
+
+      {canBulkDelete && selectedIds.size > 0 && (
+        <div className="entities-bulk-bar">
+          <span className="entities-bulk-count">
+            {selectedIds.size} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+            <button className="neg-pipeline-clear" onClick={() => setSelectedIds(new Set())}>Deseleccionar</button>
+          </span>
+          <button className="neg-bulk-delete-btn" disabled={bulkWorking} onClick={() => setShowBulkDeleteConfirm(true)}>
+            🗑 Eliminar ({selectedIds.size})
+          </button>
+        </div>
+      )}
+
+      {showBulkDeleteConfirm && (
+        <DeleteConfirmModal
+          itemName="ELIMINAR"
+          itemType={`${selectedIds.size} ${selectedIds.size === 1 ? (productTypeSingular?.toLowerCase() || 'producto') : (productTypeName?.toLowerCase() || 'productos')}`}
+          onConfirm={handleBulkDelete}
+          onCancel={() => setShowBulkDeleteConfirm(false)}
+        />
+      )}
+
+      {loading ? (
+        <div className="entities-loading">Cargando...</div>
+      ) : filtered.length === 0 ? (
+        <div className="entities-empty"><p>No hay {productTypeName?.toLowerCase() || 'productos'} todavía.</p></div>
+      ) : view === 'table' ? (
+        <ProductsGridTable
+          products={sorted}
+          productFieldDefs={productFieldDefs}
+          cols={cols}
+          allColumns={allColumns}
+          members={members}
+          onSelect={setSelectedProduct}
+          canBulkDelete={canBulkDelete}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          allVisibleSelected={allVisibleSelected}
+          onToggleSelectAll={toggleSelectAll}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={handleSort}
+          customFilterValues={customFilterValues}
+          onFilterChange={(key, v) => setCustomFilterValues(prev => ({ ...prev, [key]: v }))}
+        />
+      ) : (
+        <div className="entities-grid">
+          {sorted.map(product => {
+            const [bgColor, textColor] = getAvatarColor(product.name)
+            const counts = getStateCounts(product.negotiation_products)
+            return (
+              <div key={product.id} className="entity-card" onClick={() => setSelectedProduct(product)}>
+                {canBulkDelete && (
+                  <input
+                    type="checkbox"
+                    className="entity-card-checkbox"
+                    checked={selectedIds.has(product.id)}
+                    onClick={e => e.stopPropagation()}
+                    onChange={() => toggleSelect(product.id)}
+                  />
+                )}
+                <div className="entity-card-header">
+                  <div className="entity-avatar" style={{ backgroundColor: bgColor, color: textColor }}>
+                    {getInitials(product.name)}
+                  </div>
+                  <div className="entity-info">
+                    <h3 className="entity-name">{product.name}</h3>
+                    {product.entity?.name && <p className="entity-country">{product.entity.name}</p>}
+                  </div>
+                </div>
+                <div className="entity-card-footer">
+                  {Object.keys(counts).length > 0 ? (
+                    <div className="entity-state-badges">
+                      {Object.entries(counts).map(([status, count]) => {
+                        const cfg = getStateConfig(status)
+                        return (
+                          <span key={status} className="entity-state-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>
+                            {count} {status}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <span className="entity-no-projects">Sin proyectos</span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          <div className="entity-card entity-card-new" onClick={() => setShowModal(true)}>
+            <span>+ Nuevo {productTypeSingular?.toLowerCase() || 'producto'}</span>
+          </div>
+        </div>
+      )}
+
+      {showModal && (
+        <ProductModal
+          onClose={() => setShowModal(false)}
+          onCreated={fetchProducts}
+          productTypeSingular={productTypeSingular}
+          customFieldDefs={productFieldDefs}
+        />
+      )}
+
+      {selectedProduct && (
+        <ProductDetailModal
+          product={selectedProduct}
+          negotiationStates={negotiationStates}
+          onClose={() => setSelectedProduct(null)}
+          onUpdated={fetchProducts}
+          productTypeName={productTypeName}
+          productTypeSingular={productTypeSingular}
+          getStateConfig={getStateConfig}
+          productFieldDefs={productFieldDefs}
+          negotiationFieldDefs={negotiationFieldDefs}
+        />
+      )}
+    </div>
+  )
+}
+
+// Celda de columna de la grilla de Productos — despacha por key, casos
+// especiales primero (nombre, tipo/proveedor resueltos vía join, el
+// calculado de PRODUCT_STATIC_COLUMNS) y default a `productFieldDefs`.
+function renderProductCell(key, product, productFieldDefs, members) {
+  switch (key) {
+    case 'name':
+      return <td key={key} className="entities-td-name">{product.name}</td>
+    case 'product_type':
+      return <td key={key}>{product.product_type?.name || '—'}</td>
+    case 'entity':
+      return <td key={key}>{product.entity?.name || '—'}</td>
+    case 'projects_total':
+      return <td key={key}>{product.negotiation_products?.length || 0}</td>
+    default: {
+      const def = productFieldDefs?.find(d => d.key === key)
+      if (!def) return <td key={key}>—</td>
+      const raw = def.storage_column ? product[def.storage_column] : getCustomFieldValue(product.custom_fields, key)
+      return <td key={key} className="entities-td-text">{renderCustomFieldDisplay(def, raw, members)}</td>
+    }
+  }
+}
+
+function ProductsGridTable({ products, productFieldDefs, cols, allColumns, members, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange }) {
+  const visibleCols = cols.filter(c => c.visible)
+  return (
+    <div className="neg-table-wrapper">
+      <table className="neg-table">
+        <thead>
+          <tr>
+            {canBulkDelete && (
+              <th className="neg-th-check">
+                <input type="checkbox" checked={allVisibleSelected} onChange={onToggleSelectAll} title="Seleccionar todos los visibles" />
+              </th>
+            )}
+            {visibleCols.map(c => {
+              const def = allColumns.find(x => x.key === c.key)
+              const fieldDef = productFieldDefs.find(d => d.key === c.key)
+              const filterable = fieldDef ? isFieldFilterable(fieldDef) : false
+              const filterValue = customFilterValues?.[c.key]
+              const filterActive = filterValue !== undefined && filterValue !== '' && filterValue !== null && !(Array.isArray(filterValue) && filterValue.length === 0)
+              return (
+                <ColumnHeaderCell
+                  key={c.key}
+                  label={def?.label}
+                  sortDir={sortKey === c.key ? sortDir : null}
+                  onSort={() => onSort(c.key)}
+                  filterable={filterable}
+                  filterActive={filterActive}
+                >
+                  {filterable && (
+                    <CustomFieldFilter def={fieldDef} value={filterValue} onChange={v => onFilterChange(c.key, v)} members={members} />
+                  )}
+                </ColumnHeaderCell>
+              )
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {products.map(product => (
+            <tr key={product.id} onClick={() => onSelect(product)} className="neg-table-row">
+              {canBulkDelete && (
+                <td className="neg-td-check" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedIds.has(product.id)} onChange={() => onToggleSelect(product.id)} />
+                </td>
+              )}
+              {visibleCols.map(c => renderProductCell(c.key, product, productFieldDefs, members))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function ProductDetailModal({ product, negotiationStates, onClose, onUpdated, productTypeSingular, getStateConfig, productFieldDefs = [], negotiationFieldDefs = [] }) {
+  const { effectiveRole, workspaceId, user } = useAuth()
+  const canDelete = effectiveRole === 'owner'
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [selectedNeg, setSelectedNeg] = useState(null)
+  const [editingNeg, setEditingNeg] = useState(null)
+  const [showNegModal, setShowNegModal] = useState(false)
+  const [members, setMembers] = useState([])
+  const [entities, setEntities] = useState([])
+  const [allProducts, setAllProducts] = useState([])
+  const [fieldOrder, setFieldOrder] = useState(null)
+  const [bgColor, textColor] = getAvatarColor(product.name)
+
+  useEffect(() => { fetchMembers(); fetchEntities(); fetchAllProducts(); fetchFieldOrder() }, [product.id])
+
+  async function fetchMembers() {
+    const { data } = await supabase.from('workspace_members')
+      .select('user_id, profile:user_id ( full_name, email )')
+      .eq('workspace_id', workspaceId)
+    if (data) setMembers(data)
+  }
+
+  async function fetchEntities() {
+    const { data } = await supabase.from('entities').select('id, name, country_code').order('name')
+    if (data) setEntities(data)
+  }
+
+  async function fetchAllProducts() {
+    const { data } = await supabase.from('products').select('id, name').order('name')
+    if (data) setAllProducts(data)
+  }
+
+  async function fetchFieldOrder() {
+    const { data } = await supabase.from('workspaces').select('field_order').eq('id', workspaceId).single()
+    setFieldOrder(data?.field_order || {})
+  }
+
+  const negs = (product.negotiation_products || [])
+    .map(n => n.negotiation)
+    .filter(Boolean)
+    .sort((a, b) => new Date(b.last_activity_at || 0) - new Date(a.last_activity_at || 0))
+
+  async function fetchFullNeg(neg) {
+    const [{ data: full }, { data: ents }, { data: notesList }] = await Promise.all([
+      supabase.from('negotiations').select('*').eq('id', neg.id).single(),
+      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code)').eq('negotiation_id', neg.id),
+      supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', neg.id).order('note_date'),
+    ])
+    if (!full) return null
+    return { ...full, negotiation_entities: ents || [], notes_list: notesList || [] }
+  }
+
+  async function handleSelectNeg(neg) {
+    const full = await fetchFullNeg(neg)
+    if (full) setSelectedNeg(full)
+  }
+
+  async function refetchNeg(id) {
+    return fetchFullNeg({ id })
+  }
+
+  async function handleDelete() {
+    await supabase.from('products').delete().eq('id', product.id)
+    onUpdated()
+    onClose()
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="entity-detail-card" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+            <div className="entity-avatar" style={{ width: 38, height: 38, fontSize: 13, backgroundColor: bgColor, color: textColor, flexShrink: 0 }}>
+              {getInitials(product.name)}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <h2 className="modal-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.name}</h2>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>
+                {product.product_type?.name}
+                {product.entity?.name ? ` · ${product.entity.name}` : ''}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+            <button className="btn-edit" onClick={() => setShowEditModal(true)}>✏️ Editar</button>
+            <button className="modal-close" onClick={onClose}>✕</button>
+          </div>
+        </div>
+
+        <div className="entity-detail-body entity-detail-body--cols">
+          <div className="entity-detail-col entity-detail-col--left">
+            <div className="detail-section">
+              <div className="detail-section-title">Información</div>
+              {(fieldOrder === null ? productFieldDefs.map(d => d.key) : computeFieldOrder('product', fieldOrder, productFieldDefs)).map(key => {
+                const def = productFieldDefs.find(d => d.key === key)
+                if (!def || def.field_type === 'product_type' || def.field_type === 'product_entity') return null
+                const value = def.storage_column ? product[def.storage_column] : getCustomFieldValue(product.custom_fields, def.key)
+                if (value === undefined || value === null || value === '') return null
+                return (
+                  <div key={key} className="entity-info-row">
+                    <span className="entity-info-label">{def.label}</span>
+                    <span className="entity-info-val"><CustomFieldReadOnly def={def} value={value} members={members} /></span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {canDelete && (
+              <div className="detail-footer-inline">
+                <button className="btn-delete" onClick={() => setConfirmDelete(true)}>
+                  Eliminar {productTypeSingular?.toLowerCase() || 'producto'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="entity-detail-col entity-detail-col--right">
+            <div className="entity-tabs">
+              <button className="entity-tab active">Proyectos vinculados ({negs.length})</button>
+            </div>
+
+            {negs.length === 0 ? (
+              <p className="detail-empty">Sin proyectos vinculados todavía.</p>
+            ) : (
+              <div className="entity-negs-list">
+                {negs.map(neg => {
+                  const cfg = getStateConfig(neg.status)
+                  return (
+                    <div key={neg.id} className="entity-neg-row" onClick={() => handleSelectNeg(neg)}>
+                      <div className="entity-neg-main">
+                        <div className="entity-neg-product">{neg.product || neg.title}</div>
+                        {neg.target_date && (
+                          <div className="entity-neg-date">
+                            {new Date(neg.target_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                          </div>
+                        )}
+                      </div>
+                      <div className="entity-neg-right">
+                        <span className="entity-neg-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>
+                        <span className="entity-neg-arrow">›</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {confirmDelete && (
+        <DeleteConfirmModal
+          itemName={product.name}
+          itemType={productTypeSingular?.toLowerCase() || 'producto'}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
+
+      {showEditModal && (
+        <ProductModal
+          initial={product}
+          onClose={() => setShowEditModal(false)}
+          onCreated={() => { onUpdated(); onClose() }}
+          productTypeSingular={productTypeSingular}
+          customFieldDefs={productFieldDefs}
+        />
+      )}
+
+      {showNegModal && (
+        <NegotiationModal
+          initial={editingNeg}
+          entities={entities}
+          products={allProducts}
+          members={members}
+          customStates={negotiationStates}
+          customFieldDefs={negotiationFieldDefs}
+          onClose={() => { setShowNegModal(false); setSelectedNeg(null) }}
+          onCancel={async () => {
+            setShowNegModal(false)
+            if (editingNeg) {
+              const updated = await refetchNeg(editingNeg.id)
+              setSelectedNeg(updated || editingNeg)
+            }
+          }}
+          onSaved={async () => {
+            setShowNegModal(false)
+            if (editingNeg) {
+              const updated = await refetchNeg(editingNeg.id)
+              setSelectedNeg(updated || editingNeg)
+            }
+            onUpdated()
+          }}
+          workspaceId={workspaceId}
+          userId={user?.id}
+        />
+      )}
+
+      {selectedNeg && (
+        <NegotiationDetail
+          neg={selectedNeg}
+          entities={entities}
+          customStates={negotiationStates}
+          customFieldDefs={negotiationFieldDefs}
+          members={members}
+          getStateConfig={getStateConfig}
+          getEntityFlag={() => null}
+          onClose={() => setSelectedNeg(null)}
+          onEdit={() => { setEditingNeg(selectedNeg); setSelectedNeg(null); setShowNegModal(true) }}
+          onDeleted={() => { setSelectedNeg(null); onUpdated() }}
+          onActivityChanged={() => {}}
+          onNotesChanged={() => {}}
+        />
+      )}
+    </div>
+  )
+}
