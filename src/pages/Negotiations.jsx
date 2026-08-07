@@ -35,8 +35,6 @@ const ALL_COLUMNS = [
   { key: 'last_activity_at', label: 'Últ. actividad'                         },
 ]
 
-const DEFAULT_VISIBLE = ['product','entities','status','companies','target_date']
-
 const ACTIVITY_LABELS = { active: 'En curso', paused: 'Pausado', inactive: 'Inactivo' }
 
 // Solo depende de `neg` (a diferencia de getEntityName/getEntityFlag, que
@@ -47,12 +45,19 @@ function getProductName(neg) {
   return primary?.name || '—'
 }
 
+// Entidades vinculadas a un proyecto de un tipo dado — reemplaza al viejo
+// modelo "principal + secundarias" por uno de una columna por tipo (máx.
+// una entidad por tipo, confirmado con el usuario).
+function getEntitiesOfType(neg, typeId) {
+  return (neg.negotiation_entities || []).filter(ne => ne.entity?.entity_type_id === typeId).map(ne => ne.entity)
+}
+
 // Valor de texto plano por columna para el export CSV — separado de
 // renderCell/renderCardField porque esos devuelven JSX con badges/chips.
 function getExportValue(key, neg, getEntityName, customFieldDefs, members) {
+  if (key.startsWith('entity_type:')) return getEntitiesOfType(neg, key.slice('entity_type:'.length)).map(e => e.name).join(', ')
   switch (key) {
     case 'product': return neg.product || neg.title || ''
-    case 'entities': return getEntityName(neg)
     case 'products': { const name = getProductName(neg); return name === '—' ? '' : name }
     case 'status': return neg.status || ''
     case 'description': return neg.description || ''
@@ -75,9 +80,12 @@ function getExportValue(key, neg, getEntityName, customFieldDefs, members) {
 // Valor comparable por columna para el click-para-ordenar del encabezado —
 // null siempre ordena al final, ver sortRows en lib/tableSort.js.
 function getNegSortValue(key, neg, getEntityName, customFieldDefs, members) {
+  if (key.startsWith('entity_type:')) {
+    const names = getEntitiesOfType(neg, key.slice('entity_type:'.length)).map(e => e.name)
+    return names.length ? names.join(', ').toLowerCase() : null
+  }
   switch (key) {
     case 'product': return (neg.product || neg.title || '').toLowerCase() || null
-    case 'entities': { const name = getEntityName(neg); return name && name !== '—' ? name.toLowerCase() : null }
     case 'products': { const name = getProductName(neg); return name !== '—' ? name.toLowerCase() : null }
     case 'status': return neg.status?.toLowerCase() || null
     case 'description': return neg.description?.toLowerCase() || null
@@ -98,10 +106,16 @@ function getNegSortValue(key, neg, getEntityName, customFieldDefs, members) {
 // xlsx/jspdf se cargan bajo demanda (import dinámico) para no sumarlos al
 // bundle inicial de /negotiations — son acciones ocasionales, no parte del
 // flujo principal de la página.
-async function exportNegotiationsXlsx(negotiations, cols, getEntityName, customFieldDefs, members) {
+async function exportNegotiationsXlsx(negotiations, cols, getEntityName, customFieldDefs, members, entityTypes = []) {
   const XLSX = await import('xlsx')
   const visibleCols = cols.filter(c => c.visible)
-  const headers = visibleCols.map(c => customFieldDefs.find(d => d.key === c.key)?.label || ALL_COLUMNS.find(x => x.key === c.key)?.label || c.key)
+  const headers = visibleCols.map(c => {
+    if (c.key.startsWith('entity_type:')) {
+      const et = entityTypes.find(t => t.id === c.key.slice('entity_type:'.length))
+      return et?.plural || et?.name || c.key
+    }
+    return customFieldDefs.find(d => d.key === c.key)?.label || ALL_COLUMNS.find(x => x.key === c.key)?.label || c.key
+  })
   const rows = [
     headers,
     ...negotiations.map(neg => visibleCols.map(c => getExportValue(c.key, neg, getEntityName, customFieldDefs, members))),
@@ -125,6 +139,7 @@ export default function Negotiations() {
   const exportMenuRef = useRef(null)
   const [negotiations, setNegotiations] = useState([])
   const [entities, setEntities] = useState([])
+  const [entityTypes, setEntityTypes] = useState([])
   const [products, setProducts] = useState([])
   const [members, setMembers] = useState([])
   const [customStates, setCustomStates] = useState([])
@@ -132,7 +147,7 @@ export default function Negotiations() {
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 860) ? 'cards' : 'table')
   const [customFilterValues, setCustomFilterValues] = useState({})
-  const [filterEntity, setFilterEntity] = useState('')
+  const [entityTypeFilters, setEntityTypeFilters] = useState({})
   const [filterActivity, setFilterActivity] = useState('active')
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState(null)
@@ -147,13 +162,21 @@ export default function Negotiations() {
   const [selectedNeg, setSelectedNeg] = useState(null)
   const [editingNeg, setEditingNeg] = useState(null)
   const [showColEditor, setShowColEditor] = useState(false)
+  // El campo `entities_link` ya no se muestra como una sola columna genérica:
+  // se reemplaza por una columna virtual por cada tipo de entidad del
+  // workspace (key `entity_type:<id>`), así la tabla/tarjetas muestran
+  // "Cliente", "Proveedor", "Distribuidor"... según lo que exista en Entidades.
+  const entitiesLinkDef = customFieldDefs.find(d => d.field_type === 'entities_link')
+  const entityTypeColumnDefs = entitiesLinkDef ? entityTypes.map(et => ({ key: `entity_type:${et.id}`, label: et.plural || et.name })) : []
+  const columnFieldDefs = [...customFieldDefs.filter(d => d.field_type !== 'entities_link'), ...entityTypeColumnDefs]
+  const defaultVisible = ['product', ...entityTypeColumnDefs.map(d => d.key), 'status', 'companies', 'target_date']
   const [cols, saveCols] = useColumnPrefs({
     storageKey: `nerva_col_prefs_${user?.id}`,
     staticColumns: ALL_COLUMNS,
-    defaultVisible: DEFAULT_VISIBLE,
-    customFieldDefs,
+    defaultVisible,
+    customFieldDefs: columnFieldDefs,
   })
-  const allColumns = [...customFieldDefs.map(d => ({ key: d.key, label: d.label, alwaysVisible: d.key === 'product' })), ...ALL_COLUMNS]
+  const allColumns = [...columnFieldDefs.map(d => ({ key: d.key, label: d.label, alwaysVisible: d.key === 'product' })), ...ALL_COLUMNS]
   const [highlightTaskId, setHighlightTaskId] = useState(null)
   const [milestones, setMilestones] = useState([])
   const [selectedIds, setSelectedIds] = useState(() => new Set())
@@ -184,9 +207,10 @@ export default function Negotiations() {
 
   async function fetchAll() {
     setLoading(true)
-    const [negsRes, entitiesRes, productsRes, membersRes, statesRes, milestonesRes, customFieldsRes] = await Promise.all([
+    const [negsRes, entitiesRes, entityTypesRes, productsRes, membersRes, statesRes, milestonesRes, customFieldsRes] = await Promise.all([
       supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code), primary_product:primary_product_id(id, name)').order('created_at', { ascending: false }),
-      supabase.from('entities').select('id, name, country_code').order('name'),
+      supabase.from('entities').select('id, name, country_code, entity_type_id').order('name'),
+      supabase.from('entity_types').select('id, name, plural').order('sort_order'),
       supabase.from('products').select('id, name').order('name'),
       supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`).eq('workspace_id', workspaceId),
       supabase.from('custom_states').select('*').eq('object_type', 'negotiation').order('sort_order'),
@@ -202,7 +226,7 @@ export default function Negotiations() {
     const [{ data: negEntities }, { data: negProducts }, { data: negNotes }] = await Promise.all([
       supabase
         .from('negotiation_entities')
-        .select('negotiation_id, entity_id, role, entity:entity_id(id, name, country_code)')
+        .select('negotiation_id, entity_id, role, entity:entity_id(id, name, country_code, entity_type_id)')
         .in('negotiation_id', negIds),
       supabase
         .from('negotiation_products')
@@ -224,6 +248,7 @@ export default function Negotiations() {
 
     setNegotiations(combined)
     if (entitiesRes.data) setEntities(entitiesRes.data)
+    if (entityTypesRes.data) setEntityTypes(entityTypesRes.data)
     if (productsRes.data) setProducts(productsRes.data)
     if (membersRes.data) setMembers(membersRes.data)
     if (statesRes.data) setCustomStates(statesRes.data)
@@ -233,7 +258,7 @@ export default function Negotiations() {
   async function refetchSingleNeg(id) {
     const [{ data: neg }, { data: ents }, { data: prods }, { data: notesList }] = await Promise.all([
       supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code), primary_product:primary_product_id(id, name)').eq('id', id).single(),
-      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code)').eq('negotiation_id', id),
+      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code, entity_type_id)').eq('negotiation_id', id),
       supabase.from('negotiation_products').select('negotiation_id, product_id, product:product_id(id, name)').eq('negotiation_id', id),
       supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', id).order('note_date'),
     ])
@@ -293,9 +318,10 @@ export default function Negotiations() {
 
   const filtered = negotiations.filter(n => {
     if (!filterableDefs.every(def => matchesFieldFilter(def, n, customFilterValues[def.key]))) return false
-    if (filterEntity) {
-      const ids = n.negotiation_entities?.map(ne => ne.entity?.id) || []
-      if (!ids.includes(filterEntity)) return false
+    for (const [typeId, entityId] of Object.entries(entityTypeFilters)) {
+      if (!entityId) continue
+      const ids = (n.negotiation_entities || []).filter(ne => ne.entity?.entity_type_id === typeId).map(ne => ne.entity.id)
+      if (!ids.includes(entityId)) return false
     }
     if (filterActivity === 'active') { if (n.activity_status !== 'active') return false }
     if (filterActivity === 'paused') { if (n.activity_status !== 'paused') return false }
@@ -354,7 +380,7 @@ export default function Negotiations() {
 
   function handleExportExcel() {
     setShowExportMenu(false)
-    exportNegotiationsXlsx(exportRows(), cols, getEntityName, customFieldDefs, members)
+    exportNegotiationsXlsx(exportRows(), cols, getEntityName, customFieldDefs, members, entityTypes)
   }
 
   async function handleExportPdf() {
@@ -529,13 +555,19 @@ export default function Negotiations() {
           <label className="filter-field-label">Buscar</label>
           <input className="neg-search" type="text" placeholder="🔍 Proyecto o producto..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div className="filter-field">
-          <label className="filter-field-label">Proveedor</label>
-          <select className="neg-select" value={filterEntity} onChange={e => setFilterEntity(e.target.value)}>
-            <option value="">Todos los proveedores</option>
-            {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
-        </div>
+        {entitiesLinkDef && entityTypes.map(et => (
+          <div className="filter-field" key={et.id}>
+            <label className="filter-field-label">{et.name}</label>
+            <select
+              className="neg-select"
+              value={entityTypeFilters[et.id] || ''}
+              onChange={e => setEntityTypeFilters(prev => ({ ...prev, [et.id]: e.target.value }))}
+            >
+              <option value="">Todos</option>
+              {entities.filter(en => en.entity_type_id === et.id).map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
+            </select>
+          </div>
+        ))}
         {filterableDefs.map(def => (
           <div className="filter-field" key={def.key}>
             <label className="filter-field-label">{def.label}</label>
@@ -644,7 +676,8 @@ export default function Negotiations() {
         <TableView negotiations={sorted} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} allColumns={allColumns} customFieldDefs={customFieldDefs} members={members}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} allVisibleSelected={allVisibleSelected} onToggleSelectAll={toggleSelectAllVisible}
           sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
-          customStates={customStates} customFilterValues={customFilterValues} onFilterChange={(key, v) => setCustomFilterValues(prev => ({ ...prev, [key]: v }))} />
+          customStates={customStates} customFilterValues={customFilterValues} onFilterChange={(key, v) => setCustomFilterValues(prev => ({ ...prev, [key]: v }))}
+          entities={entities} entityTypeFilters={entityTypeFilters} onEntityTypeFilterChange={(typeId, v) => setEntityTypeFilters(prev => ({ ...prev, [typeId]: v }))} />
       ) : view === 'cards' ? (
         <CardsView negotiations={sorted} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} customFieldDefs={customFieldDefs} members={members}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} />
@@ -657,6 +690,7 @@ export default function Negotiations() {
         <NegotiationModal
           initial={editingNeg}
           entities={entities}
+          entityTypes={entityTypes}
           products={products}
           members={members}
           customStates={customStates}
@@ -683,6 +717,7 @@ export default function Negotiations() {
         <NegotiationDetail
           neg={selectedNeg}
           entities={entities}
+          entityTypes={entityTypes}
           customStates={customStates}
           customFieldDefs={customFieldDefs}
           members={members}
@@ -704,7 +739,19 @@ export default function Negotiations() {
 // Render de una celda según el key de columna
 function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members) {
   const cfg = getStateConfig(neg.status)
-  const flag = getEntityFlag(neg)
+
+  if (key.startsWith('entity_type:')) {
+    const ents = getEntitiesOfType(neg, key.slice('entity_type:'.length))
+    if (ents.length === 0) return <td key={key}>—</td>
+    return (
+      <td key={key} className="neg-td-entity">
+        <span className="neg-entity-name">
+          {ents[0].country_code && <img src={`https://flagcdn.com/w20/${ents[0].country_code.toLowerCase()}.png`} alt="" className="neg-flag" />}
+          {ents.map(e => e.name).join(', ')}
+        </span>
+      </td>
+    )
+  }
 
   switch (key) {
     case 'product': {
@@ -716,15 +763,6 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
         </td>
       )
     }
-    case 'entities':
-      return (
-        <td key={key} className="neg-td-entity">
-          <span className="neg-entity-name">
-            {flag && <img src={flag} alt="" className="neg-flag" />}
-            {getEntityName(neg)}
-          </span>
-        </td>
-      )
     case 'products':
       return <td key={key}>{getProductName(neg)}</td>
     case 'status':
@@ -779,7 +817,7 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
   }
 }
 
-function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customStates, customFilterValues, onFilterChange }) {
+function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customStates, customFilterValues, onFilterChange, entities, entityTypeFilters, onEntityTypeFilterChange }) {
   const visibleCols = cols.filter(c => c.visible)
 
   return (
@@ -792,6 +830,19 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
             </th>
             {visibleCols.map(c => {
               const def = allColumns.find(x => x.key === c.key)
+              if (c.key.startsWith('entity_type:')) {
+                const typeId = c.key.slice('entity_type:'.length)
+                const filterValue = entityTypeFilters?.[typeId]
+                const filterActive = !!filterValue
+                return (
+                  <ColumnHeaderCell key={c.key} label={def?.label} sortDir={sortKey === c.key ? sortDir : null} onSort={() => onSort(c.key)} filterable filterActive={filterActive}>
+                    <select className="neg-select" value={filterValue || ''} onChange={e => onEntityTypeFilterChange(typeId, e.target.value)}>
+                      <option value="">Todos</option>
+                      {entities.filter(en => en.entity_type_id === typeId).map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
+                    </select>
+                  </ColumnHeaderCell>
+                )
+              }
               const fieldDef = customFieldDefs.find(d => d.key === c.key)
               const filterable = fieldDef ? isFieldFilterable(fieldDef) : false
               const filterValue = customFilterValues?.[c.key]
@@ -832,18 +883,17 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
 }
 
 function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members) {
-  const flag = getEntityFlag(neg)
+  if (key.startsWith('entity_type:')) {
+    const ents = getEntitiesOfType(neg, key.slice('entity_type:'.length))
+    if (ents.length === 0) return null
+    return (
+      <div key={key} className="neg-card-entity">
+        {ents[0].country_code && <img src={`https://flagcdn.com/w20/${ents[0].country_code.toLowerCase()}.png`} alt="" className="neg-flag" />}
+        {ents.map(e => e.name).join(', ')}
+      </div>
+    )
+  }
   switch (key) {
-    case 'entities': {
-      const name = getEntityName(neg)
-      if (!name || name === '—') return null
-      return (
-        <div key={key} className="neg-card-entity">
-          {flag && <img src={flag} alt="" className="neg-flag" />}
-          {name}
-        </div>
-      )
-    }
     case 'products': {
       const name = getProductName(neg)
       if (name === '—') return null
@@ -1014,7 +1064,7 @@ function KanbanView({ negotiations, customStates, getStateConfig, getEntityName,
 // explícito, ver PENDIENTES.md), este es el patrón a reusar — buscar en
 // el historial de git este archivo si hace falta el código exacto.
 
-export function NegotiationModal({ initial, presetEntity, entities, products = [], members, customStates, customFieldDefs = [], onClose, onCancel, onSaved, workspaceId, userId }) {
+export function NegotiationModal({ initial, presetEntity, entities, entityTypes = [], products = [], members, customStates, customFieldDefs = [], onClose, onCancel, onSaved, workspaceId, userId }) {
   const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
   const financialDef = customFieldDefs.find(d => d.field_type === 'financial')
 
@@ -1022,17 +1072,19 @@ export function NegotiationModal({ initial, presetEntity, entities, products = [
     title: '', product: '', status: customStates[0]?.name || 'Contactado',
     target_date: '', description: '', observations: '',
     companies: [], participants: [],
-    entity_ids: presetEntity ? [{ id: presetEntity.id, role: '' }] : [], // [{ id, role }]
+    entity_by_type: presetEntity?.entity_type_id ? { [presetEntity.entity_type_id]: presetEntity.id } : {}, // { [entityTypeId]: entityId }
     product_ids: [], // [{ id }]
     tasks: [],
     currency: 'USD', milestones: [], custom_fields: {}
   }
   const [form, setForm] = useState(initial ? {
     ...empty, ...initial,
-    entity_ids: (() => {
-      const ids = initial.negotiation_entities?.map(ne => ({ id: ne.entity?.id, role: ne.role || '' })).filter(e => e.id) || []
-      const primaryIdx = ids.findIndex(e => e.id === initial.primary_entity_id)
-      return primaryIdx > 0 ? [ids[primaryIdx], ...ids.filter((_, i) => i !== primaryIdx)] : ids
+    entity_by_type: (() => {
+      const byType = {}
+      for (const ne of initial.negotiation_entities || []) {
+        if (ne.entity?.id && ne.entity?.entity_type_id) byType[ne.entity.entity_type_id] = ne.entity.id
+      }
+      return byType
     })(),
     product_ids: (() => {
       const ids = initial.negotiation_products?.map(np => ({ id: np.product?.id })).filter(p => p.id) || []
@@ -1043,9 +1095,6 @@ export function NegotiationModal({ initial, presetEntity, entities, products = [
     currency: initial.currency || 'USD', milestones: [],
     custom_fields: Object.fromEntries(Object.entries(initial.custom_fields || {}).map(([k, v]) => [k, v?.value])),
   } : empty)
-  const [entitySearch, setEntitySearch] = useState('')
-  const [entityDropdownOpen, setEntityDropdownOpen] = useState(false)
-  const entityRef = useRef(null)
   const [productSearch, setProductSearch] = useState('')
   const [productDropdownOpen, setProductDropdownOpen] = useState(false)
   const productRef = useRef(null)
@@ -1066,10 +1115,20 @@ export function NegotiationModal({ initial, presetEntity, entities, products = [
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
+  // Para "obligatorio": un array vacío cuenta como vacío (ver isCustomFieldValueEmpty
+  // en customFields.js) — entity_by_type es un objeto {tipoId: entityId}, así que para
+  // la validación se aplana a la lista de ids realmente asignados.
   function fieldValue(def) {
-    if (def.field_type === 'entities_link') return form.entity_ids
+    if (def.field_type === 'entities_link') return Object.values(form.entity_by_type).filter(Boolean)
     if (def.field_type === 'products_link') return form.product_ids
     return def.storage_column ? form[def.storage_column] : form.custom_fields[def.key]
+  }
+
+  function primaryEntityId() {
+    for (const et of entityTypes) {
+      if (form.entity_by_type[et.id]) return form.entity_by_type[et.id]
+    }
+    return null
   }
 
   function setFieldValue(def, v) {
@@ -1086,7 +1145,7 @@ export function NegotiationModal({ initial, presetEntity, entities, products = [
       workspace_id: workspaceId,
       created_by: userId,
       observations: form.observations,
-      primary_entity_id: form.entity_ids[0]?.id || null,
+      primary_entity_id: primaryEntityId(),
       primary_product_id: form.product_ids[0]?.id || null,
     }
     if (financialDef) row.currency = form.currency
@@ -1128,10 +1187,9 @@ export function NegotiationModal({ initial, presetEntity, entities, products = [
     }
     if (negId) {
       await supabase.from('negotiation_entities').delete().eq('negotiation_id', negId)
-      if (form.entity_ids.length > 0) {
-        await supabase.from('negotiation_entities').insert(
-          form.entity_ids.map(e => ({ negotiation_id: negId, entity_id: e.id, role: e.role || null }))
-        )
+      const entityRows = Object.values(form.entity_by_type).filter(Boolean).map(id => ({ negotiation_id: negId, entity_id: id }))
+      if (entityRows.length > 0) {
+        await supabase.from('negotiation_entities').insert(entityRows)
       }
       await supabase.from('negotiation_products').delete().eq('negotiation_id', negId)
       if (form.product_ids.length > 0) {
@@ -1175,86 +1233,24 @@ export function NegotiationModal({ initial, presetEntity, entities, products = [
     const wide = isWideCustomField(def)
     if (def.field_type === 'entities_link') {
       return (
-        <div key={def.key} className="form-group form-group--wide" ref={entityRef}>
+        <div key={def.key} className="form-group form-group--wide">
           <label>{def.label}{def.required ? ' *' : ''}</label>
-          <div className="entity-combobox">
-            <input
-              type="text"
-              className="entity-search-input"
-              placeholder="Buscar y agregar entidad..."
-              value={entitySearch}
-              autoComplete="off"
-              onChange={e => { setEntitySearch(e.target.value); setEntityDropdownOpen(true) }}
-              onFocus={() => setEntityDropdownOpen(true)}
-              onBlur={() => setTimeout(() => setEntityDropdownOpen(false), 150)}
-            />
-            {entityDropdownOpen && (
-              <div className="entity-dropdown">
-                {entities
-                  .filter(e =>
-                    !form.entity_ids.find(x => x.id === e.id) &&
-                    e.name.toLowerCase().includes(entitySearch.toLowerCase())
-                  )
-                  .slice(0, 6)
-                  .map(e => (
-                    <div
-                      key={e.id}
-                      className="entity-dropdown-option"
-                      onMouseDown={() => {
-                        set('entity_ids', [...form.entity_ids, { id: e.id, role: '' }])
-                        setEntitySearch('')
-                      }}
-                    >
-                      {e.name}
-                    </div>
-                  ))
-                }
-                {entities.filter(e =>
-                  !form.entity_ids.find(x => x.id === e.id) &&
-                  e.name.toLowerCase().includes(entitySearch.toLowerCase())
-                ).length === 0 && (
-                  <div className="entity-dropdown-empty">Sin resultados</div>
-                )}
+          <div className="entity-fields-grid">
+            {entityTypes.map(et => (
+              <div key={et.id} className="form-group">
+                <label>{et.name}</label>
+                <select
+                  value={form.entity_by_type[et.id] || ''}
+                  onChange={e => set('entity_by_type', { ...form.entity_by_type, [et.id]: e.target.value })}
+                >
+                  <option value="">Sin asignar</option>
+                  {entities.filter(en => en.entity_type_id === et.id).map(en => (
+                    <option key={en.id} value={en.id}>{en.name}</option>
+                  ))}
+                </select>
               </div>
-            )}
+            ))}
           </div>
-
-          {/* Lista de entidades seleccionadas con campo de rol — la primera es la principal */}
-          {form.entity_ids.length > 0 && (
-            <div className="entity-selected-list">
-              {form.entity_ids.map((e, idx) => {
-                const ent = entities.find(x => x.id === e.id)
-                const isPrimary = idx === 0
-                return (
-                  <div key={e.id} className={`entity-selected-row ${isPrimary ? 'entity-selected-row--primary' : ''}`}>
-                    {isPrimary ? (
-                      <span className="entity-primary-badge" title="Se muestra en tabla y mosaico">★ Principal</span>
-                    ) : (
-                      <button
-                        type="button"
-                        className="entity-make-primary-btn"
-                        title="Marcar como principal"
-                        onClick={() => set('entity_ids', [e, ...form.entity_ids.filter(x => x.id !== e.id)])}
-                      >☆</button>
-                    )}
-                    <span className="entity-selected-name">{ent?.name}</span>
-                    <input
-                      type="text"
-                      className="entity-role-input"
-                      placeholder="Rol (opcional)"
-                      value={e.role}
-                      onChange={ev => set('entity_ids', form.entity_ids.map(x => x.id === e.id ? { ...x, role: ev.target.value } : x))}
-                    />
-                    <button
-                      type="button"
-                      className="entity-remove-btn"
-                      onClick={() => set('entity_ids', form.entity_ids.filter(x => x.id !== e.id))}
-                    >×</button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
         </div>
       )
     }
@@ -1451,7 +1447,7 @@ export function NegotiationModal({ initial, presetEntity, entities, products = [
   )
 }
 
-export function NegotiationDetail({ neg, entities, customStates, customFieldDefs = [], members = [], getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
+export function NegotiationDetail({ neg, entities, entityTypes = [], customStates, customFieldDefs = [], members = [], getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
   const { effectiveRole, role, user, isStaff, workspaceId } = useAuth()
   const canDelete = effectiveRole === 'owner'
   const canPause = effectiveRole === 'owner' || effectiveRole === 'admin'
@@ -1491,7 +1487,6 @@ export function NegotiationDetail({ neg, entities, customStates, customFieldDefs
   const flag = getEntityFlag(neg)
   const primaryEntity = neg.primary_entity || neg.negotiation_entities?.map(ne => ne.entity).filter(Boolean)[0] || null
   const entityNames = primaryEntity?.name || '—'
-  const secondaryEntities = (neg.negotiation_entities || []).filter(ne => ne.entity?.id && ne.entity.id !== primaryEntity?.id)
   const primaryProduct = neg.primary_product || neg.negotiation_products?.map(np => np.product).filter(Boolean)[0] || null
   const secondaryProducts = (neg.negotiation_products || []).filter(np => np.product?.id && np.product.id !== primaryProduct?.id)
   const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
@@ -1641,19 +1636,23 @@ export function NegotiationDetail({ neg, entities, customStates, customFieldDefs
               )}
             </div>
           ))}
-          {entitiesLinkDef && secondaryEntities.length > 0 && (
+          {entitiesLinkDef && entityTypes.some(et => getEntitiesOfType(neg, et.id).length > 0) && (
             <div className="neg-detail-section">
               <div className="detail-section-title">{entitiesLinkDef.label}</div>
               <div className="neg-secondary-entities">
-                {secondaryEntities.map(ne => (
-                  <div key={ne.entity.id} className="neg-secondary-entity-row">
-                    {ne.entity.country_code && (
-                      <img src={`https://flagcdn.com/w20/${ne.entity.country_code.toLowerCase()}.png`} alt="" className="neg-flag" />
-                    )}
-                    <span className="neg-secondary-entity-name">{ne.entity.name}</span>
-                    {ne.role && <span className="neg-secondary-entity-role">{ne.role}</span>}
-                  </div>
-                ))}
+                {entityTypes.map(et => {
+                  const ents = getEntitiesOfType(neg, et.id)
+                  if (ents.length === 0) return null
+                  return (
+                    <div key={et.id} className="neg-secondary-entity-row">
+                      {ents[0].country_code && (
+                        <img src={`https://flagcdn.com/w20/${ents[0].country_code.toLowerCase()}.png`} alt="" className="neg-flag" />
+                      )}
+                      <span className="neg-secondary-entity-name">{ents.map(e => e.name).join(', ')}</span>
+                      <span className="neg-secondary-entity-role">{et.name}</span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}

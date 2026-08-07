@@ -476,11 +476,12 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
   const [showNegModal, setShowNegModal] = useState(false)
   const [members, setMembers] = useState([])
   const [entities, setEntities] = useState([])
+  const [entityTypes, setEntityTypes] = useState([])
   const [allProducts, setAllProducts] = useState([])
   const [fieldOrder, setFieldOrder] = useState(null)
   const [bgColor, textColor] = getAvatarColor(product.name)
 
-  useEffect(() => { fetchMembers(); fetchEntities(); fetchAllProducts(); fetchFieldOrder() }, [product.id])
+  useEffect(() => { fetchMembers(); fetchEntities(); fetchEntityTypes(); fetchAllProducts(); fetchFieldOrder() }, [product.id])
 
   async function fetchMembers() {
     const { data } = await supabase.from('workspace_members')
@@ -490,8 +491,13 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
   }
 
   async function fetchEntities() {
-    const { data } = await supabase.from('entities').select('id, name, country_code').order('name')
+    const { data } = await supabase.from('entities').select('id, name, country_code, entity_type_id').order('name')
     if (data) setEntities(data)
+  }
+
+  async function fetchEntityTypes() {
+    const { data } = await supabase.from('entity_types').select('id, name, plural').order('sort_order')
+    if (data) setEntityTypes(data)
   }
 
   async function fetchAllProducts() {
@@ -512,7 +518,7 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
   async function fetchFullNeg(neg) {
     const [{ data: full }, { data: ents }, { data: notesList }] = await Promise.all([
       supabase.from('negotiations').select('*').eq('id', neg.id).single(),
-      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code)').eq('negotiation_id', neg.id),
+      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code, entity_type_id)').eq('negotiation_id', neg.id),
       supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', neg.id).order('note_date'),
     ])
     if (!full) return null
@@ -640,6 +646,7 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
         <NegotiationModal
           initial={editingNeg}
           entities={entities}
+          entityTypes={entityTypes}
           products={allProducts}
           members={members}
           customStates={negotiationStates}
@@ -669,6 +676,7 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
         <NegotiationDetail
           neg={selectedNeg}
           entities={entities}
+          entityTypes={entityTypes}
           customStates={negotiationStates}
           customFieldDefs={negotiationFieldDefs}
           members={members}

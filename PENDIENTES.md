@@ -207,7 +207,25 @@ Lo construido:
 - [ ] Tablas `product_types`, `products`, `negotiation_products` + columna `negotiations.primary_product_id`
 - [ ] Ampliar los checks de `object_type` y `field_type` en `custom_field_definitions` para incluir `product` y los 3 tipos especiales nuevos
 - [ ] Sembrar los 5 `custom_field_definitions` (4 de `product` + 1 de `negotiation`) para cada workspace de equipo/testing existente — `product_types` queda vacía a propósito, el owner carga los suyos
-- [ ] **Importante, sin resolver por esta sesión**: las tablas nuevas necesitan RLS (Row Level Security) con las mismas policies que ya protegen `entities`/`entity_types`/`negotiation_entities` — esta sesión nunca tuvo visibilidad de esas policies para poder replicarlas con certeza, así que no se puede armar ese SQL a ciegas. Hay que copiarlas/adaptarlas a mano desde el Dashboard de Supabase (Authentication → Policies) antes de que el módulo quede realmente protegido por workspace
+- [x] RLS de las 3 tablas nuevas — resuelto: el usuario corrió una query sobre `pg_policies` y pasó las policies reales de `entities`/`entity_types`/`negotiation_entities`, con eso se generó el `CREATE POLICY` + `ENABLE ROW LEVEL SECURITY` exacto para `products`/`product_types`/`negotiation_products` (mismo patrón: `PERMISSIVE`, `FOR ALL TO public`, `workspace_id IN (SELECT my_workspace_ids())` directo para las que tienen `workspace_id` propio, vía `negotiation_id IN (...)` para la tabla de vínculo) — SQL entregado en el chat, pendiente de que el usuario lo corra
+
+### Proyectos — una columna por tipo de entidad (reemplaza "Entidades vinculadas" genérico)
+Pedido de seguimiento tras la primera prueba real del módulo de Productos: el campo único `entities_link` (una entidad principal + secundarias con rol libre) no alcanza — el usuario quiere poder vincular una entidad **por cada tipo configurado** (ej. Cliente, Proveedor, Distribuidor) y que la vista Tabla muestre una columna por tipo, según el ejemplo en Excel que pasó (`Proyecto | Producto | Estado | Cliente | Proveedor | Distribuidor`).
+
+Decisiones confirmadas con el usuario antes de construir:
+- Como máximo **una** entidad por tipo en un proyecto (no una lista)
+- El filtro único de toolbar ("Proveedor" hardcodeado) se reemplaza por **un filtro por tipo de entidad**
+
+Diseño: sin tablas ni columnas nuevas — `negotiation_entities` (entity_id) y `entities.entity_type_id` ya tienen todo lo necesario. El cambio es 100% de cómo se agrupa/renderiza/edita ese mismo dato (por tipo de entidad en vez de por posición "principal/secundaria" en un array).
+
+- [x] `NegotiationModal`: estado interno pasa de `entity_ids` (array con rol libre) a `entity_by_type` (objeto `{entityTypeId: entityId}`) — un `<select>` por tipo de entidad configurado, con las entidades de ese tipo como opciones
+- [x] Guardado: `primary_entity_id` sale del primer tipo (en orden de `sort_order`) que tenga una entidad asignada; `negotiation_entities` se inserta sin columna `role` (ya no aplica, el "rol" ahora es el tipo de entidad en sí)
+- [x] Toolbar: un filtro por tipo de entidad (`entityTypeFilters`, uno por `entity_type`) reemplaza al viejo filtro único de "Proveedor"
+- [x] Tabla/Tarjetas/Kanban: columnas virtuales `entity_type:<id>` (una por tipo configurado) reemplazan a la columna única `entities` — mismo sistema de columnas configurables/ordenables que ya tenían Proyectos y Entidades, incluido filtro en el propio encabezado de columna (conviven con los filtros de toolbar, escriben al mismo estado)
+- [x] Export a Excel: encabezados de las columnas por tipo resuelven al nombre real del tipo (plural si está configurado), no al UUID crudo
+- [x] Detalle de proyecto: la sección "Entidades vinculadas" pasa de mostrar principal+secundarias a una fila por tipo de entidad con datos asignados
+- [ ] **Explícitamente fuera de alcance esta ronda, no investigado**: el import de Proyectos (`ImportNegotiationsModal`) sigue con su columna única "Proveedor" (matchea por nombre contra cualquier entidad, solo setea `primary_entity_id`, no crea filas por tipo) — no lo tocó el usuario en este pedido, queda como limitación conocida del import masivo
+- [ ] Sin SQL nuevo — no hace falta correr nada en Supabase para esta ronda
 
 ### Pantalla de bienvenida para workspaces nuevos sin configurar
 Al abrir el primer cliente pagador (workspace de equipo creado a mano vía SQL, sin flujo de alta propio todavía), el owner entraba a una app completamente vacía — sin tipos de entidad, sin estados, sin campos custom — y tenía que armar todo desde Configuración antes de poder cargar el primer dato. Se pidió una pantalla de bienvenida que ofrezca eso de entrada.

@@ -64,6 +64,8 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const location = useLocation()
   const navigate = useNavigate()
   const [entities, setEntities] = useState([])
+  const [allEntities, setAllEntities] = useState([])
+  const [allEntityTypes, setAllEntityTypes] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [view, setView] = useState('cards')
@@ -142,6 +144,13 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     fetchCustomFieldDefs()
     setSelectedIds(new Set())
   }, [entityTypeId])
+
+  useEffect(() => {
+    supabase.from('entities').select('id, name, country_code, entity_type_id').order('name')
+      .then(({ data }) => setAllEntities(data || []))
+    supabase.from('entity_types').select('id, name, plural').order('sort_order')
+      .then(({ data }) => setAllEntityTypes(data || []))
+  }, [workspaceId])
 
   useEffect(() => {
     supabase.from('workspace_members')
@@ -463,6 +472,8 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           entity={selectedEntity}
           negotiationStates={negotiationStates}
           entities={entities}
+          allEntities={allEntities}
+          allEntityTypes={allEntityTypes}
           onClose={() => setSelectedEntity(null)}
           onUpdated={fetchEntities}
           entityTypeName={entityTypeName}
@@ -561,7 +572,7 @@ function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, member
   )
 }
 
-function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpdated, entityTypeName, entityTypeSingular, getStateConfig, entityFieldDefs = [], negotiationFieldDefs = [], productFieldDefs = [] }) {
+function EntityDetailModal({ entity, negotiationStates, entities, allEntities = [], allEntityTypes = [], onClose, onUpdated, entityTypeName, entityTypeSingular, getStateConfig, entityFieldDefs = [], negotiationFieldDefs = [], productFieldDefs = [] }) {
   const { workspaceId, user, effectiveRole } = useAuth()
   const canDelete = effectiveRole === 'owner'
   const canCreateProject = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
@@ -698,7 +709,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
   async function fetchFullNeg(neg) {
     const [{ data: full }, { data: ents }, { data: prods }, { data: notesList }] = await Promise.all([
       supabase.from('negotiations').select('*').eq('id', neg.id).single(),
-      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code)').eq('negotiation_id', neg.id),
+      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code, entity_type_id)').eq('negotiation_id', neg.id),
       supabase.from('negotiation_products').select('negotiation_id, product_id, product:product_id(id, name)').eq('negotiation_id', neg.id),
       supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', neg.id).order('note_date'),
     ])
@@ -726,7 +737,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
   async function refetchNeg(id) {
     const [{ data: full }, { data: ents }, { data: prods }, { data: notesList }] = await Promise.all([
       supabase.from('negotiations').select('*').eq('id', id).single(),
-      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code)').eq('negotiation_id', id),
+      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code, entity_type_id)').eq('negotiation_id', id),
       supabase.from('negotiation_products').select('negotiation_id, product_id, product:product_id(id, name)').eq('negotiation_id', id),
       supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', id).order('note_date'),
     ])
@@ -1074,7 +1085,8 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
         <NegotiationModal
           initial={editingNeg}
           presetEntity={!editingNeg ? entity : undefined}
-          entities={entities}
+          entities={allEntities}
+          entityTypes={allEntityTypes}
           products={products}
           members={members}
           customStates={customStates}
@@ -1104,6 +1116,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, onClose, onUpd
         <NegotiationDetail
           neg={selectedNeg}
           entities={entities}
+          entityTypes={allEntityTypes}
           customStates={customStates}
           customFieldDefs={negotiationFieldDefs}
           members={members}

@@ -4,6 +4,15 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-07 (1)
+
+### Feature: Proyectos — una columna por tipo de entidad (reemplaza "Entidades vinculadas" genérico)
+- Rediseño pedido tras la primera prueba real de Productos: en vez de un campo único con entidad principal + secundarias de rol libre, ahora se vincula **una entidad por cada tipo configurado** (ej. Cliente, Proveedor, Distribuidor), y la Tabla muestra una columna por tipo — sin tablas ni columnas nuevas en la base, `negotiation_entities`/`entities.entity_type_id` ya alcanzaban; el cambio es de agrupamiento/render, no de esquema
+- Confirmado con el usuario: máximo una entidad por tipo (no lista), y el viejo filtro único de toolbar se reemplaza por un filtro por tipo de entidad
+- `NegotiationModal`: `entity_ids` (array) → `entity_by_type` (objeto por tipo), un `<select>` por tipo configurado. `primary_entity_id` sale del primer tipo con entidad asignada (orden de `sort_order`)
+- Tabla/Tarjetas/Kanban/export a Excel/detalle de Proyectos: columnas virtuales `entity_type:<id>` reemplazan a la columna única `entities`, con el mismo sistema de columnas configurables + filtro en el encabezado que ya tenían Proyectos/Entidades
+- Fuera de alcance, no tocado: el import masivo de Proyectos sigue con su columna única "Proveedor" (limitación conocida, no pedida en esta ronda)
+
 ## 2026-08-02 (5)
 
 ### Feature: módulo de Productos/Servicios — tercer polo conectado a Entidades por vínculo
