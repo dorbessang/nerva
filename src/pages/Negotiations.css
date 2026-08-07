@@ -447,6 +447,7 @@
 .neg-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .neg-table thead th {
@@ -498,15 +499,37 @@
 }
 
 /* Encabezado tipo Excel — click en el label para ordenar, ▾ para filtrar
-   por esa columna (popover). Compartido entre Proyectos y Entidades. */
-.sortable-th { padding: 0 !important; }
+   por esa columna (popover), borde derecho arrastrable para el ancho.
+   Compartido entre Proyectos, Entidades y Productos. Ojo: NADA entre acá y
+   el popover del filtro puede tener overflow:hidden, porque lo recortaría
+   (el popover cuelga por fuera del <th> con position:absolute). */
+.sortable-th { padding: 0 !important; position: relative; }
 
 .sortable-th-inner {
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 10px 14px;
+  min-width: 0;
 }
+
+.sortable-th-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.col-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 5;
+}
+.col-resize-handle:hover, .col-resize-handle:active { background: #93b4fb; }
 
 .sortable-th-label {
   cursor: pointer;

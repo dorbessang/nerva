@@ -4,6 +4,13 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-07 (4)
+
+### Feature: filtro tipo Excel en Entidades y Productos + columnas de ancho fijo y ajustable
+- `ColumnFilterMenu` (buscador + checklist multi-valor, construido en la ronda anterior solo para Proyectos) ahora se usa también en el encabezado de la Tabla de Entidades y de Productos — mismo componente compartido, mismo criterio
+- **Columnas de ancho fijo, ajustable a mano**: la Tabla (Proyectos/Entidades/Productos) recalculaba el ancho de cada columna según el contenido visible, así que al cambiar de filtro la pantalla "saltaba". Ahora `table-layout: fixed` + un ancho explícito por columna (arrastrando el borde derecho del encabezado, como en Excel) — una vez que el usuario mueve una columna, ese ancho queda fijo pase lo que pase con los datos filtrados, hasta que la vuelva a mover. `ColumnHeaderCell.jsx` (compartido) suma el handle de resize; el ancho se guarda en las mismas prefs de columnas por usuario que ya existían (visibilidad/orden), no es una tabla ni columna nueva en Supabase
+- Confirmado (no requirió cambios): las preferencias de columnas (visibilidad, orden y ahora ancho) y los filtros activos ya eran 100% por usuario/por navegador — las columnas viven en `localStorage` con clave `nerva_col_prefs_<user_id>` (nunca en Supabase, nunca compartidas entre miembros del workspace) y los filtros (`customFilterValues`, `entityTypeFilters`, búsqueda, orden) son estado de React en memoria, se pierden al recargar y nunca se comparten entre usuarios ni pestañas — el workspace solo comparte los datos, nunca cómo cada quien los mira
+
 ## 2026-08-07 (3)
 
 ### Feature: filtro de columna estilo Excel — buscador + checklist multi-valor

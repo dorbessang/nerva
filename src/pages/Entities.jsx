@@ -15,9 +15,10 @@ import { notifyTaskAssigned } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { formatAmount } from '../components/DealMilestones'
 import { CustomFieldReadOnly, CustomFieldFilter } from '../components/CustomFieldInput'
-import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter } from '../lib/customFields'
+import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter, filterChoicesFor } from '../lib/customFields'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
 import ColumnHeaderCell from '../components/ColumnHeaderCell'
+import ColumnFilterMenu from '../components/ColumnFilterMenu'
 import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
 import './Entities.css'
 
@@ -404,6 +405,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           onSort={handleSort}
           customFilterValues={customFilterValues}
           onFilterChange={(key, v) => setCustomFilterValues(prev => ({ ...prev, [key]: v }))}
+          onColResize={(key, width) => saveCols(cols.map(c => c.key === key ? { ...c, width } : c))}
         />
       ) : (
         <div className="entities-grid">
@@ -520,7 +522,7 @@ function renderEntityCell(key, entity, entityFieldDefs, members) {
 // la vieja `EntitiesTable` de filas fijas. Reusa las clases `neg-table-*`
 // de Negotiations.css: son estilos de tabla genéricos, ya bundleados en la
 // misma hoja de estilos global de la app.
-function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, members, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange }) {
+function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, members, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
   const visibleCols = cols.filter(c => c.visible)
   return (
     <div className="neg-table-wrapper">
@@ -537,7 +539,7 @@ function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, member
               const fieldDef = entityFieldDefs.find(d => d.key === c.key)
               const filterable = fieldDef ? isFieldFilterable(fieldDef) : false
               const filterValue = customFilterValues?.[c.key]
-              const filterActive = filterValue !== undefined && filterValue !== '' && filterValue !== null && !(Array.isArray(filterValue) && filterValue.length === 0)
+              const selected = Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : [])
               return (
                 <ColumnHeaderCell
                   key={c.key}
@@ -545,10 +547,12 @@ function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, member
                   sortDir={sortKey === c.key ? sortDir : null}
                   onSort={() => onSort(c.key)}
                   filterable={filterable}
-                  filterActive={filterActive}
+                  filterActive={selected.length > 0}
+                  width={c.width}
+                  onResize={w => onColResize(c.key, w)}
                 >
                   {filterable && (
-                    <CustomFieldFilter def={fieldDef} value={filterValue} onChange={v => onFilterChange(c.key, v)} members={members} />
+                    <ColumnFilterMenu options={filterChoicesFor(fieldDef, { members })} selected={selected} onChange={v => onFilterChange(c.key, v)} />
                   )}
                 </ColumnHeaderCell>
               )

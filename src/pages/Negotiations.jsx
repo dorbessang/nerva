@@ -672,7 +672,8 @@ export default function Negotiations() {
           selectedIds={selectedIds} onToggleSelect={toggleSelect} allVisibleSelected={allVisibleSelected} onToggleSelectAll={toggleSelectAllVisible}
           sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
           customStates={customStates} customFilterValues={customFilterValues} onFilterChange={(key, v) => setCustomFilterValues(prev => ({ ...prev, [key]: v }))}
-          entities={entities} entityTypeFilters={entityTypeFilters} onEntityTypeFilterChange={(typeId, v) => setEntityTypeFilters(prev => ({ ...prev, [typeId]: v }))} />
+          entities={entities} entityTypeFilters={entityTypeFilters} onEntityTypeFilterChange={(typeId, v) => setEntityTypeFilters(prev => ({ ...prev, [typeId]: v }))}
+          onColResize={(key, width) => saveCols(cols.map(c => c.key === key ? { ...c, width } : c))} />
       ) : view === 'cards' ? (
         <CardsView negotiations={sorted} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} customFieldDefs={customFieldDefs} members={members}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} />
@@ -812,7 +813,7 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
   }
 }
 
-function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customStates, customFilterValues, onFilterChange, entities, entityTypeFilters, onEntityTypeFilterChange }) {
+function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customStates, customFilterValues, onFilterChange, entities, entityTypeFilters, onEntityTypeFilterChange, onColResize }) {
   const visibleCols = cols.filter(c => c.visible)
 
   return (
@@ -830,7 +831,7 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
                 const selected = entityTypeFilters?.[typeId] || []
                 const options = entities.filter(en => en.entity_type_id === typeId).map(en => ({ id: en.id, label: en.name }))
                 return (
-                  <ColumnHeaderCell key={c.key} label={def?.label} sortDir={sortKey === c.key ? sortDir : null} onSort={() => onSort(c.key)} filterable filterActive={selected.length > 0}>
+                  <ColumnHeaderCell key={c.key} label={def?.label} sortDir={sortKey === c.key ? sortDir : null} onSort={() => onSort(c.key)} filterable filterActive={selected.length > 0} width={c.width} onResize={w => onColResize(c.key, w)}>
                     <ColumnFilterMenu options={options} selected={selected} onChange={v => onEntityTypeFilterChange(typeId, v)} />
                   </ColumnHeaderCell>
                 )
@@ -847,6 +848,8 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
                   onSort={() => onSort(c.key)}
                   filterable={filterable}
                   filterActive={selected.length > 0}
+                  width={c.width}
+                  onResize={w => onColResize(c.key, w)}
                 >
                   {filterable && (
                     <ColumnFilterMenu options={filterChoicesFor(fieldDef, { customStates, members })} selected={selected} onChange={v => onFilterChange(c.key, v)} />
