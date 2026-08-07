@@ -114,94 +114,24 @@ export default function Layout({ children }) {
     {
       path: "/dashboard",
       label: "Dashboard",
-      icon: (
-        // 4 rectángulos en grilla 2x2 simulando widgets de dashboard
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 18 18"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <rect x="2" y="2" width="6" height="7" rx="1" />
-          <rect x="10" y="2" width="6" height="4" rx="1" />
-          <rect x="10" y="8" width="6" height="8" rx="1" />
-          <rect x="2" y="11" width="6" height="5" rx="1" />
-        </svg>
-      ),
+      icon: <LucideIcons.LayoutDashboard size={18} />,
     },
     ...(isPersonalWorkspace ? [
       {
         path: "/agenda",
         label: "Agenda",
-        icon: (
-          // Calendario: marco con dos "anillos" arriba
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 18 18"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="2" y="3" width="14" height="12" rx="1.5" />
-            <line x1="2" y1="7" x2="16" y2="7" />
-            <line x1="5.5" y1="1.5" x2="5.5" y2="4.5" />
-            <line x1="12.5" y1="1.5" x2="12.5" y2="4.5" />
-          </svg>
-        ),
+        icon: <LucideIcons.Calendar size={18} />,
       },
     ] : [
       {
         path: "/tasks",
         label: "Tareas",
-        icon: (
-          // 3 filas con cuadrado a la izquierda y línea a la derecha
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 18 18"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="2" y="3" width="3" height="3" rx="0.5" />
-            <line x1="8" y1="4.5" x2="16" y2="4.5" />
-            <rect x="2" y="8" width="3" height="3" rx="0.5" />
-            <line x1="8" y1="9.5" x2="16" y2="9.5" />
-            <rect x="2" y="13" width="3" height="3" rx="0.5" />
-            <line x1="8" y1="14.5" x2="16" y2="14.5" />
-          </svg>
-        ),
+        icon: <LucideIcons.ListTodo size={18} />,
       },
       {
         path: "/negotiations",
         label: "Proyectos",
-        icon: (
-          // Triángulo apuntando arriba con dos líneas cortas abajo como propulsores
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 18 18"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polygon points="9,2 13,10 5,10" />
-            <line x1="9" y1="10" x2="9" y2="14" />
-            <line x1="6" y1="13" x2="7.5" y2="16" />
-            <line x1="12" y1="13" x2="10.5" y2="16" />
-          </svg>
-        ),
+        icon: <LucideIcons.Handshake size={18} />,
       },
     ]),
   ];
@@ -218,11 +148,7 @@ export default function Layout({ children }) {
           onClick={() => setMobileNavOpen((o) => !o)}
           aria-label="Abrir menú"
         >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-            <line x1="2.5" y1="5" x2="17.5" y2="5" />
-            <line x1="2.5" y1="10" x2="17.5" y2="10" />
-            <line x1="2.5" y1="15" x2="17.5" y2="15" />
-          </svg>
+          <LucideIcons.Menu size={20} />
         </button>
 
         <div className="nerva-header-logo">
@@ -241,9 +167,7 @@ export default function Layout({ children }) {
               onClick={() => setWsDropdownOpen(o => !o)}
             >
               <span className="ws-switcher-name">{activeWorkspace?.name ?? '—'}</span>
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 4l4 4 4-4" />
-              </svg>
+              <LucideIcons.ChevronDown size={12} />
             </button>
             {wsDropdownOpen && (
               <div className="ws-dropdown">
@@ -329,7 +253,7 @@ export default function Layout({ children }) {
                 onClick={() => setCollapsed((c) => !c)}
                 title={collapsed ? "Expandir" : "Colapsar"}
               >
-                {collapsed ? "→" : "←"}
+                {collapsed ? <LucideIcons.ChevronRight size={16} /> : <LucideIcons.ChevronLeft size={16} />}
               </button>
             )}
           </div>
@@ -359,12 +283,7 @@ export default function Layout({ children }) {
                 <span className="nav-icon">
                   {et.icon
                     ? <EntityIcon name={et.icon} size={18} />
-                    : <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="6" cy="5" r="2.5" />
-                        <path d="M2 16v-2a3 3 0 013-3h2a3 3 0 013 3v2" />
-                        <circle cx="13" cy="5" r="2.5" />
-                        <path d="M10 16v-2a3 3 0 013-3h2a3 3 0 013 3v2" />
-                      </svg>
+                    : <LucideIcons.Users size={18} />
                   }
                 </span>
                 {showLabels && (
@@ -387,10 +306,7 @@ export default function Layout({ children }) {
                 <span className="nav-icon">
                   {pt.icon
                     ? <EntityIcon name={pt.icon} size={18} />
-                    : <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="2" y="6" width="14" height="10" rx="1.5" />
-                        <path d="M2 6l7-4 7 4" />
-                      </svg>
+                    : <LucideIcons.Package size={18} />
                   }
                 </span>
                 {showLabels && (
@@ -417,39 +333,7 @@ export default function Layout({ children }) {
               title={showLabels ? "" : "Configuración"}
             >
               <span className="nav-icon">
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 18 18"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="8.5" cy="8.5" r="2.5" />
-                  <path
-                    d="
-    M7.2 1.5 L7.2 3.2
-    Q6.4 3.5 5.7 4.0
-    L4.2 3.0 L3.0 4.2 L4.0 5.7
-    Q3.5 6.4 3.2 7.2
-    L1.5 7.2 L1.5 9.8 L3.2 9.8
-    Q3.5 10.6 4.0 11.3
-    L3.0 12.8 L4.2 14.0 L5.7 13.0
-    Q6.4 13.5 7.2 13.8
-    L7.2 15.5 L9.8 15.5 L9.8 13.8
-    Q10.6 13.5 11.3 13.0
-    L12.8 14.0 L14.0 12.8 L13.0 11.3
-    Q13.5 10.6 13.8 9.8
-    L15.5 9.8 L15.5 7.2 L13.8 7.2
-    Q13.5 6.4 13.0 5.7
-    L14.0 4.2 L12.8 3.0 L11.3 4.0
-    Q10.6 3.5 9.8 3.2
-    L9.8 1.5 Z
-  "
-                  />
-                </svg>
+                <LucideIcons.Settings size={18} />
               </span>
               {showLabels && <span className="nav-label">Configuración</span>}
             </button>

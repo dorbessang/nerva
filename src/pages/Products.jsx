@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { LayoutGrid, Table2 } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { supabase } from '../lib/supabase'
 import ProductModal from '../components/ProductModal'
@@ -209,13 +210,16 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
       </div>
 
       <div className="entities-toolbar">
-        <input
-          className="entities-search"
-          type="text"
-          placeholder={`🔍 Buscar ${productTypeSingular?.toLowerCase() || 'producto'}...`}
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+        <div className="filter-field">
+          <label className="filter-field-label">Buscar</label>
+          <input
+            className="entities-search"
+            type="text"
+            placeholder={`🔍 Buscar ${productTypeSingular?.toLowerCase() || 'producto'}...`}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
         {filterableProductDefs.map(def => (
           <div className="filter-field" key={def.key}>
             <label className="filter-field-label">{def.label}</label>
@@ -227,20 +231,9 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
             />
           </div>
         ))}
-        <div className="entities-view-toggle">
-          <button className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')} title="Mosaico">
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/>
-              <rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/>
-            </svg>
-          </button>
-          <button className={view === 'table' ? 'active' : ''} onClick={() => setView('table')} title="Tabla">
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="1" y="1" width="14" height="14" rx="2"/>
-              <line x1="1" y1="5.5" x2="15" y2="5.5"/><line x1="1" y1="10" x2="15" y2="10"/>
-              <line x1="5" y1="5.5" x2="5" y2="15"/>
-            </svg>
-          </button>
+        <div className="neg-view-toggle">
+          <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Mosaico"><LayoutGrid size={15} /></button>
+          <button className={`neg-view-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')} title="Tabla"><Table2 size={15} /></button>
         </div>
         {view === 'cards' && (
           <div className="neg-sort-select">

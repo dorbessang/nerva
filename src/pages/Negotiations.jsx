@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { Table2, LayoutGrid, Kanban } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { useCloseOnOutsideOrEscape } from '../lib/useCloseOnOutsideOrEscape'
@@ -586,9 +587,9 @@ export default function Negotiations() {
           </select>
         </div>
         <div className="neg-view-toggle">
-          <button className={`neg-view-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')} title="Vista tabla">☰</button>
-          <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Vista cards">⊞</button>
-          <button className={`neg-view-btn ${view === 'kanban' ? 'active' : ''}`} onClick={() => setView('kanban')} title="Vista kanban">▦</button>
+          <button className={`neg-view-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')} title="Vista tabla"><Table2 size={15} /></button>
+          <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Vista cards"><LayoutGrid size={15} /></button>
+          <button className={`neg-view-btn ${view === 'kanban' ? 'active' : ''}`} onClick={() => setView('kanban')} title="Vista kanban"><Kanban size={15} /></button>
         </div>
         {view === 'cards' && (
           <div className="neg-sort-select">

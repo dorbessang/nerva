@@ -4,6 +4,15 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-07 (5)
+
+### Fix: consistencia visual entre páginas + iconos de biblioteca en vez de SVG a mano
+- **Toolbar de Entidades/Productos alineada como la de Proyectos**: `.entities-toolbar` estaba con `justify-content: flex-end` (todo pegado a la derecha) y `align-items: center`, mientras que `.neg-toolbar` de Proyectos es flujo natural a la izquierda con `align-items: flex-end` — por eso "las cosas se ubicaban en otro lado". Ahora coinciden. El buscador de Entidades/Productos también pasa a tener el mismo wrapper con label "Buscar" que ya tenía el resto de los filtros (antes era el único campo del toolbar sin etiqueta)
+- **Vista tabla/mosaico unificada**: Entidades y Productos tenían su propio SVG dibujado a mano para el selector de vista (`.entities-view-toggle`), distinto del que usa Proyectos (glifos de texto ☰⊞▦ en `.neg-view-toggle`). Ahora las tres páginas comparten las mismas clases y los mismos íconos de `lucide-react` (`Table2`/`LayoutGrid`/`Kanban`, este último solo en Proyectos)
+- **Botón de filtro de columna, más grande**: la flechita `▾` del encabezado (tipo Excel) pasa de un texto de 11px casi invisible a un botón real de 24×24px con ícono `ListFilter` de lucide, fondo visible y estado activo en azul
+- **Iconos de la sidebar y el buscador global, de la biblioteca en vez de SVG a mano**: `Layout.jsx` tenía la mayoría de sus íconos (Dashboard, Agenda/Tareas, Proyectos, Configuración, toggle de menú móvil, flechitas de colapsar sidebar, chevron del selector de workspace, ícono de tipo de entidad/producto sin ícono propio) dibujados a mano en SVG, mientras que "Mi perfil" y los íconos elegidos por el usuario en Configuración ya usaban `lucide-react` (que ya estaba instalado). Se unifica todo a `lucide-react`. Mismo criterio en el buscador global (lupa) y en el selector barras/donut del gráfico de estados en el Dashboard
+- Sin tocar (fuera de alcance, no eran íconos de sección sino visualizaciones reales): los SVG de los gráficos donut del Dashboard
+
 ## 2026-08-07 (4)
 
 ### Feature: filtro tipo Excel en Entidades y Productos + columnas de ancho fijo y ajustable

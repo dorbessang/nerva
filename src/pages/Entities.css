@@ -84,9 +84,9 @@
 .entities-toolbar {
   margin-bottom: 24px;
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .entities-search {
@@ -102,35 +102,6 @@
 }
 
 .entities-search:focus { border-color: #0B1F3A; }
-
-.entities-view-toggle {
-  display: flex;
-  align-items: stretch;
-  height: 36px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #fff;
-  box-sizing: border-box;
-}
-
-.entities-view-toggle button {
-  padding: 0 11px;
-  background: transparent;
-  border: none;
-  color: #9ca3af;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  transition: all 0.15s;
-}
-
-.entities-view-toggle button.active {
-  background: #0B1F3A;
-  color: #fff;
-}
-
-.entities-view-toggle button:hover:not(.active) { background: #f3f4f6; color: #374151; }
 
 .entities-export-btn {
   height: 36px;
@@ -947,7 +918,7 @@
     box-sizing: border-box;
   }
 
-  .entities-view-toggle {
+  .neg-view-toggle {
     align-self: flex-end;
   }
 

@@ -1,6 +1,7 @@
 // Dashboard.jsx — Página principal con métricas generales del workspace
 
 import { useState, useEffect } from "react";
+import { BarChart3, PieChart } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -316,49 +317,14 @@ function TeamDashboard() {
                 onClick={() => setChartView("bars")}
                 title="Vista barras"
               >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <rect
-                    x="1"
-                    y="8"
-                    width="3"
-                    height="5"
-                    fill="currentColor"
-                    rx="1"
-                  />
-                  <rect
-                    x="5.5"
-                    y="5"
-                    width="3"
-                    height="8"
-                    fill="currentColor"
-                    rx="1"
-                  />
-                  <rect
-                    x="10"
-                    y="2"
-                    width="3"
-                    height="11"
-                    fill="currentColor"
-                    rx="1"
-                  />
-                </svg>
+                <BarChart3 size={14} />
               </button>
               <button
                 className={`db-toggle-btn ${chartView === "donut" ? "active" : ""}`}
                 onClick={() => setChartView("donut")}
                 title="Vista donut"
               >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <circle
-                    cx="7"
-                    cy="7"
-                    r="5.5"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    fill="none"
-                  />
-                  <circle cx="7" cy="7" r="2.5" fill="currentColor" />
-                </svg>
+                <PieChart size={14} />
               </button>
             </div>
           </div>

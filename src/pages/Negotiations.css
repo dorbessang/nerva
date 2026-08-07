@@ -552,17 +552,23 @@
 }
 
 .sortable-th-filter-btn {
-  background: none;
+  background: #eef0f3;
   border: none;
-  color: #9ca3af;
+  color: #6b7280;
   cursor: pointer;
-  font-size: 11px;
-  padding: 2px 4px;
-  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 6px;
+  flex-shrink: 0;
 }
-.sortable-th-filter-btn:hover { background: #eef0f3; color: #374151; }
-.sortable-th-filter-btn.open { background: #eef0f3; color: #0B1F3A; }
-.sortable-th-filter-btn.active { color: #1D4ED8; }
+.sortable-th-filter-btn:hover { background: #e2e5ea; color: #374151; }
+.sortable-th-filter-btn.open { background: #0B1F3A; color: #ffffff; }
+.sortable-th-filter-btn.active { background: #dbe7ff; color: #1D4ED8; }
+.sortable-th-filter-btn.active.open { background: #0B1F3A; color: #ffffff; }
 
 .sortable-th-filter-popover {
   position: absolute;

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Search } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { useCloseOnOutsideOrEscape } from '../lib/useCloseOnOutsideOrEscape'
@@ -152,15 +153,9 @@ export default function GlobalSearch() {
         aria-label="Buscar"
         onClick={() => setMobileOpen(o => !o)}
       >
-        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-          <circle cx="9" cy="9" r="6.5" />
-          <line x1="17" y1="17" x2="13.6" y2="13.6" />
-        </svg>
+        <Search size={16} strokeWidth={1.8} />
       </button>
-      <svg className="global-search-icon" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-        <circle cx="9" cy="9" r="6.5" />
-        <line x1="17" y1="17" x2="13.6" y2="13.6" />
-      </svg>
+      <Search className="global-search-icon" size={14} strokeWidth={1.8} />
       <input
         ref={inputRef}
         className="global-search-input"

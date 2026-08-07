@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { ListFilter } from 'lucide-react'
 import { useCloseOnOutsideOrEscape } from '../lib/useCloseOnOutsideOrEscape'
 
 export const DEFAULT_COL_WIDTH = 170
@@ -54,7 +55,7 @@ export default function ColumnHeaderCell({ label, sortDir, onSort, filterable, f
               onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
               title="Filtrar por esta columna"
             >
-              ▾
+              <ListFilter size={14} strokeWidth={2.2} />
             </button>
             {open && (
               <div className="sortable-th-filter-popover" onClick={e => e.stopPropagation()}>
