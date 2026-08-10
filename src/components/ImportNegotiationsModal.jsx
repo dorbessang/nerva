@@ -115,7 +115,7 @@ function buildRows(raw, importFields, entities, customStates) {
   })
 }
 
-export default function ImportNegotiationsModal({ workspaceId, entities, customStates, negotiationFieldDefs = [], onClose, onImported }) {
+export default function ImportNegotiationsModal({ workspaceId, entities, entityTypes = [], customStates, negotiationFieldDefs = [], onClose, onImported }) {
   const [step, setStep] = useState('upload')
   const [rows, setRows] = useState([])
   const [fileError, setFileError] = useState('')
@@ -127,6 +127,12 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
   const importFields = importFieldsOf(negotiationFieldDefs)
   const hasEntitiesLink = negotiationFieldDefs.some(d => d.field_type === 'entities_link')
   const headers = [...importFields.map(d => d.label), ...(hasEntitiesLink ? ['Proveedor'] : [])]
+  // La columna "Proveedor" del import siempre asigna ese rol específico — se
+  // necesita el id del tipo configurado con ese nombre para grabarlo en
+  // negotiation_entities.role (ver Negotiations.jsx/getEntitiesOfType: sin
+  // esto, una entidad con tipo secundario podría mostrarse en el rol
+  // equivocado si su tipo primario no es justo "Proveedor").
+  const providerRoleId = entityTypes.find(t => t.name?.toLowerCase() === 'proveedor')?.id || null
 
   async function handleFile(e) {
     const file = e.target.files?.[0]
@@ -187,7 +193,7 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
 
     if (data) {
       const links = validRows
-        .map((r, i) => resolvedEntityId(r) ? { negotiation_id: data[i].id, entity_id: resolvedEntityId(r), role: null } : null)
+        .map((r, i) => resolvedEntityId(r) ? { negotiation_id: data[i].id, entity_id: resolvedEntityId(r), role: providerRoleId } : null)
         .filter(Boolean)
       if (links.length > 0) await supabase.from('negotiation_entities').insert(links)
     }

@@ -21,6 +21,7 @@ import TableGrid from '../components/TableGrid'
 import TotalStatCard from '../components/StatCards'
 import { CardGrid, CardTile } from '../components/CardGrid'
 import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
+import { entityHasType } from '../lib/entityTypes'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
@@ -49,11 +50,18 @@ function getProductName(neg) {
   return primary?.name || '—'
 }
 
-// Entidades vinculadas a un proyecto de un tipo dado — reemplaza al viejo
-// modelo "principal + secundarias" por uno de una columna por tipo (máx.
-// una entidad por tipo, confirmado con el usuario).
+// Entidades vinculadas a un proyecto de un tipo (rol) dado — una columna por
+// tipo, máx. una entidad por tipo (confirmado con el usuario). El rol de cada
+// vínculo se guarda en negotiation_entities.role (el dropdown en el que se
+// eligió la entidad al armar el proyecto) — no se infiere del entity_type_id
+// propio de la entidad, porque una entidad puede tener tipo primario Y
+// secundario (ver EntityModal.jsx) y esa ambigüedad no diría en qué rol
+// quedó para ESTE proyecto puntual. El fallback a entity_type_id es solo
+// por si algún vínculo viejo quedó sin `role` (backfill de la migración).
 function getEntitiesOfType(neg, typeId) {
-  return (neg.negotiation_entities || []).filter(ne => ne.entity?.entity_type_id === typeId).map(ne => ne.entity)
+  return (neg.negotiation_entities || [])
+    .filter(ne => (ne.role || ne.entity?.entity_type_id) === typeId)
+    .map(ne => ne.entity)
 }
 
 // El filtro de Estado puede venir de la tarjeta de stats (valor único) o del
@@ -231,7 +239,7 @@ export default function Negotiations() {
     setLoading(true)
     const [negsRes, entitiesRes, entityTypesRes, productsRes, membersRes, statesRes, milestonesRes, customFieldsRes] = await Promise.all([
       supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code), primary_product:primary_product_id(id, name)').order('created_at', { ascending: false }),
-      supabase.from('entities').select('id, name, country_code, entity_type_id').order('name'),
+      supabase.from('entities').select('id, name, country_code, entity_type_id, secondary_entity_type_id').order('name'),
       supabase.from('entity_types').select('id, name, plural').order('sort_order'),
       supabase.from('products').select('id, name').order('name'),
       supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`).eq('workspace_id', workspaceId),
@@ -280,7 +288,7 @@ export default function Negotiations() {
   async function refetchSingleNeg(id) {
     const [{ data: neg }, { data: ents }, { data: prods }, { data: notesList }] = await Promise.all([
       supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code), primary_product:primary_product_id(id, name)').eq('id', id).single(),
-      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code, entity_type_id)').eq('negotiation_id', id),
+      supabase.from('negotiation_entities').select('negotiation_id, entity_id, role, entity:entity_id(id, name, country_code, entity_type_id)').eq('negotiation_id', id),
       supabase.from('negotiation_products').select('negotiation_id, product_id, product:product_id(id, name)').eq('negotiation_id', id),
       supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', id).order('note_date'),
     ])
@@ -347,7 +355,7 @@ export default function Negotiations() {
     if (!matchesAllFieldFilters(filterableDefs, n, customFilterValues, excludeDefKey)) return false
     for (const [typeId, entityIds] of Object.entries(entityTypeFilters)) {
       if (!entityIds || entityIds.length === 0) continue
-      const ids = (n.negotiation_entities || []).filter(ne => ne.entity?.entity_type_id === typeId).map(ne => ne.entity.id)
+      const ids = (n.negotiation_entities || []).filter(ne => (ne.role || ne.entity?.entity_type_id) === typeId).map(ne => ne.entity.id)
       if (!entityIds.some(id => ids.includes(id))) return false
     }
     if (filterActivity === 'active') { if (n.activity_status !== 'active') return false }
@@ -377,7 +385,7 @@ export default function Negotiations() {
     ...entityTypeColumnDefs.map(et => ({
       key: et.key,
       label: et.label,
-      options: entities.filter(en => en.entity_type_id === et.key.slice('entity_type:'.length)).map(en => ({ id: en.id, label: en.name })),
+      options: entities.filter(en => entityHasType(en, et.key.slice('entity_type:'.length))).map(en => ({ id: en.id, label: en.name })),
       selected: entityTypeFilters[et.key.slice('entity_type:'.length)] || [],
       onChange: v => setEntityTypeFilters(prev => ({ ...prev, [et.key.slice('entity_type:'.length)]: v })),
     })),
@@ -725,6 +733,7 @@ export default function Negotiations() {
         <ImportNegotiationsModal
           workspaceId={workspaceId}
           entities={entities}
+          entityTypes={entityTypes}
           customStates={customStates}
           negotiationFieldDefs={customFieldDefs}
           onClose={() => setShowImportModal(false)}
@@ -887,7 +896,7 @@ function TableView({ negotiations, allRows, getFacetRows, getStateConfig, getEnt
     if (key.startsWith('entity_type:')) {
       const typeId = key.slice('entity_type:'.length)
       return {
-        options: entities.filter(en => en.entity_type_id === typeId).map(en => ({ id: en.id, label: en.name })),
+        options: entities.filter(en => entityHasType(en, typeId)).map(en => ({ id: en.id, label: en.name })),
         selected: entityTypeFilters?.[typeId] || [],
         onChange: v => onEntityTypeFilterChange(typeId, v),
       }
@@ -1122,8 +1131,14 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
     ...empty, ...initial,
     entity_by_type: (() => {
       const byType = {}
+      // El rol de cada vínculo es el que se guardó en negotiation_entities.role
+      // (qué dropdown se usó para elegir la entidad en ESTE proyecto) — no el
+      // entity_type_id propio de la entidad, que puede matchear más de un rol
+      // si tiene tipo secundario. Fallback al tipo propio solo para vínculos
+      // viejos sin `role` (antes de la migración que lo backfillea).
       for (const ne of initial.negotiation_entities || []) {
-        if (ne.entity?.id && ne.entity?.entity_type_id) byType[ne.entity.entity_type_id] = ne.entity.id
+        const roleId = ne.role || ne.entity?.entity_type_id
+        if (ne.entity?.id && roleId) byType[roleId] = ne.entity.id
       }
       return byType
     })(),
@@ -1228,7 +1243,12 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
     }
     if (negId) {
       await supabase.from('negotiation_entities').delete().eq('negotiation_id', negId)
-      const entityRows = Object.values(form.entity_by_type).filter(Boolean).map(id => ({ negotiation_id: negId, entity_id: id }))
+      // role = el tipo (rol) del dropdown en el que se eligió cada entidad —
+      // se necesita explícito para no ambiguar cuando la entidad tiene tipo
+      // secundario (ver getEntitiesOfType más arriba).
+      const entityRows = Object.entries(form.entity_by_type)
+        .filter(([, id]) => id)
+        .map(([typeId, id]) => ({ negotiation_id: negId, entity_id: id, role: typeId }))
       if (entityRows.length > 0) {
         await supabase.from('negotiation_entities').insert(entityRows)
       }
@@ -1285,7 +1305,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
                   onChange={e => set('entity_by_type', { ...form.entity_by_type, [et.id]: e.target.value })}
                 >
                   <option value="">Sin asignar</option>
-                  {entities.filter(en => en.entity_type_id === et.id).map(en => (
+                  {entities.filter(en => entityHasType(en, et.id)).map(en => (
                     <option key={en.id} value={en.id}>{en.name}</option>
                   ))}
                 </select>

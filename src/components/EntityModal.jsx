@@ -35,6 +35,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
     initial?.contacts?.length > 0 ? initial.contacts.map(c => ({ ...c, tempId: Date.now() + Math.random() })) : [emptyContact()]
   )
   const [entityTypes, setEntityTypes] = useState([])
+  const [secondaryEntityTypeId, setSecondaryEntityTypeId] = useState(initial?.secondary_entity_type_id || '')
   const [fieldOrder, setFieldOrder] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -116,6 +117,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
         if (def.storage_column) columnValues[def.storage_column] = typeof values[def.key] === 'string' ? values[def.key].trim() || null : (values[def.key] ?? null)
         else jsonbValues[def.key] = values[def.key]
       }
+      columnValues.secondary_entity_type_id = secondaryEntityTypeId || null
 
       // Nunca reemplazar custom_fields entero — mergear preserva cualquier
       // campo personalizado ya cargado que este formulario no conoce.
@@ -181,12 +183,24 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
   function renderField(def) {
     if (def.field_type === 'entity_type') {
       return (
-        <div key={def.key} className="form-group">
-          <label>{def.label}{def.required ? ' *' : ''}</label>
-          <select value={values[def.key] || ''} onChange={e => setValue(def.key, e.target.value)}>
-            {entityTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-        </div>
+        <>
+          <div key={def.key} className="form-group">
+            <label>{def.label}{def.required ? ' *' : ''}</label>
+            <select value={values[def.key] || ''} onChange={e => {
+              setValue(def.key, e.target.value)
+              if (e.target.value === secondaryEntityTypeId) setSecondaryEntityTypeId('')
+            }}>
+              {entityTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div key={`${def.key}-secondary`} className="form-group">
+            <label>Tipo secundario (opcional)</label>
+            <select value={secondaryEntityTypeId} onChange={e => setSecondaryEntityTypeId(e.target.value)}>
+              <option value="">Sin tipo secundario</option>
+              {entityTypes.filter(t => t.id !== values[def.key]).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+        </>
       )
     }
     return (

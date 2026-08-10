@@ -24,6 +24,7 @@ import { CardGrid, CardTile, CardTileNew } from '../components/CardGrid'
 import TotalStatCard from '../components/StatCards'
 import { getInitials, getAvatarColor } from '../lib/avatarColors'
 import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
+import { entityHasType } from '../lib/entityTypes'
 import './Entities.css'
 
 // Columnas que no son un campo custom configurable — calculadas a partir de
@@ -200,9 +201,11 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     setLoading(true)
     let query = supabase
       .from('entities')
-      .select(`*, entity_type:entity_type_id ( name, color ), contacts ( id, name, role, email, phone, whatsapp, notes, is_primary )`)
+      .select(`*, entity_type:entity_type_id ( name, color ), secondary_entity_type:secondary_entity_type_id ( name, color ), contacts ( id, name, role, email, phone, whatsapp, notes, is_primary )`)
       .order('name')
-    if (entityTypeId) query = query.eq('entity_type_id', entityTypeId)
+    // Una entidad con tipo secundario tiene que aparecer en las dos solapas
+    // (ver "Tipo secundario" en EntityModal.jsx) — no solo en la de su tipo primario.
+    if (entityTypeId) query = query.or(`entity_type_id.eq.${entityTypeId},secondary_entity_type_id.eq.${entityTypeId}`)
     const { data: entitiesData, error } = await query
 
     if (error) { setLoading(false); return }
@@ -261,7 +264,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   // Solapa activa (modo unificado, sin entityTypeId) — recorte client-side
   // sobre lo ya fetcheado, no dispara ningún request nuevo al cambiar.
   const typeScopedEntities = (!entityTypeId && activeTypeTab)
-    ? entities.filter(e => e.entity_type_id === activeTypeTab)
+    ? entities.filter(e => entityHasType(e, activeTypeTab))
     : entities
 
   // Todo lo que matchea excepto (opcionalmente) el filtro de un campo
@@ -519,7 +522,11 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
                 avatarLabel={entity.name}
                 title={entity.name}
                 titlePrefix={entity.country_code && <img src={getFlagUrl(entity.country_code)} alt="" className="entity-flag" />}
-                titleBadge={!entityTypeId && entity.entity_type?.name && <span className="neg-chip neg-chip-blue entity-type-chip">{entity.entity_type.name}</span>}
+                titleBadge={!entityTypeId && entity.entity_type?.name && (
+                  <span className="neg-chip neg-chip-blue entity-type-chip">
+                    {entity.entity_type.name}{entity.secondary_entity_type?.name ? ` · ${entity.secondary_entity_type.name}` : ''}
+                  </span>
+                )}
                 subtitle={entity.country_code && getCountryName(entity.country_code)}
                 footer={
                   Object.keys(counts).length > 0 ? (
@@ -619,7 +626,7 @@ function renderEntityCell(key, entity, entityFieldDefs, members, getStateConfig)
         </td>
       )
     case 'entity_type':
-      return <td key={key}>{entity.entity_type?.name || '—'}</td>
+      return <td key={key}>{entity.entity_type?.name ? `${entity.entity_type.name}${entity.secondary_entity_type?.name ? ` · ${entity.secondary_entity_type.name}` : ''}` : '—'}</td>
     case 'projects_total':
       return <td key={key}>{renderProjectsTotalCell(entity.negotiation_entities, getStateConfig)}</td>
     default: {

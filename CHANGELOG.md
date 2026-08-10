@@ -4,6 +4,20 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-10 (10)
+
+### Feature: tipo secundario en Entidades — una misma entidad puede tener dos roles (ej. Cliente y Proveedor)
+- Motivado por un caso real: una empresa puede ser Cliente en un proyecto (le vendo APIs) y Proveedor en otro (le compro productos terminados) — hasta ahora el `entity_type_id` de una entidad era fijo desde que se creaba, así que estructuralmente no podía aparecer nunca en el rol contrario, en ningún proyecto
+- **Requiere correr SQL a mano en Supabase** (pasado en el chat, `migration_secondary_entity_type.sql`): nueva columna `entities.secondary_entity_type_id` (FK opcional a `entity_types`) + backfill de `negotiation_entities.role` a partir del tipo que tenía cada entidad ya vinculada, para que ningún proyecto existente cambie de rol al desplegar
+- `EntityModal.jsx`: nuevo selector "Tipo secundario (opcional)" junto al de Tipo — si se elige el mismo tipo que el primario, se limpia solo
+- `Entities.jsx`: una entidad con tipo secundario aparece en las dos solapas (filtro server-side con `.or()`, y el recorte client-side del modo "Todas las entidades"); el badge/columna de tipo muestra ambos ("Cliente · Proveedor") cuando corresponde
+- **Hallazgo importante en `Negotiations.jsx`**: `negotiation_entities.role` existía en el esquema pero nunca se escribía — el rol de cada vínculo se infería leyendo el `entity_type_id` propio de la entidad (funciona mientras cada entidad tenga un solo tipo, pero se vuelve ambiguo apenas puede tener dos). Se empieza a usar de verdad: al guardar un proyecto, cada entidad elegida en un selector de rol (Proveedor/Cliente/Distribuidor) graba ese rol explícito en `negotiation_entities.role` — así se sabe sin ambigüedad en qué rol quedó una entidad en un proyecto puntual, más allá de qué tipo(s) tenga. `getEntitiesOfType` y todos los filtros/dropdowns por tipo pasan a leer `role` primero (con fallback al tipo propio de la entidad solo para vínculos viejos sin backfillear)
+- Los 3 selectores de rol del formulario de proyecto, y los filtros de columna/panel, ahora ofrecen una entidad si matchea el tipo primario **o** el secundario (`entityHasType`, nuevo `src/lib/entityTypes.js`)
+- `ImportNegotiationsModal.jsx`: la columna "Proveedor" del import ahora también graba `role` explícito (antes quedaba `null`) — se resuelve buscando el `entity_type` configurado con nombre "Proveedor"
+- Sin cambios en custom fields: confirmado que `custom_field_definitions` para entidades se define solo por `object_type`, no por `entity_type_id` — una entidad con dos tipos sigue usando un único formulario/set de valores, sin duplicar nada
+
+## 2026-08-10 (9)
+
 ## 2026-08-10 (9)
 
 ### Fix: listas de Productos/Entidades ordenaban alfabético caracter a caracter ("Prod 1, Prod 10, Prod 11... Prod 2, Prod 20")
