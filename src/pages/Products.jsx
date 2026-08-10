@@ -3,6 +3,7 @@ import { LayoutGrid, Table2 } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { supabase } from '../lib/supabase'
 import ProductModal from '../components/ProductModal'
+import ImportProductsModal from '../components/ImportProductsModal'
 import { NegotiationDetail, NegotiationModal } from './Negotiations'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
@@ -33,15 +34,53 @@ function getProductSortValue(key, product, productFieldDefs) {
   }
 }
 
+// Valor de texto plano por columna para el export Excel — separado de
+// renderProductCell porque ese devuelve JSX con badges.
+function getProductExportValue(key, product, productFieldDefs, members) {
+  switch (key) {
+    case 'name': return product.name || ''
+    case 'product_type': return product.product_type?.name || ''
+    case 'entity': return product.entity?.name || ''
+    case 'projects_total': return String(product.negotiation_products?.length || 0)
+    default: {
+      const def = productFieldDefs?.find(d => d.key === key)
+      if (!def) return ''
+      const raw = def.storage_column ? product[def.storage_column] : getCustomFieldValue(product.custom_fields, key)
+      const val = renderCustomFieldDisplay(def, raw, members)
+      return val === '—' ? '' : val
+    }
+  }
+}
+
+// Excel real (.xlsx), mismo motivo que en Proyectos: evita problemas de
+// delimitador/codificación de un CSV plano. xlsx se carga bajo demanda
+// (import dinámico) para no sumarlo al bundle inicial de /products.
+async function exportProductsXlsx(products, cols, allColumns, productFieldDefs, members) {
+  const XLSX = await import('xlsx')
+  const visibleCols = cols.filter(c => c.visible)
+  const headers = visibleCols.map(c => allColumns.find(x => x.key === c.key)?.label || c.key)
+  const rows = [
+    headers,
+    ...products.map(p => visibleCols.map(c => getProductExportValue(c.key, p, productFieldDefs, members))),
+  ]
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = visibleCols.map(() => ({ wch: 22 }))
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Productos')
+  XLSX.writeFile(wb, `nerva-productos-${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
 export default function Products() {
   const { user, workspaceId, effectiveRole } = useAuth()
   const canBulkDelete = effectiveRole === 'owner'
+  const canImport = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
   const [products, setProducts] = useState([])
   const [productTypes, setProductTypes] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 860) ? 'cards' : 'table')
   const [showModal, setShowModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
   const [showColEditor, setShowColEditor] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [negotiationStates, setNegotiationStates] = useState([])
@@ -242,6 +281,14 @@ export default function Products() {
     ? sortRows(filtered, p => getProductSortValue(sortKey, p, productFieldDefs), sortDir)
     : filtered
 
+  function exportRows() {
+    return selectedIds.size > 0 ? filtered.filter(p => selectedIds.has(p.id)) : filtered
+  }
+
+  function handleExportExcel() {
+    exportProductsXlsx(exportRows(), cols, allColumns, productFieldDefs, members)
+  }
+
   return (
     <div className="entities-container">
       <div className="entities-header">
@@ -314,10 +361,35 @@ export default function Products() {
             ⚙ Columnas
           </button>
         )}
+        {canImport && (
+          <button
+            className="entities-export-btn"
+            onClick={() => setShowImportModal(true)}
+            title="Importar productos desde Excel/CSV"
+          >
+            ⬆ Importar
+          </button>
+        )}
+        <button
+          className="entities-export-btn"
+          onClick={handleExportExcel}
+          title={selectedIds.size > 0 ? `Exportar los ${selectedIds.size} seleccionados a Excel` : 'Exportar los productos filtrados a Excel'}
+        >
+          ⬇ Exportar Excel
+        </button>
       </div>
 
       {showColEditor && view === 'table' && (
         <ColumnEditor cols={cols} allColumns={allColumns} onChange={saveCols} onClose={() => setShowColEditor(false)} />
+      )}
+
+      {showImportModal && (
+        <ImportProductsModal
+          workspaceId={workspaceId}
+          productFieldDefs={productFieldDefs}
+          onClose={() => setShowImportModal(false)}
+          onImported={fetchProducts}
+        />
       )}
 
       {canBulkDelete && selectedIds.size > 0 && (

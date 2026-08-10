@@ -4,6 +4,14 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-10 (6)
+
+### Feature: Import/Export masivo de Productos
+- Productos no tenía import ni export — a diferencia de Entidades (import Excel/CSV + export PDF) y Proyectos (import + export Excel/PDF). Se agrega en la página de Productos, mismo lugar que en las otras dos (decisión propia: como Productos ya es una sola página unificada sin pestañas por tipo, tiene más sentido ahí que repartido por entidad — bulk import en particular no encaja bien "por entidad" porque una sola planilla suele traer productos de varios proveedores a la vez)
+- `ImportProductsModal.jsx` (nuevo, modelado sobre `ImportEntitiesModal.jsx`): a diferencia de Entidades (donde el tipo ya está implícito en la pestaña que se importa), acá "Tipo de producto" y "Proveedor/Vendedor" van como columnas de texto en cada fila, resueltas por nombre contra lo ya configurado en el workspace — mismo criterio que país/select. Fila sin tipo reconocido o sin nombre, error de import (no se inserta)
+- Export a Excel (.xlsx): respeta la selección actual si hay filas tildadas, si no exporta lo que esté filtrado en ese momento — mismo criterio que ya tenía el export de Proyectos (`exportRows`)
+- Sin SQL — cambio de código nada más
+
 ## 2026-08-10 (5)
 
 ### Fix: filtros mostraban catálogos enteros (ej. los ~195 países del mundo) en vez de los valores realmente cargados

@@ -339,6 +339,12 @@ Propuesta del propio usuario, con estructura detallada incluida en el pedido ("�
 - [x] Nuevo helper `matchesAllFieldFilters` en `customFields.js`, reusado por `matchesAllXFilters(row, {excludeDefKey})` en las 3 páginas
 - [ ] Sin SQL — cambio de código nada más
 
+##### Follow-up inmediato (14): import/export masivo de Productos
+Pedido explícito, con la decisión de dónde ubicarlo dejada a criterio propio ("desde cada entidad o desde la pestaña correspondiente, donde creas que quede mejor"). Se eligió la página de Productos (ya unificada, sin pestañas por tipo) en vez de repartirlo por entidad — un import masivo típicamente trae productos de varios proveedores en una sola planilla, no encaja bien scopeado a una sola entidad.
+- [x] `ImportProductsModal.jsx` (nuevo) — mismo patrón que `ImportEntitiesModal.jsx`, con "Tipo de producto" y "Proveedor/Vendedor" como columnas de texto resueltas por nombre (no hay pestaña que dé el tipo implícito, a diferencia de Entidades)
+- [x] Export a Excel (.xlsx) — respeta selección actual o lo filtrado, mismo criterio que Proyectos
+- [ ] Sin SQL — cambio de código nada más
+
 ### Pantalla de bienvenida para workspaces nuevos sin configurar
 Al abrir el primer cliente pagador (workspace de equipo creado a mano vía SQL, sin flujo de alta propio todavía), el owner entraba a una app completamente vacía — sin tipos de entidad, sin estados, sin campos custom — y tenía que armar todo desde Configuración antes de poder cargar el primer dato. Se pidió una pantalla de bienvenida que ofrezca eso de entrada.
 - [x] Columna nueva `workspaces.onboarded boolean not null default true` — default `true` a propósito, para que ningún workspace ya en uso muestre esta pantalla retroactivamente. Los workspaces nuevos se crean con `onboarded = false` explícito en el insert de bootstrap
