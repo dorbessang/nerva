@@ -129,7 +129,7 @@ export function isWideCustomField(def) {
 // Tipos de campo que encajan con un filtro tipo "elegí un valor de una
 // lista" — texto libre/número/fecha y los compuestos no tienen un widget
 // de filtro genérico razonable (para eso ya está el buscador de texto).
-const FILTERABLE_TYPES = ['select', 'multiselect', 'country', 'user', 'boolean', 'status']
+const FILTERABLE_TYPES = ['select', 'multiselect', 'country', 'user', 'boolean', 'status', 'product_type']
 
 export function isFieldFilterable(def) {
   const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
@@ -144,13 +144,14 @@ export function isMultiValueFilter(def) {
 }
 
 // Opciones para el widget de filtro — {id, label} — según el tipo del campo.
-export function filterChoicesFor(def, { customStates, members } = {}) {
+export function filterChoicesFor(def, { customStates, members, productTypes } = {}) {
   const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
   if (type === 'status') return (customStates || []).map(s => ({ id: s.name, label: s.name }))
   if (type === 'select' || type === 'multiselect') return def.options?.choices || []
   if (type === 'country') return getAllCountries().map(c => ({ id: c.code, label: c.name }))
   if (type === 'user') return (members || []).map(m => ({ id: m.user_id, label: m.profile?.full_name || 'Usuario' }))
   if (type === 'boolean') return [{ id: 'true', label: 'Sí' }, { id: 'false', label: 'No' }]
+  if (type === 'product_type') return (productTypes || []).map(t => ({ id: t.id, label: t.name }))
   return []
 }
 

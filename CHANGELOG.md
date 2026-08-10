@@ -4,6 +4,18 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-07 (6)
+
+### Feature: Productos pasa a ser una sola página unificada, con tarjetas de filtro por tipo
+- Reemplaza el patrón "una página por tipo, un ítem por tipo en el sidebar" (que Productos copiaba de Entidades) por una sola página `/products` con todos los productos del workspace juntos — decisión explícita del usuario: quiere ver todo unificado, con la opción de acotar por tipo cuando haga falta, sin duplicar la arquitectura de navegación para eso
+- `product_type` se suma a `FILTERABLE_TYPES` (antes solo lo resolvían "a mano" las columnas de tabla/orden) — con eso, el tipo de producto entra al mismo mecanismo genérico de filtrado que ya usan Estado/select/etc., incluido el filtro por columna en el encabezado de la Tabla
+- Tarjetas de filtro por tipo arriba de la página (mismas clases `.neg-stats`/`.neg-stat-card` que las tarjetas de Estado en Proyectos) — clic para acotar a uno o varios tipos a la vez, clic de nuevo para sacarlo. Se excluye el tipo de la fila de filtros del toolbar para no duplicar el mismo control dos veces
+- Vista mosaico: la tarjeta mínima de un producto ahora siempre muestra su tipo (chip junto al nombre) y su entidad vendedora — antes esta última solo aparecía si estaba cargada, ahora dice explícitamente "Sin entidad vendedora" cuando falta, para que sea visible que un producto sin proveedor asignado es un dato incompleto, no un campo vacío que pasa desapercibido
+- Sidebar: la sección de Productos pasa de un ítem por tipo a un único ítem "Productos" (mismo criterio de visibilidad: solo aparece si el workspace tiene al menos un tipo de producto configurado)
+- `App.jsx`: ruta `/products/:id` (con el componente `ProductRoute` que resolvía el tipo) reemplazada por `/products` simple — `ProductModal` ya era agnóstico al tipo (siempre permitió elegir el tipo desde un desplegable propio), no necesitó cambios
+- Preferencias de columna de Productos (`nerva_product_col_prefs_<user>_<tipo>` → `nerva_product_col_prefs_<user>`): al ya no haber una página por tipo, cada usuario tiene una sola configuración de columnas para todo Productos en vez de una por tipo — las prefs viejas quedan huérfanas en `localStorage` sin causar error, simplemente no se usan más
+- Sin SQL nuevo — no hace falta correr nada en Supabase para esta ronda
+
 ## 2026-08-07 (5)
 
 ### Fix: consistencia visual entre páginas + iconos de biblioteca en vez de SVG a mano

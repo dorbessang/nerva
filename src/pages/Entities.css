@@ -223,6 +223,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -230,6 +231,17 @@
 }
 
 .entity-card h3.entity-name { font-size: 18px !important; }
+
+/* Producto: el nombre convive con un chip de tipo — el texto trunca en su
+   propio span (min-width:0 dentro del flex), el chip nunca se achica. */
+.entity-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.entity-type-chip { flex-shrink: 0; }
 
 .entity-flag {
   width: 18px;

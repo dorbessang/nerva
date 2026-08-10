@@ -46,10 +46,11 @@ function getProductSortValue(key, product, productFieldDefs) {
   }
 }
 
-export default function Products({ productTypeId, productTypeName, productTypeSingular }) {
+export default function Products() {
   const { user, workspaceId, effectiveRole } = useAuth()
   const canBulkDelete = effectiveRole === 'owner'
   const [products, setProducts] = useState([])
+  const [productTypes, setProductTypes] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [view, setView] = useState('cards')
@@ -74,7 +75,7 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
   }
 
   const [cols, saveCols] = useColumnPrefs({
-    storageKey: `nerva_product_col_prefs_${user?.id}_${productTypeId}`,
+    storageKey: `nerva_product_col_prefs_${user?.id}`,
     staticColumns: PRODUCT_STATIC_COLUMNS,
     defaultVisible: PRODUCT_DEFAULT_VISIBLE,
     customFieldDefs: productFieldDefs,
@@ -103,10 +104,15 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
 
   useEffect(() => {
     fetchProducts()
+    fetchProductTypes()
     fetchNegotiationStates()
     fetchCustomFieldDefs()
-    setSelectedIds(new Set())
-  }, [productTypeId])
+  }, [])
+
+  async function fetchProductTypes() {
+    const { data } = await supabase.from('product_types').select('id, name, plural').order('sort_order')
+    if (data) setProductTypes(data)
+  }
 
   useEffect(() => {
     supabase.from('workspace_members')
@@ -130,7 +136,6 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
     const { data: productsData, error } = await supabase
       .from('products')
       .select(`*, entity:entity_id ( id, name, country_code ), product_type:product_type_id ( name )`)
-      .eq('product_type_id', productTypeId)
       .order('name')
 
     if (error) { setLoading(false); return }
@@ -185,6 +190,25 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
   }
 
   const filterableProductDefs = productFieldDefs.filter(isFieldFilterable)
+  const productTypeDef = productFieldDefs.find(d => d.field_type === 'product_type')
+  // El tipo de producto ya filtra desde las tarjetas de arriba (estilo Estados
+  // en Proyectos) — se excluye de la fila de filtros genérica del toolbar
+  // para no duplicar el mismo control dos veces.
+  const toolbarFilterableDefs = filterableProductDefs.filter(d => d.field_type !== 'product_type')
+
+  const productTypeCounts = productTypeDef ? productTypes.map(pt => ({
+    ...pt,
+    color: getAvatarColor(pt.name)[1],
+    count: products.filter(p => p.product_type_id === pt.id).length,
+  })) : []
+
+  function toggleProductTypeFilter(typeId) {
+    if (!productTypeDef) return
+    setCustomFilterValues(v => {
+      const cur = Array.isArray(v[productTypeDef.key]) ? v[productTypeDef.key] : []
+      return { ...v, [productTypeDef.key]: cur.includes(typeId) ? cur.filter(x => x !== typeId) : [...cur, typeId] }
+    })
+  }
 
   const filtered = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) &&
@@ -203,11 +227,33 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
   return (
     <div className="entities-container">
       <div className="entities-header">
-        <h1 className="entities-title">{productTypeName || 'Productos'}</h1>
+        <h1 className="entities-title">Productos</h1>
         <button className="entities-new-btn" onClick={() => setShowModal(true)}>
-          + Nuevo {productTypeSingular?.toLowerCase() || 'producto'}
+          + Nuevo producto
         </button>
       </div>
+
+      {productTypeCounts.length > 0 && (
+        <div className="neg-stats">
+          {productTypeCounts.map(pt => {
+            const selected = Array.isArray(customFilterValues[productTypeDef?.key]) ? customFilterValues[productTypeDef.key] : []
+            return (
+              <div
+                key={pt.id}
+                className={`neg-stat-card ${selected.includes(pt.id) ? 'active' : ''}`}
+                onClick={() => toggleProductTypeFilter(pt.id)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="neg-stat-label">{pt.plural || pt.name}</div>
+                <div className="neg-stat-count" style={{ color: pt.color }}>{pt.count}</div>
+                <div className="neg-stat-bar">
+                  <div className="neg-stat-bar-fill" style={{ width: products.length ? `${(pt.count / products.length) * 100}%` : '0%', backgroundColor: pt.color }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <div className="entities-toolbar">
         <div className="filter-field">
@@ -215,12 +261,12 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
           <input
             className="entities-search"
             type="text"
-            placeholder={`🔍 Buscar ${productTypeSingular?.toLowerCase() || 'producto'}...`}
+            placeholder="🔍 Buscar producto..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        {filterableProductDefs.map(def => (
+        {toolbarFilterableDefs.map(def => (
           <div className="filter-field" key={def.key}>
             <label className="filter-field-label">{def.label}</label>
             <CustomFieldFilter
@@ -281,7 +327,7 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
       {showBulkDeleteConfirm && (
         <DeleteConfirmModal
           itemName="ELIMINAR"
-          itemType={`${selectedIds.size} ${selectedIds.size === 1 ? (productTypeSingular?.toLowerCase() || 'producto') : (productTypeName?.toLowerCase() || 'productos')}`}
+          itemType={`${selectedIds.size} ${selectedIds.size === 1 ? 'producto' : 'productos'}`}
           onConfirm={handleBulkDelete}
           onCancel={() => setShowBulkDeleteConfirm(false)}
         />
@@ -290,11 +336,12 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
       {loading ? (
         <div className="entities-loading">Cargando...</div>
       ) : filtered.length === 0 ? (
-        <div className="entities-empty"><p>No hay {productTypeName?.toLowerCase() || 'productos'} todavía.</p></div>
+        <div className="entities-empty"><p>No hay productos todavía.</p></div>
       ) : view === 'table' ? (
         <ProductsGridTable
           products={sorted}
           productFieldDefs={productFieldDefs}
+          productTypes={productTypes}
           cols={cols}
           allColumns={allColumns}
           members={members}
@@ -332,8 +379,11 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
                     {getInitials(product.name)}
                   </div>
                   <div className="entity-info">
-                    <h3 className="entity-name">{product.name}</h3>
-                    {product.entity?.name && <p className="entity-country">{product.entity.name}</p>}
+                    <h3 className="entity-name">
+                      <span className="entity-name-text">{product.name}</span>
+                      {product.product_type?.name && <span className="neg-chip neg-chip-blue entity-type-chip">{product.product_type.name}</span>}
+                    </h3>
+                    <p className="entity-country">{product.entity?.name ? `Vendedor: ${product.entity.name}` : 'Sin entidad vendedora'}</p>
                   </div>
                 </div>
                 <div className="entity-card-footer">
@@ -356,7 +406,7 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
             )
           })}
           <div className="entity-card entity-card-new" onClick={() => setShowModal(true)}>
-            <span>+ Nuevo {productTypeSingular?.toLowerCase() || 'producto'}</span>
+            <span>+ Nuevo producto</span>
           </div>
         </div>
       )}
@@ -365,7 +415,6 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
         <ProductModal
           onClose={() => setShowModal(false)}
           onCreated={fetchProducts}
-          productTypeSingular={productTypeSingular}
           customFieldDefs={productFieldDefs}
         />
       )}
@@ -376,8 +425,7 @@ export default function Products({ productTypeId, productTypeName, productTypeSi
           negotiationStates={negotiationStates}
           onClose={() => setSelectedProduct(null)}
           onUpdated={fetchProducts}
-          productTypeName={productTypeName}
-          productTypeSingular={productTypeSingular}
+          productTypeSingular={selectedProduct.product_type?.name}
           getStateConfig={getStateConfig}
           productFieldDefs={productFieldDefs}
           negotiationFieldDefs={negotiationFieldDefs}
@@ -409,7 +457,7 @@ function renderProductCell(key, product, productFieldDefs, members) {
   }
 }
 
-function ProductsGridTable({ products, productFieldDefs, cols, allColumns, members, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
+function ProductsGridTable({ products, productFieldDefs, productTypes, cols, allColumns, members, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
   const visibleCols = cols.filter(c => c.visible)
   return (
     <div className="neg-table-wrapper">
@@ -439,7 +487,7 @@ function ProductsGridTable({ products, productFieldDefs, cols, allColumns, membe
                   onResize={w => onColResize(c.key, w)}
                 >
                   {filterable && (
-                    <ColumnFilterMenu options={filterChoicesFor(fieldDef, { members })} selected={selected} onChange={v => onFilterChange(c.key, v)} />
+                    <ColumnFilterMenu options={filterChoicesFor(fieldDef, { members, productTypes })} selected={selected} onChange={v => onFilterChange(c.key, v)} />
                   )}
                 </ColumnHeaderCell>
               )

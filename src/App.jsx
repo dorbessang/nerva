@@ -60,39 +60,6 @@ function EntityRoute() {
   );
 }
 
-function ProductRoute() {
-  const { id } = useParams();
-  const [productType, setProductType] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    supabase
-      .from("product_types")
-      .select("id, name, plural")
-      .eq("id", id)
-      .single()
-      .then(({ data }) => {
-        setProductType(data);
-        setLoading(false);
-      });
-  }, [id]);
-
-  if (loading) return <div style={styles.loading}>Cargando...</div>;
-  if (!productType) return <Navigate to="/dashboard" replace />;
-
-  const singularName = productType.name;
-  const pluralName = productType.plural ||
-    (productType.name.endsWith("r") ? productType.name + "es" : productType.name + "s");
-
-  return (
-    <Products
-      productTypeId={productType.id}
-      productTypeName={pluralName}
-      productTypeSingular={singularName}
-    />
-  );
-}
-
 function App() {
   return (
     <AuthProvider>
@@ -141,10 +108,10 @@ function App() {
             }
           />
           <Route
-            path="/products/:id"
+            path="/products"
             element={
               <ProtectedRoute>
-                <ProductRoute />
+                <Products />
               </ProtectedRoute>
             }
           />

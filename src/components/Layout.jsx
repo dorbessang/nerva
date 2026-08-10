@@ -294,28 +294,19 @@ export default function Layout({ children }) {
               </button>
             ))}
 
-            {productTypes.length > 0 && <div className="nav-divider" />}
-
-            {productTypes.map((pt) => (
-              <button
-                key={pt.id}
-                onClick={() => navigate(`/products/${pt.id}`)}
-                className={`nav-item ${location.pathname === `/products/${pt.id}` ? "active" : ""}`}
-                title={showLabels ? "" : pt.name}
-              >
-                <span className="nav-icon">
-                  {pt.icon
-                    ? <EntityIcon name={pt.icon} size={18} />
-                    : <LucideIcons.Package size={18} />
-                  }
-                </span>
-                {showLabels && (
-                  <span className="nav-label">
-                    {pt.plural || (pt.name.endsWith('s') ? pt.name : pt.name.endsWith('r') ? pt.name + 'es' : pt.name + 's')}
-                  </span>
-                )}
-              </button>
-            ))}
+            {productTypes.length > 0 && (
+              <>
+                <div className="nav-divider" />
+                <button
+                  onClick={() => navigate("/products")}
+                  className={`nav-item ${location.pathname === "/products" ? "active" : ""}`}
+                  title={showLabels ? "" : "Productos"}
+                >
+                  <span className="nav-icon"><LucideIcons.Package size={18} /></span>
+                  {showLabels && <span className="nav-label">Productos</span>}
+                </button>
+              </>
+            )}
           </nav>
 
           <div className="sidebar-bottom">
