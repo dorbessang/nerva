@@ -4,6 +4,14 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-07 (8)
+
+### Fix: editar una entidad con contactos "viejos" rompía el guardado (y borraba los contactos)
+- Bug real reportado por el usuario probando las tarjetas de tipo de empresa: al editar una entidad existente y guardar, el modal se quedaba colgado en "Guardando..." para siempre. La consola mostraba `TypeError: Cannot read properties of null (reading 'trim')`
+- Causa: `EntityModal.handleSubmit` llamaba `.trim()` directo sobre `cargo`/`email`/`teléfono`/`whatsapp`/`notas` de cada contacto al reconstruir la lista para guardar. Los contactos nuevos (via `emptyContact()`) siempre arrancan en `''`, pero los contactos ya guardados en la base pueden tener esos campos opcionales en `null` — típico en contactos cargados hace tiempo sin completar todo. `null.trim()` tira una excepción, y como no había ningún `try/catch`, la función cortaba a mitad de camino sin llegar nunca al `setLoading(false)` — de ahí el botón colgado
+- **Más grave que un botón colgado**: en el flujo de edición, el `delete` de los contactos viejos ya había corrido *antes* de este punto, así que la excepción cortaba antes del `insert` de los nuevos — el resultado real era que los contactos de esa entidad quedaban borrados sin reemplazo. Si alguien pegó contra este bug editando una entidad con contactos, conviene revisar si esos contactos siguen ahí
+- Fix: los 5 campos ahora se normalizan con `(campo || '').trim()` antes de guardar (mismo criterio en alta y edición), y todo `handleSubmit` queda envuelto en `try/catch` — cualquier error futuro similar va a mostrar un mensaje en pantalla en vez de dejar el botón colgado en silencio
+
 ## 2026-08-07 (7)
 
 ### Feature: "Todas las entidades" — vista unificada opcional, sin tocar las páginas por tipo

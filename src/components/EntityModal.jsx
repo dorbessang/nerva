@@ -79,6 +79,27 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
     setContacts(prev => prev.filter(c => c.tempId !== tempId))
   }
 
+  // Contactos existentes vienen tal cual de la base — los campos opcionales
+  // (cargo/email/teléfono/whatsapp/notas) pueden ser null ahí, a diferencia
+  // de emptyContact() que siempre arranca en ''. Sin este guard, .trim()
+  // sobre null tira una excepción a mitad de handleSubmit: el modal queda
+  // colgado en "Guardando..." para siempre (nunca llega al setLoading(false)
+  // de abajo) y en el flujo de edición, como el delete de contactos ya
+  // corrió antes del insert, los contactos de esa entidad quedan borrados.
+  function contactRow(c, i, entityId) {
+    return {
+      workspace_id: workspaceId,
+      entity_id: entityId,
+      name: (c.name || '').trim(),
+      role: (c.role || '').trim() || null,
+      email: (c.email || '').trim() || null,
+      phone: (c.phone || '').trim() || null,
+      whatsapp: (c.whatsapp || '').trim() || null,
+      notes: (c.notes || '').trim() || null,
+      is_primary: i === 0,
+    }
+  }
+
   async function handleSubmit(e) {
     e?.preventDefault()
     setError(null)
@@ -88,92 +109,73 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
 
     setLoading(true)
 
-    const columnValues = {}
-    const jsonbValues = {}
-    for (const def of gridDefs) {
-      if (def.storage_column) columnValues[def.storage_column] = typeof values[def.key] === 'string' ? values[def.key].trim() || null : (values[def.key] ?? null)
-      else jsonbValues[def.key] = values[def.key]
+    try {
+      const columnValues = {}
+      const jsonbValues = {}
+      for (const def of gridDefs) {
+        if (def.storage_column) columnValues[def.storage_column] = typeof values[def.key] === 'string' ? values[def.key].trim() || null : (values[def.key] ?? null)
+        else jsonbValues[def.key] = values[def.key]
+      }
+
+      // Nunca reemplazar custom_fields entero — mergear preserva cualquier
+      // campo personalizado ya cargado que este formulario no conoce.
+      const customFields = mergeCustomFieldValues(initial?.custom_fields || {}, jsonbValues)
+
+      if (initial?.id) {
+        const { error: entityError } = await supabase
+          .from('entities')
+          .update({ ...columnValues, custom_fields: customFields })
+          .eq('id', initial.id)
+
+        if (entityError) {
+          setError('Error al actualizar')
+          setLoading(false)
+          return
+        }
+
+        if (contactsDef) {
+          await supabase.from('contacts').delete().eq('entity_id', initial.id)
+          const validContacts = contacts.filter(c => (c.name || '').trim())
+          if (validContacts.length > 0) {
+            await supabase.from('contacts').insert(validContacts.map((c, i) => contactRow(c, i, initial.id)))
+          }
+        }
+      } else {
+        const { data: entityData, error: entityError } = await supabase
+          .from('entities')
+          .insert({ workspace_id: workspaceId, ...columnValues, custom_fields: customFields, status: 'active' })
+          .select()
+          .single()
+
+        if (entityError) {
+          if (entityError.code === '23505') {
+            setError(`Ya existe un ${entityTypeSingular.toLowerCase()} con ese nombre. Buscalo en la lista para agregar información.`)
+          } else {
+            setError('Error al crear la entidad')
+          }
+          setLoading(false)
+          return
+        }
+
+        if (contactsDef) {
+          const validContacts = contacts.filter(c => (c.name || '').trim())
+          if (validContacts.length > 0) {
+            await supabase.from('contacts').insert(validContacts.map((c, i) => contactRow(c, i, entityData.id)))
+          }
+        }
+        await logActivity(supabase, {
+          workspaceId, entityId: entityData.id, type: 'entity_created',
+          title: `"${entityData.name}" agregado`, actorId: user?.id,
+        })
+      }
+
+      setLoading(false)
+      onCreated()
+      onClose()
+    } catch {
+      setError('Error inesperado al guardar — revisá los datos e intentá de nuevo')
+      setLoading(false)
     }
-
-    // Nunca reemplazar custom_fields entero — mergear preserva cualquier
-    // campo personalizado ya cargado que este formulario no conoce.
-    const customFields = mergeCustomFieldValues(initial?.custom_fields || {}, jsonbValues)
-
-    if (initial?.id) {
-      const { error: entityError } = await supabase
-        .from('entities')
-        .update({ ...columnValues, custom_fields: customFields })
-        .eq('id', initial.id)
-
-      if (entityError) {
-        setError('Error al actualizar')
-        setLoading(false)
-        return
-      }
-
-      if (contactsDef) {
-        await supabase.from('contacts').delete().eq('entity_id', initial.id)
-        const validContacts = contacts.filter(c => c.name.trim())
-        if (validContacts.length > 0) {
-          await supabase.from('contacts').insert(
-            validContacts.map((c, i) => ({
-              workspace_id: workspaceId,
-              entity_id: initial.id,
-              name: c.name.trim(),
-              role: c.role.trim() || null,
-              email: c.email.trim() || null,
-              phone: c.phone.trim() || null,
-              whatsapp: c.whatsapp.trim() || null,
-              notes: c.notes.trim() || null,
-              is_primary: i === 0,
-            }))
-          )
-        }
-      }
-    } else {
-      const { data: entityData, error: entityError } = await supabase
-        .from('entities')
-        .insert({ workspace_id: workspaceId, ...columnValues, custom_fields: customFields, status: 'active' })
-        .select()
-        .single()
-
-      if (entityError) {
-        if (entityError.code === '23505') {
-          setError(`Ya existe un ${entityTypeSingular.toLowerCase()} con ese nombre. Buscalo en la lista para agregar información.`)
-        } else {
-          setError('Error al crear la entidad')
-        }
-        setLoading(false)
-        return
-      }
-
-      if (contactsDef) {
-        const validContacts = contacts.filter(c => c.name.trim())
-        if (validContacts.length > 0) {
-          await supabase.from('contacts').insert(
-            validContacts.map((c, i) => ({
-              workspace_id: workspaceId,
-              entity_id: entityData.id,
-              name: c.name.trim(),
-              role: c.role.trim() || null,
-              email: c.email.trim() || null,
-              phone: c.phone.trim() || null,
-              whatsapp: c.whatsapp.trim() || null,
-              notes: c.notes.trim() || null,
-              is_primary: i === 0,
-            }))
-          )
-        }
-      }
-      await logActivity(supabase, {
-        workspaceId, entityId: entityData.id, type: 'entity_created',
-        title: `"${entityData.name}" agregado`, actorId: user?.id,
-      })
-    }
-
-    setLoading(false)
-    onCreated()
-    onClose()
   }
 
   function renderField(def) {

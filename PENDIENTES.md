@@ -271,10 +271,18 @@ El usuario corrigió el rumbo del punto anterior: para Entidades, a diferencia d
 - [x] Import de Excel/CSV se oculta en modo unificado (es inherentemente por tipo, no se extendió esta ronda — no pedido)
 - [x] Vista mínima de tarjeta en modo unificado: chip de tipo de entidad junto al nombre (mismo criterio aplicado a Productos la ronda anterior)
 - [x] Sidebar: nuevo ítem "Todas las entidades" arriba del divisor de tipos (visible solo si hay al menos un tipo configurado, mismo criterio que el resto). `App.jsx`: ruta nueva `/entities` (sin `:id`) convive con `/entities/:id` sin cambios
-- [ ] **Hallazgo de paso, no corregido esta ronda**: el toggle "Mostrar como filtro" en Configuración ya existía antes de esta sesión pero resultó ser dead code — ninguna página lo lee, la elegibilidad para mostrar un filtro se decide 100% por `field_type` vía `isFieldFilterable()`. Se dejó como está a propósito (tocar esa ruta con certeza de qué datos ya tiene cada fila en producción es riesgoso sin acceso a la base); queda documentado para una futura limpieza
+- [ ] **Hallazgo de paso, no corregido esta ronda**: el toggle "Mostrar como filtro" en Configuración ya existía antes de esta sesión pero resultó ser dead code — ninguna página lo lee, la elegibilidad para mostrar un filtro se decide 100% por `field_type` vía `isFieldFilterable()`. El usuario confirmó que ya no hace falta (era para lo que ahora resuelve el header de la Tabla) — pendiente sacarlo cuando se retome el punto de filtros en Mosaico/Kanban (ver más abajo)
+- [x] SQL corrido y confirmado por el usuario en producción — las tarjetas funcionan
+
+##### Bug encontrado probándolo: editar una entidad con contactos viejos rompía el guardado (y borraba los contactos) — corregido
+Al probar las tarjetas de "Tipo de empresa", el usuario reportó que editar una entidad existente y guardar se quedaba colgado en "Guardando..." para siempre. Consola: `TypeError: Cannot read properties of null (reading 'trim')`.
+- Causa: `EntityModal.handleSubmit` hacía `.trim()` directo sobre los campos opcionales de cada contacto (cargo/email/teléfono/whatsapp/notas). Los contactos nuevos arrancan en `''` (via `emptyContact()`), pero los contactos ya guardados en la base pueden tener esos campos en `null` — típico en contactos viejos sin completar todo. Sin `try/catch`, la excepción cortaba `handleSubmit` a mitad de camino, nunca llegaba al `setLoading(false)`
+- **Importante para el usuario**: en el flujo de edición el `delete` de contactos viejos ya había corrido antes de la excepción, así que el `insert` de los nuevos nunca se ejecutaba — los contactos de cualquier entidad donde se haya pegado contra este bug (editar y que se cuelgue en "Guardando...") quedaron borrados. Vale la pena revisar si hay entidades con contactos faltantes
+- [x] Fix: los 5 campos se normalizan con `(campo || '').trim()` antes de guardar (alta y edición), y `handleSubmit` queda envuelto en `try/catch` — un error similar en el futuro va a mostrar un mensaje en pantalla en vez de colgar el botón en silencio
+- [ ] Sin SQL — no hace falta correr nada, es un fix de código nada más
 
 ##### SQL pendiente de aplicar
-- [ ] `alter table public.custom_field_definitions add column if not exists card_filter boolean not null default false;`
+- [ ] `alter table public.custom_field_definitions add column if not exists card_filter boolean not null default false;` — **ya corrido por el usuario en esta ronda**, se deja el bloque documentado por historial
 
 ### Pantalla de bienvenida para workspaces nuevos sin configurar
 Al abrir el primer cliente pagador (workspace de equipo creado a mano vía SQL, sin flujo de alta propio todavía), el owner entraba a una app completamente vacía — sin tipos de entidad, sin estados, sin campos custom — y tenía que armar todo desde Configuración antes de poder cargar el primer dato. Se pidió una pantalla de bienvenida que ofrezca eso de entrada.
