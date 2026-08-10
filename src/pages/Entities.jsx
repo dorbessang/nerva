@@ -87,6 +87,10 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [customFilterValues, setCustomFilterValues] = useState({})
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState(null)
+  // Solo aplica en modo unificado (sin entityTypeId) — solapa activa entre
+  // "Todas" (null) y un tipo de entidad puntual, filtro 100% client-side
+  // sobre lo ya fetcheado (no vuelve a pegarle a la base al cambiar de solapa).
+  const [activeTypeTab, setActiveTypeTab] = useState(null)
 
   function handleSort(key) {
     const dir = nextSortDir(key, sortKey, sortDir)
@@ -99,7 +103,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   // no entra (es un sub-formulario repetible, no una celda; su versión
   // tabular es el conteo en ENTITY_STATIC_COLUMNS).
   const [cols, saveCols] = useColumnPrefs({
-    storageKey: `nerva_entity_col_prefs_${user?.id}_${entityTypeId}`,
+    storageKey: `nerva_entity_col_prefs_${user?.id}_${entityTypeId || 'all'}`,
     staticColumns: ENTITY_STATIC_COLUMNS,
     defaultVisible: ENTITY_DEFAULT_VISIBLE,
     customFieldDefs: entityFieldDefs.filter(d => d.field_type !== 'contacts'),
@@ -179,17 +183,18 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     const found = entities.find(e => e.id === openEntityId)
     if (found) {
       setSelectedEntity(found)
-      navigate(`/entities/${entityTypeId}`, { replace: true })
+      navigate(entityTypeId ? `/entities/${entityTypeId}` : '/entities', { replace: true })
     }
   }, [location.search, entities])
 
   async function fetchEntities() {
     setLoading(true)
-    const { data: entitiesData, error } = await supabase
+    let query = supabase
       .from('entities')
       .select(`*, entity_type:entity_type_id ( name, color ), contacts ( id, name, role, email, phone, whatsapp, notes, is_primary )`)
-      .eq('entity_type_id', entityTypeId)
       .order('name')
+    if (entityTypeId) query = query.eq('entity_type_id', entityTypeId)
+    const { data: entitiesData, error } = await query
 
     if (error) { setLoading(false); return }
 
@@ -243,8 +248,38 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   }
 
   const filterableEntityDefs = entityFieldDefs.filter(isFieldFilterable)
+  // Campo elegido a mano en Configuración ("Usar como tarjetas de filtro")
+  // para que sus valores salgan como tarjetas clicables arriba, en vez de
+  // (o además de) un desplegable en el toolbar — mismo mecanismo visual que
+  // Estado en Proyectos y Tipo de producto en Productos, pero configurable
+  // por workspace en vez de fijo por field_type.
+  const cardFilterDef = entityFieldDefs.find(d => d.card_filter)
+  const toolbarFilterableDefs = filterableEntityDefs.filter(d => d.id !== cardFilterDef?.id)
 
-  const filtered = entities.filter(e =>
+  // Solapa activa (modo unificado, sin entityTypeId) — recorte client-side
+  // sobre lo ya fetcheado, no dispara ningún request nuevo al cambiar.
+  const typeScopedEntities = (!entityTypeId && activeTypeTab)
+    ? entities.filter(e => e.entity_type_id === activeTypeTab)
+    : entities
+
+  const cardFilterChoices = cardFilterDef ? filterChoicesFor(cardFilterDef, { customStates: negotiationStates, members }) : []
+  const cardFilterCounts = cardFilterChoices.map(choice => {
+    const count = typeScopedEntities.filter(e => {
+      const raw = cardFilterDef.storage_column ? e[cardFilterDef.storage_column] : getCustomFieldValue(e.custom_fields, cardFilterDef.key)
+      return Array.isArray(raw) ? raw.includes(choice.id) : raw === choice.id
+    }).length
+    return { ...choice, color: getAvatarColor(choice.label)[1], count }
+  })
+
+  function toggleCardFilterValue(id) {
+    if (!cardFilterDef) return
+    setCustomFilterValues(v => {
+      const cur = Array.isArray(v[cardFilterDef.key]) ? v[cardFilterDef.key] : []
+      return { ...v, [cardFilterDef.key]: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] }
+    })
+  }
+
+  const filtered = typeScopedEntities.filter(e =>
     e.name.toLowerCase().includes(search.toLowerCase()) &&
     filterableEntityDefs.every(def => matchesFieldFilter(def, e, customFilterValues[def.key]))
   )
@@ -260,14 +295,56 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     ? sortRows(filtered, e => getEntitySortValue(sortKey, e, entityFieldDefs, members), sortDir)
     : filtered
 
+  const pageTitle = entityTypeId ? (entityTypeName || 'Proveedores') : 'Todas las entidades'
+  const singular = entityTypeId ? (entityTypeSingular?.toLowerCase() || 'proveedor') : 'entidad'
+  const plural = entityTypeId ? (entityTypeName?.toLowerCase() || 'proveedores') : 'entidades'
+  // "Nuevo proveedor" vs "Nueva entidad" — el genérico de modo unificado es
+  // femenino, no puede resolverse igual que el resto de los usos de `singular`.
+  const newLabel = entityTypeId ? `Nuevo ${singular}` : 'Nueva entidad'
+
   return (
     <div className="entities-container">
       <div className="entities-header">
-        <h1 className="entities-title">{entityTypeName || 'Proveedores'}</h1>
+        <h1 className="entities-title">{pageTitle}</h1>
         <button className="entities-new-btn" onClick={() => setShowModal(true)}>
-          + Nuevo {entityTypeSingular?.toLowerCase() || 'proveedor'}
+          + {newLabel}
         </button>
       </div>
+
+      {!entityTypeId && allEntityTypes.length > 0 && (
+        <div className="entities-type-tabs">
+          <button className={`entities-type-tab ${activeTypeTab === null ? 'active' : ''}`} onClick={() => setActiveTypeTab(null)}>
+            Todas
+          </button>
+          {allEntityTypes.map(et => (
+            <button key={et.id} className={`entities-type-tab ${activeTypeTab === et.id ? 'active' : ''}`} onClick={() => setActiveTypeTab(et.id)}>
+              {et.plural || et.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {cardFilterDef && cardFilterCounts.length > 0 && (
+        <div className="neg-stats">
+          {cardFilterCounts.map(c => {
+            const selected = Array.isArray(customFilterValues[cardFilterDef.key]) ? customFilterValues[cardFilterDef.key] : []
+            return (
+              <div
+                key={c.id}
+                className={`neg-stat-card ${selected.includes(c.id) ? 'active' : ''}`}
+                onClick={() => toggleCardFilterValue(c.id)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="neg-stat-label">{c.label}</div>
+                <div className="neg-stat-count" style={{ color: c.color }}>{c.count}</div>
+                <div className="neg-stat-bar">
+                  <div className="neg-stat-bar-fill" style={{ width: typeScopedEntities.length ? `${(c.count / typeScopedEntities.length) * 100}%` : '0%', backgroundColor: c.color }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <div className="entities-toolbar">
         <div className="filter-field">
@@ -275,12 +352,12 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           <input
             className="entities-search"
             type="text"
-            placeholder={`🔍 Buscar ${entityTypeSingular?.toLowerCase() || 'proveedor'}...`}
+            placeholder={`🔍 Buscar ${singular}...`}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        {filterableEntityDefs.map(def => (
+        {toolbarFilterableDefs.map(def => (
           <div className="filter-field" key={def.key}>
             <label className="filter-field-label">{def.label}</label>
             <CustomFieldFilter
@@ -320,11 +397,11 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
             ⚙ Columnas
           </button>
         )}
-        {canImport && (
+        {canImport && entityTypeId && (
           <button
             className="entities-export-btn"
             onClick={() => setShowImportModal(true)}
-            title={`Importar ${entityTypeName?.toLowerCase() || 'proveedores'} desde Excel/CSV`}
+            title={`Importar ${plural} desde Excel/CSV`}
           >
             ⬆ Importar
           </button>
@@ -370,7 +447,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
       {showBulkDeleteConfirm && (
         <DeleteConfirmModal
           itemName="ELIMINAR"
-          itemType={`${selectedIds.size} ${selectedIds.size === 1 ? (entityTypeSingular?.toLowerCase() || 'entidad') : (entityTypeName?.toLowerCase() || 'entidades')}`}
+          itemType={`${selectedIds.size} ${selectedIds.size === 1 ? singular : plural}`}
           onConfirm={handleBulkDelete}
           onCancel={() => setShowBulkDeleteConfirm(false)}
         />
@@ -379,7 +456,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
       {loading ? (
         <div className="entities-loading">Cargando...</div>
       ) : filtered.length === 0 ? (
-        <div className="entities-empty"><p>No hay {entityTypeName?.toLowerCase() || 'proveedores'} todavía.</p></div>
+        <div className="entities-empty"><p>No hay {plural} todavía.</p></div>
       ) : view === 'table' ? (
         <EntitiesGridTable
           entities={sorted}
@@ -423,7 +500,8 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
                   <div className="entity-info">
                     <h3 className="entity-name">
                       {entity.country_code && <img src={getFlagUrl(entity.country_code)} alt="" className="entity-flag" />}
-                      {entity.name}
+                      <span className="entity-name-text">{entity.name}</span>
+                      {!entityTypeId && entity.entity_type?.name && <span className="neg-chip neg-chip-blue entity-type-chip">{entity.entity_type.name}</span>}
                     </h3>
                     {entity.country_code && <p className="entity-country">{getCountryName(entity.country_code)}</p>}
                   </div>
@@ -448,7 +526,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
             )
           })}
           <div className="entity-card entity-card-new" onClick={() => setShowModal(true)}>
-            <span>+ Nuevo {entityTypeSingular?.toLowerCase() || 'proveedor'}</span>
+            <span>+ {newLabel}</span>
           </div>
         </div>
       )}
@@ -457,7 +535,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
         <EntityModal
           onClose={() => setShowModal(false)}
           onCreated={fetchEntities}
-          entityTypeSingular={entityTypeSingular}
+          entityTypeSingular={singular}
           customFieldDefs={entityFieldDefs}
         />
       )}
@@ -471,8 +549,8 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           allEntityTypes={allEntityTypes}
           onClose={() => setSelectedEntity(null)}
           onUpdated={fetchEntities}
-          entityTypeName={entityTypeName}
-          entityTypeSingular={entityTypeSingular}
+          entityTypeName={selectedEntity.entity_type?.name}
+          entityTypeSingular={selectedEntity.entity_type?.name}
           getStateConfig={getStateConfig}
           entityFieldDefs={entityFieldDefs}
           negotiationFieldDefs={negotiationFieldDefs}

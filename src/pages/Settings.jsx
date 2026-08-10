@@ -1221,11 +1221,21 @@ function TabCamposPersonalizados({ workspaceId }) {
 
   async function handleSaveEdit() {
     if (!editing?.label?.trim()) return
+    // Tarjetas de filtro: solo un campo por object_type puede tenerlo activo
+    // (mismo criterio que Estado en Proyectos o Tipo de producto en
+    // Productos, pero acá es elegible a mano en vez de fijo por field_type).
+    if (editing.card_filter) {
+      const others = fields.filter(f => f.id !== editing.id && f.card_filter).map(f => f.id)
+      if (others.length > 0) {
+        await supabase.from('custom_field_definitions').update({ card_filter: false }).in('id', others)
+      }
+    }
     await supabase.from('custom_field_definitions').update({
       label: editing.label.trim(),
       options: editing.options,
       required: editing.required,
       filterable: editing.filterable,
+      card_filter: !!editing.card_filter,
     }).eq('id', editing.id)
     setEditing(null)
     fetchFields()
@@ -1323,6 +1333,18 @@ function TabCamposPersonalizados({ workspaceId }) {
                   </label>
                 </div>
               )}
+              {isFieldFilterable(f) && (
+                <div className="cf-tracked-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                  <label style={{ minWidth: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!editing.card_filter}
+                      onChange={e => setEditing(ed => ({ ...ed, card_filter: e.target.checked }))}
+                    /> Usar como tarjetas de filtro
+                  </label>
+                  <span className="cf-hint">Un solo campo por sección puede tener esto activo — al elegir uno se desactiva en cualquier otro</span>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <button className="settings-btn-primary" onClick={handleSaveEdit}>Guardar</button>
@@ -1341,11 +1363,12 @@ function TabCamposPersonalizados({ workspaceId }) {
                   {f.field_type === 'country' && f.options.multiple && ' · varios países'}
                   {f.required && ' · obligatorio'}
                   {f.filterable && ' · filtro'}
+                  {f.card_filter && ' · tarjetas de filtro'}
                 </div>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button className="settings-btn-secondary" onClick={() => setEditing({ id: f.id, label: f.label, options: f.options, required: f.required, filterable: f.filterable })}>
+              <button className="settings-btn-secondary" onClick={() => setEditing({ id: f.id, label: f.label, options: f.options, required: f.required, filterable: f.filterable, card_filter: f.card_filter })}>
                 Editar
               </button>
               {!f.is_structural && (

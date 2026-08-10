@@ -100,6 +100,14 @@ function App() {
             }
           />
           <Route
+            path="/entities"
+            element={
+              <ProtectedRoute>
+                <Entities />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/entities/:id"
             element={
               <ProtectedRoute>

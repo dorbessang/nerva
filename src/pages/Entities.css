@@ -13,6 +13,31 @@
   margin-bottom: 24px;
 }
 
+/* Solapas por tipo de entidad — solo en la vista unificada "Todas las
+   entidades" (sin entityTypeId). Filtro 100% client-side, no navega. */
+.entities-type-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.entities-type-tab {
+  background: none;
+  border: none;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.entities-type-tab:hover { color: #374151; }
+.entities-type-tab.active { color: #0B1F3A; border-bottom-color: #0B1F3A; }
+
 .entities-summary {
   display: flex;
   align-items: center;

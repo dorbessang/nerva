@@ -271,7 +271,19 @@ export default function Layout({ children }) {
               </button>
             ))}
 
-            {entityTypes.length > 0 && <div className="nav-divider" />}
+            {entityTypes.length > 0 && (
+              <>
+                <div className="nav-divider" />
+                <button
+                  onClick={() => navigate("/entities")}
+                  className={`nav-item ${location.pathname === "/entities" ? "active" : ""}`}
+                  title={showLabels ? "" : "Todas las entidades"}
+                >
+                  <span className="nav-icon"><LucideIcons.Layers size={18} /></span>
+                  {showLabels && <span className="nav-label">Todas las entidades</span>}
+                </button>
+              </>
+            )}
 
             {entityTypes.map((et) => (
               <button

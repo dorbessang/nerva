@@ -4,6 +4,15 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-07 (7)
+
+### Feature: "Todas las entidades" — vista unificada opcional, sin tocar las páginas por tipo
+- A diferencia de Productos, Entidades **no** cambia su arquitectura existente: cada tipo sigue teniendo su propia página y su propio ítem en el sidebar, sin tocar nada. Se suma un nuevo ítem "Todas las entidades" (arriba del divisor de tipos, mismo criterio de visibilidad) que lleva a `/entities` — una vista adicional, no un reemplazo
+- `Entities.jsx` pasa a soportar `entityTypeId` opcional: sin él, fetchea todas las entidades del workspace y muestra solapas por tipo (client-side, sin recargar del servidor al cambiar de solapa) más una solapa "Todas". Import de Excel/CSV se oculta en este modo (es inherentemente por tipo, no se extendió)
+- Vista mínima de la tarjeta de entidad en modo unificado: ahora muestra el tipo de entidad como chip junto al nombre (antes no aparecía ahí, solo en la columna de la Tabla) — mismo criterio que se sumó para Productos la ronda anterior
+- **Tarjetas de filtro configurables** (a pedido explícito): `custom_field_definitions` suma la columna `card_filter` — el owner elige desde Configuración qué campo de Entidades (ej. "Tipo de empresa") se muestra como tarjetas clicables arriba, en vez de fijarlo por `field_type` como Estado en Proyectos o Tipo de producto en Productos. Solo un campo por sección puede tenerlo activo (al marcar uno se desactiva en cualquier otro). Estas tarjetas aparecen tanto en la vista unificada como en cada página por tipo — a diferencia de las solapas, que son exclusivas de la vista unificada
+- Sin tocar (dead code pre-existente, no de esta ronda): el toggle "Mostrar como filtro" en Configuración ya existía pero no tenía efecto real en ninguna página — la elegibilidad de un campo para filtrar sigue determinándose 100% por `field_type` (`isFieldFilterable`), nunca por ese flag. Se dejó como está para no arriesgar romper filtros que hoy funcionan; documentado en Pendientes
+
 ## 2026-08-07 (6)
 
 ### Feature: Productos pasa a ser una sola página unificada, con tarjetas de filtro por tipo
