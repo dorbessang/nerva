@@ -4,6 +4,14 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-10 (8)
+
+### Fix: import de Productos descartaba filas con un "Tipo de producto" que no existía todavía
+- `product_type` en `ImportProductsModal.jsx` era match exacto obligatorio contra los tipos ya configurados — si no coincidía con ninguno, la fila entera se marcaba como error y no se importaba, sin ninguna forma de que se creara la categoría. Reportado por el usuario probando un listado de proveedor con un tipo nuevo
+- Mismo `matchEntity` de la sesión anterior, pero con la política default invertida respecto a Proveedor: si el texto de la celda no matchea ni de cerca ningún tipo existente, no es un error — es una categoría nueva de verdad, se crea sola al confirmar el import (agrupando por nombre normalizado, para no crear la misma categoría una vez por fila si varios productos comparten el tipo nuevo). Si hay algo parecido (typo de un tipo ya cargado), sí queda en el preview con selector: Crear categoría nueva / Usar: <existente> — default Crear, mismo criterio "avisar de más" que el resto
+- `Products.jsx`: `onImported` del modal ahora también refresca `fetchProductTypes` (antes solo refrescaba productos — una categoría creada durante el import no aparecía en el filtro de tipo hasta recargar la página)
+- Sin SQL — cambio de código nada más
+
 ## 2026-08-10 (7)
 
 ### Feature: detección de duplicados en los 3 imports (Entidades/Productos/Proyectos)

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { parseSpreadsheet, getCell, getCellRaw, downloadTemplate } from '../lib/importXlsx'
 import { getCountryCode } from './CountrySelector'
 import { renderCustomFieldDisplay } from '../lib/customFields'
-import { matchEntity } from '../lib/entityMatching'
+import { matchEntity, normalizeName } from '../lib/entityMatching'
 import './ImportModal.css'
 
 function parseDate(v) {
@@ -32,8 +32,13 @@ function parseFieldValue(def, cell, cellRaw, { productTypes, entities }) {
 
   if (type === 'product_type') {
     if (!cell) return { value: null, warning: null }
-    const match = productTypes.find(t => t.name.toLowerCase() === cell.toLowerCase())
-    return { value: match?.id || null, warning: match ? null : `"${def.label}": "${cell}" no coincide con ningún tipo configurado` }
+    const { exact, fuzzy } = matchEntity(cell, productTypes)
+    if (exact) return { value: exact.id, warning: null }
+    // Sin match exacto: si hay algo parecido queda para elegir en el preview
+    // (podría ser un typo de un tipo ya configurado); si no hay nada
+    // parecido, es una categoría nueva de verdad — se crea sola al importar
+    // en vez de descartar la fila entera.
+    return { value: null, warning: null, dup: { key: def.key, label: def.label, text: cell, candidates: fuzzy } }
   }
   if (type === 'product_entity') {
     if (!cell) return { value: null, warning: null }
@@ -98,11 +103,13 @@ function buildRows(raw, importFields, ctx) {
     const values = {}
     const warnings = []
     const dupFields = []
+    let typeCellEmpty = false
     for (const def of importFields) {
       const header = def.label.toLowerCase()
       const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
       const cell = type === 'date' ? '' : getCell(r, header)
       const cellRaw = type === 'date' ? getCellRaw(r, header) : ''
+      if (def.field_type === 'product_type' && !cell) typeCellEmpty = true
       const { value, warning, dup } = parseFieldValue(def, cell, cellRaw, ctx)
       values[def.key] = value
       if (warning) warnings.push(warning)
@@ -114,7 +121,7 @@ function buildRows(raw, importFields, ctx) {
 
     const errors = []
     if (!name) errors.push('Falta el nombre')
-    if (typeDef && !values[typeDef.key]) errors.push('Falta o no coincide el tipo de producto')
+    if (typeDef && typeCellEmpty) errors.push('Falta el tipo de producto')
     if (name && seen.has(name.toLowerCase())) warnings.push('Nombre repetido en el archivo')
     if (name) seen.add(name.toLowerCase())
 
@@ -126,9 +133,17 @@ function buildRows(raw, importFields, ctx) {
 // id (resuelto contra lo cargado en el workspace), acá se muestra el
 // nombre matcheado en vez del id crudo para que la previsualización sea legible.
 function previewValue(def, row, { productTypes, entities }, resolvedId) {
-  if (def.field_type === 'product_type') return productTypes.find(t => t.id === row.values[def.key])?.name || '—'
+  if (def.field_type === 'product_type') return productTypes.find(t => t.id === (resolvedId ?? row.values[def.key]))?.name || '—'
   if (def.field_type === 'product_entity') return entities.find(e => e.id === (resolvedId ?? row.values[def.key]))?.name || '—'
   return renderCustomFieldDisplay(def, row.values[def.key])
+}
+
+// Default cuando una fila con campo dudoso no se toca en el preview:
+// tipo de producto se crea solo (categoría nueva, sin riesgo real de
+// duplicado si no había nada parecido); proveedor/vendedor queda sin
+// vincular, igual que el comportamiento de siempre.
+function defaultResolution(def) {
+  return def.field_type === 'product_type' ? 'create' : 'unlinked'
 }
 
 export default function ImportProductsModal({ workspaceId, productFieldDefs = [], onClose, onImported }) {
@@ -138,8 +153,9 @@ export default function ImportProductsModal({ workspaceId, productFieldDefs = []
   const [importing, setImporting] = useState(false)
   const [productTypes, setProductTypes] = useState([])
   const [entities, setEntities] = useState([])
-  // `${idx}:${fieldKey}` -> 'unlinked' | `link:<id>` — default 'unlinked' (igual
-  // que hoy: si no se resuelve, el campo queda vacío, no bloquea el import).
+  // `${idx}:${fieldKey}` -> 'unlinked' | 'create' | `link:<id>` — default según
+  // el campo (ver defaultResolution): tipo de producto se crea, proveedor/vendedor
+  // queda sin vincular. Ninguno de los dos bloquea el import si no se toca.
   const [dupResolutions, setDupResolutions] = useState({})
 
   useEffect(() => {
@@ -167,24 +183,12 @@ export default function ImportProductsModal({ workspaceId, productFieldDefs = []
     e.target.value = ''
   }
 
-  function dupResolutionOf(idx, key) {
-    return dupResolutions[`${idx}:${key}`] || 'unlinked'
+  function dupResolutionOf(idx, key, def) {
+    return dupResolutions[`${idx}:${key}`] || defaultResolution(def)
   }
 
   function setDupResolution(idx, key, value) {
     setDupResolutions(prev => ({ ...prev, [`${idx}:${key}`]: value }))
-  }
-
-  // Aplica lo elegido en el preview para los campos que quedaron dudosos
-  // (product_entity con parecidos) antes de insertar.
-  function resolvedValues(r) {
-    if (r.dupFields.length === 0) return r.values
-    const values = { ...r.values }
-    for (const dup of r.dupFields) {
-      const res = dupResolutionOf(r.idx, dup.key)
-      values[dup.key] = res.startsWith('link:') ? res.slice(5) : null
-    }
-    return values
   }
 
   const validRows = rows.filter(r => r.errors.length === 0)
@@ -192,10 +196,40 @@ export default function ImportProductsModal({ workspaceId, productFieldDefs = []
   async function handleImport() {
     setImporting(true)
     const now = new Date().toISOString()
+
+    // Categorías nuevas a crear antes de insertar productos — se agrupan por
+    // nombre normalizado para no crear la misma categoría una vez por fila
+    // si varios productos traen el mismo tipo nuevo.
+    const toCreate = new Map()
+    for (const r of validRows) {
+      for (const dup of r.dupFields) {
+        const def = importFields.find(d => d.key === dup.key)
+        if (def?.field_type !== 'product_type') continue
+        if (dupResolutionOf(r.idx, dup.key, def) !== 'create') continue
+        const norm = normalizeName(dup.text)
+        if (norm && !toCreate.has(norm)) toCreate.set(norm, dup.text)
+      }
+    }
+
+    const typeIdByNorm = new Map()
+    if (toCreate.size > 0) {
+      const { data: createdTypes } = await supabase.from('product_types').insert(
+        [...toCreate.values()].map((name, i) => ({ workspace_id: workspaceId, name, sort_order: productTypes.length + i }))
+      ).select('id, name')
+      for (const t of createdTypes || []) typeIdByNorm.set(normalizeName(t.name), t.id)
+    }
+
     await supabase.from('products').insert(validRows.map(r => {
       const row = { workspace_id: workspaceId }
       const customFields = {}
-      const values = resolvedValues(r)
+      const values = { ...r.values }
+      for (const dup of r.dupFields) {
+        const def = importFields.find(d => d.key === dup.key)
+        const res = dupResolutionOf(r.idx, dup.key, def)
+        if (res.startsWith('link:')) values[dup.key] = res.slice(5)
+        else if (res === 'create') values[dup.key] = typeIdByNorm.get(normalizeName(dup.text)) || null
+        else values[dup.key] = null
+      }
       for (const def of importFields) {
         const v = values[def.key]
         if (def.storage_column) {
@@ -234,7 +268,7 @@ export default function ImportProductsModal({ workspaceId, productFieldDefs = []
                 ))}
               </div>
               <p className="import-hint">
-                "Tipo de producto" y "Proveedor/Vendedor" van como texto — se resuelven por nombre contra lo ya configurado en el workspace.
+                "Tipo de producto" y "Proveedor/Vendedor" van como texto — se resuelven por nombre contra lo ya configurado en el workspace. Si "Tipo de producto" no coincide con ninguna categoría existente, se crea una nueva (se puede elegir en la vista previa si en realidad era una ya cargada).
               </p>
               <button
                 className="import-template-btn"
@@ -271,30 +305,43 @@ export default function ImportProductsModal({ workspaceId, productFieldDefs = []
                         <td>{r.idx + 1}</td>
                         {importFields.map(d => {
                           const dup = r.dupFields.find(x => x.key === d.key)
-                          const res = dup ? dupResolutionOf(r.idx, dup.key) : null
-                          const resolvedId = res && res.startsWith('link:') ? res.slice(5) : null
-                          return <td key={d.key}>{previewValue(d, r, ctx, resolvedId)}</td>
+                          if (!dup) return <td key={d.key}>{previewValue(d, r, ctx)}</td>
+                          const res = dupResolutionOf(r.idx, dup.key, d)
+                          if (res.startsWith('link:')) return <td key={d.key}>{previewValue(d, r, ctx, res.slice(5))}</td>
+                          return <td key={d.key}>{d.field_type === 'product_type' ? `${dup.text} (nueva)` : '—'}</td>
                         })}
                         <td>
                           {r.errors.length > 0 ? (
                             <span className="import-status import-status--error">✗ {r.errors.join(', ')}</span>
                           ) : r.dupFields.length > 0 ? (
                             <div className="import-dup-cell">
-                              {r.dupFields.map(dup => (
-                                <div key={dup.key}>
-                                  <span className="import-status import-status--duplicate">⚠ "{dup.label}": "{dup.text}" parecido a "{dup.candidates[0].candidate.name}"</span>
-                                  <select
-                                    className="import-dup-select"
-                                    value={dupResolutionOf(r.idx, dup.key)}
-                                    onChange={e => setDupResolution(r.idx, dup.key, e.target.value)}
-                                  >
-                                    <option value="unlinked">Dejar sin vincular</option>
-                                    {dup.candidates.map(fc => (
-                                      <option key={fc.candidate.id} value={`link:${fc.candidate.id}`}>Usar: {fc.candidate.name}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                              ))}
+                              {r.dupFields.map(dup => {
+                                const def = importFields.find(d => d.key === dup.key)
+                                const isType = def?.field_type === 'product_type'
+                                if (dup.candidates.length === 0) {
+                                  // Tipo de producto sin nada parecido: categoría nueva de verdad, se crea sola.
+                                  return (
+                                    <span key={dup.key} className="import-status import-status--new">🆕 "{dup.label}": se crea la categoría "{dup.text}"</span>
+                                  )
+                                }
+                                return (
+                                  <div key={dup.key}>
+                                    <span className="import-status import-status--duplicate">⚠ "{dup.label}": "{dup.text}" parecido a "{dup.candidates[0].candidate.name}"</span>
+                                    <select
+                                      className="import-dup-select"
+                                      value={dupResolutionOf(r.idx, dup.key, def)}
+                                      onChange={e => setDupResolution(r.idx, dup.key, e.target.value)}
+                                    >
+                                      {isType
+                                        ? <option value="create">Crear categoría nueva: "{dup.text}"</option>
+                                        : <option value="unlinked">Dejar sin vincular</option>}
+                                      {dup.candidates.map(fc => (
+                                        <option key={fc.candidate.id} value={`link:${fc.candidate.id}`}>Usar: {fc.candidate.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )
+                              })}
                               {r.warnings.length > 0 && <span className="import-status import-status--warning">⚠ {r.warnings.join(', ')}</span>}
                             </div>
                           ) : r.warnings.length > 0 ? (

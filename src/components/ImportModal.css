@@ -122,6 +122,7 @@
 .import-status--warning { color: #D97706; }
 .import-status--error { color: #DC2626; }
 .import-status--duplicate { color: #1D4ED8; }
+.import-status--new { color: #0D9488; }
 
 .import-dup-cell {
   display: flex;

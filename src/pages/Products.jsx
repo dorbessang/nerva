@@ -388,7 +388,7 @@ export default function Products() {
           workspaceId={workspaceId}
           productFieldDefs={productFieldDefs}
           onClose={() => setShowImportModal(false)}
-          onImported={fetchProducts}
+          onImported={() => { fetchProducts(); fetchProductTypes() }}
         />
       )}
 
