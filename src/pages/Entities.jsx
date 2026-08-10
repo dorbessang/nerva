@@ -23,7 +23,7 @@ import TableGrid from '../components/TableGrid'
 import { CardGrid, CardTile, CardTileNew } from '../components/CardGrid'
 import TotalStatCard from '../components/StatCards'
 import { getInitials, getAvatarColor } from '../lib/avatarColors'
-import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
+import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
 import './Entities.css'
 
 // Columnas que no son un campo custom configurable — calculadas a partir de
@@ -157,7 +157,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
 
   useEffect(() => {
     supabase.from('entities').select('id, name, country_code, entity_type_id').order('name')
-      .then(({ data }) => setAllEntities(data || []))
+      .then(({ data }) => setAllEntities(naturalSortByName(data || [])))
     supabase.from('entity_types').select('id, name, plural').order('sort_order')
       .then(({ data }) => setAllEntityTypes(data || []))
   }, [workspaceId])
@@ -231,7 +231,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
         .map(ne => ({ ...ne, negotiation: negsData.find(n => n.id === ne.negotiation_id) || null }))
     }))
 
-    setEntities(combined)
+    setEntities(naturalSortByName(combined))
     setLoading(false)
   }
 
@@ -730,7 +730,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
 
   async function fetchProducts() {
     const { data } = await supabase.from('products').select('id, name').order('name')
-    if (data) setProducts(data)
+    if (data) setProducts(naturalSortByName(data))
   }
 
   async function fetchEntityProducts() {
@@ -739,7 +739,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
       .select('*, product_type:product_type_id ( id, name )')
       .eq('entity_id', entity.id)
       .order('name')
-    if (data) setEntityProducts(data)
+    if (data) setEntityProducts(naturalSortByName(data))
   }
 
   async function fetchMembers() {

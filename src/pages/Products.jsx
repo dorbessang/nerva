@@ -14,7 +14,7 @@ import TableGrid from '../components/TableGrid'
 import { CardGrid, CardTile, CardTileNew } from '../components/CardGrid'
 import TotalStatCard from '../components/StatCards'
 import { getInitials, getAvatarColor } from '../lib/avatarColors'
-import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
+import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
 import './Entities.css'
 
 // Columnas que no son un campo custom configurable — calculada a partir de
@@ -201,7 +201,7 @@ export default function Products() {
         .map(np => ({ ...np, negotiation: negsData.find(n => n.id === np.negotiation_id) || null })),
     }))
 
-    setProducts(combined)
+    setProducts(naturalSortByName(combined))
     setLoading(false)
   }
 
@@ -612,7 +612,7 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
 
   async function fetchEntities() {
     const { data } = await supabase.from('entities').select('id, name, country_code, entity_type_id').order('name')
-    if (data) setEntities(data)
+    if (data) setEntities(naturalSortByName(data))
   }
 
   async function fetchEntityTypes() {
@@ -622,7 +622,7 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
 
   async function fetchAllProducts() {
     const { data } = await supabase.from('products').select('id, name').order('name')
-    if (data) setAllProducts(data)
+    if (data) setAllProducts(naturalSortByName(data))
   }
 
   async function fetchFieldOrder() {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isWideCustomField } from '../lib/customFields'
+import { naturalSortByName } from '../lib/tableSort'
 import { CustomFieldInput } from './CustomFieldInput'
 import './EntityModal.css'
 
@@ -43,7 +44,7 @@ export default function ProductModal({ onClose, onCreated, initial = null, produ
 
   async function fetchEntities() {
     const { data } = await supabase.from('entities').select('id, name').order('name')
-    if (data) setEntities(data)
+    if (data) setEntities(naturalSortByName(data))
   }
 
   async function fetchFieldOrder() {

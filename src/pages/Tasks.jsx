@@ -6,6 +6,7 @@ import TaskModal from '../components/TaskModal'
 import TaskDrawer from '../components/TaskDrawer'
 import { isTaskBlocked, notifySuccessors, dismissNotificationsForTask } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
+import { naturalSortByName } from '../lib/tableSort'
 import './Tasks.css'
 
 export default function Tasks() {
@@ -39,7 +40,7 @@ export default function Tasks() {
 
   async function fetchEntities() {
     const { data } = await supabase.from('entities').select('id, name').order('name')
-    if (data) setEntities(data)
+    if (data) setEntities(naturalSortByName(data))
   }
 
   async function fetchNegotiations() {

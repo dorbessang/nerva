@@ -7,6 +7,14 @@ export function nextSortDir(key, sortKey, sortDir) {
   return null
 }
 
+// Orden "natural": los números adentro del texto se comparan por su valor,
+// no caracter a caracter — "Prod 2" antes que "Prod 10". Mismo criterio en
+// cualquier lista ordenada por nombre en toda la app (ver naturalSortByName
+// más abajo), no solo acá.
+export function naturalCompare(a, b) {
+  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+}
+
 export function sortRows(rows, getValue, dir) {
   if (!dir) return rows
   return [...rows].sort((a, b) => {
@@ -15,10 +23,16 @@ export function sortRows(rows, getValue, dir) {
     if (va === null && vb === null) return 0
     if (va === null) return 1
     if (vb === null) return -1
-    if (va < vb) return dir === 'asc' ? -1 : 1
-    if (va > vb) return dir === 'asc' ? 1 : -1
-    return 0
+    const cmp = typeof va === 'string' && typeof vb === 'string' ? naturalCompare(va, vb) : (va < vb ? -1 : va > vb ? 1 : 0)
+    return dir === 'asc' ? cmp : -cmp
   })
+}
+
+// Para listas que no pasan por sortRows (fetch directo de Supabase, que
+// ordena alfabético caracter a caracter) — mismo criterio de orden natural
+// aplicado a un array de objetos con `.name`.
+export function naturalSortByName(rows) {
+  return [...rows].sort((a, b) => naturalCompare(a?.name || '', b?.name || ''))
 }
 
 // Valor comparable genérico para un campo custom — usado por ambas páginas

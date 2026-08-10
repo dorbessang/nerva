@@ -4,6 +4,14 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-10 (9)
+
+### Fix: listas de Productos/Entidades ordenaban alfabético caracter a caracter ("Prod 1, Prod 10, Prod 11... Prod 2, Prod 20")
+- Reportado por el usuario viendo el listado de Productos: `order('name')` de Supabase/Postgres ordena el texto tal cual, sin tratar los números como números — "10" queda antes que "2" porque el caracter "1" es menor que "2"
+- Nuevo `naturalSortByName` en `tableSort.js` (Intl `localeCompare` con `numeric: true`, mismo criterio que ya usaba `customFields.js` para las opciones de filtro) — se aplica después de cada fetch de productos/entidades que alimenta una lista o un picker: `Products.jsx`, `Entities.jsx`, `Negotiations.jsx` (fetch principal, entra directo al picker "Buscar y agregar producto"), `ProductModal.jsx`, `Tasks.jsx`
+- De paso, `sortRows` (el sort por click en encabezado de columna de Tabla, en Proyectos/Entidades) ahora también usa orden natural para columnas de texto — antes solo pasaba a estar bien ordenado por casualidad si los nombres no tenían números
+- Sin SQL — cambio de código nada más
+
 ## 2026-08-10 (8)
 
 ### Fix: import de Productos descartaba filas con un "Tipo de producto" que no existía todavía

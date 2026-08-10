@@ -20,7 +20,7 @@ import FiltersPanelButton from '../components/FiltersPanelButton'
 import TableGrid from '../components/TableGrid'
 import TotalStatCard from '../components/StatCards'
 import { CardGrid, CardTile } from '../components/CardGrid'
-import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
+import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
@@ -269,9 +269,9 @@ export default function Negotiations() {
     }))
 
     setNegotiations(combined)
-    if (entitiesRes.data) setEntities(entitiesRes.data)
+    if (entitiesRes.data) setEntities(naturalSortByName(entitiesRes.data))
     if (entityTypesRes.data) setEntityTypes(entityTypesRes.data)
-    if (productsRes.data) setProducts(productsRes.data)
+    if (productsRes.data) setProducts(naturalSortByName(productsRes.data))
     if (membersRes.data) setMembers(membersRes.data)
     if (statesRes.data) setCustomStates(statesRes.data)
     setLoading(false)
