@@ -4,6 +4,17 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-07 (10)
+
+### Refactor: Tabla y Mosaico unificados entre Proyectos/Entidades/Productos
+- Las tres páginas tenían su propia implementación de Tabla y de Mosaico, con diferencias reales (Proyectos: columnas redimensionables + filtro en el encabezado, pero tarjetas simples sin avatar; Entidades/Productos: tarjetas con avatar circular y pie con badges, pero tabla sin esas mejoras). Se unifica tomando lo más avanzado de cada una como base única, extendida a las tres
+- `TableGrid.jsx` (nuevo, compartido): encabezado con click-para-ordenar, ancho ajustable a mano y filtro tipo Excel por columna — antes vivía triplicado (`TableView`/`EntitiesGridTable`/`ProductsGridTable`, casi idénticos), ahora una sola implementación; cada página solo define `renderCell` (contenido de celda) y `getColumnFilter` (qué campo es filtrable y con qué opciones)
+- `CardGrid.jsx` (nuevo, compartido): tile con avatar (iniciales + color por nombre), título truncado + insignia opcional, subtítulo, badge a la derecha (ej. estado) y pie para chips/detalle
+- **Bug de superposición corregido** (motivo real del pedido, no solo estético): en Entidades/Productos el checkbox de selección era `position: absolute` flotando en la esquina superior derecha de la tarjeta — con texto largo o el chip de tipo nuevo, se superponía. Ahora el checkbox es un hijo más del layout flex (como ya lo tenía resuelto Proyectos con su franja lateral), nunca flota encima de nada
+- `src/lib/avatarColors.js` (nuevo): `getInitials`/`getAvatarColor`, antes duplicados de forma idéntica en Entidades y Productos
+- Kanban queda exclusivo de Proyectos, sin tocar — decisión explícita, Entidades/Productos no tienen un campo de tipo "estado/pipeline" con el mismo sentido
+- Limpieza: ~170 líneas netas menos pese a sumar 3 archivos compartidos nuevos — se borraron las 3 implementaciones de tabla, las clases CSS `.neg-card*`/`.entity-card*` que quedaron sin uso, y los `AVATAR_COLORS`/`getInitials`/`getAvatarColor` duplicados
+
 ## 2026-08-07 (9)
 
 ### Feature: botón "Filtros" — acceso a todos los filtros también en Mosaico y Kanban

@@ -293,6 +293,17 @@ Se pensó junto con el usuario antes de tocar código (pidió explícitamente no
 - [x] Limpieza confirmada con el usuario: se saca el toggle "Mostrar como filtro" de Configuración (dead code documentado la ronda anterior, ahora confirmado innecesario) y el componente `CustomFieldFilter` que quedó sin consumidores
 - [ ] Sin SQL — cambio de código nada más
 
+##### Follow-up inmediato (8): Tabla y Mosaico unificados entre Proyectos/Entidades/Productos
+Pedido explícito de limpieza de código y armonía visual — las tres páginas tenían su propia implementación de Tabla y de Mosaico, casi idénticas pero no compartidas. Antes de tocar código se acordaron dos decisiones: (1) qué diseño gana en cada vista al unificar, y (2) si Kanban se suma a Entidades/Productos.
+- Confirmado: Tabla se unifica sobre la base de Proyectos (columnas redimensionables + filtro en el encabezado, la más avanzada de las tres); Mosaico se unifica sobre la base de Entidades/Productos (avatar circular + pie con badges, la más prolija), extendido a Proyectos. Kanban queda exclusivo de Proyectos, sin cambios — Entidades/Productos no tienen un campo de tipo "estado/pipeline" con el mismo sentido
+- Pedido de paso: el checkbox de selección en Mosaico no debía superponerse con el contenido — en Entidades/Productos era `position:absolute` en la esquina y con texto largo (o el chip de tipo nuevo) quedaba encima. Se corrigió como parte de la unificación: ahora es un hijo más del layout flex, igual criterio que ya tenía resuelto Proyectos con su franja lateral
+- [x] `TableGrid.jsx` (nuevo, compartido) reemplaza las 3 implementaciones de tabla — cada página solo aporta `renderCell` y `getColumnFilter`
+- [x] `CardGrid.jsx`/`CardTile`/`CardTileNew` (nuevo, compartido) reemplaza las 3 implementaciones de mosaico — avatar, título+insignia, subtítulo, badge a la derecha (estado en Proyectos), pie para chips/badges. Checkbox sin superposición
+- [x] `src/lib/avatarColors.js` (nuevo) — `getInitials`/`getAvatarColor` que antes estaban duplicados idénticos en Entidades y Productos
+- [x] Kanban de Proyectos sin tocar — sigue usando `renderCardField` tal cual, que ahora también reutiliza CardsView de Proyectos (mismo helper, dos consumidores)
+- [x] Limpieza: ~170 líneas netas menos pese a sumar 3 archivos compartidos — se borraron las 3 implementaciones de tabla viejas, las clases CSS `.neg-card*`/`.entity-card*` que quedaron sin ningún uso, y los helpers de avatar duplicados
+- [ ] Sin SQL — cambio de código nada más
+
 ### Pantalla de bienvenida para workspaces nuevos sin configurar
 Al abrir el primer cliente pagador (workspace de equipo creado a mano vía SQL, sin flujo de alta propio todavía), el owner entraba a una app completamente vacía — sin tipos de entidad, sin estados, sin campos custom — y tenía que armar todo desde Configuración antes de poder cargar el primer dato. Se pidió una pantalla de bienvenida que ofrezca eso de entrada.
 - [x] Columna nueva `workspaces.onboarded boolean not null default true` — default `true` a propósito, para que ningún workspace ya en uso muestre esta pantalla retroactivamente. Los workspaces nuevos se crean con `onboarded = false` explícito en el insert de bootstrap

@@ -156,36 +156,6 @@
   font-size: 14px;
 }
 
-.entities-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 14px;
-  width: 100%;
-}
-
-.entity-card {
-  position: relative;
-  background-color: #ffffff;
-  border-radius: 14px;
-  padding: 20px;
-  border: 1px solid #e5e7eb;
-  cursor: pointer;
-  transition: all 0.15s;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.entity-card-checkbox {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  z-index: 2;
-}
-
 .entities-list-checkbox {
   width: 16px;
   height: 16px;
@@ -209,18 +179,6 @@
 
 .entities-bulk-count { display: flex; align-items: center; }
 
-.entity-card:hover {
-  box-shadow: 0 4px 20px rgba(11, 31, 58, 0.1);
-  transform: translateY(-1px);
-  border-color: #d1d5db;
-}
-
-.entity-card-header {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-}
-
 .entity-avatar {
   width: 44px;
   height: 44px;
@@ -233,39 +191,6 @@
   flex-shrink: 0;
 }
 
-.entity-info {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.entity-name {
-  font-size: 18px;
-  font-weight: 600;
-  color: #0F172A;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.2;
-}
-
-.entity-card h3.entity-name { font-size: 18px !important; }
-
-/* Producto: el nombre convive con un chip de tipo — el texto trunca en su
-   propio span (min-width:0 dentro del flex), el chip nunca se achica. */
-.entity-name-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
 .entity-type-chip { flex-shrink: 0; }
 
 .entity-flag {
@@ -273,19 +198,6 @@
   height: auto;
   border-radius: 2px;
   flex-shrink: 0;
-}
-
-.entity-country {
-  font-size: 12px;
-  color: #9ca3af;
-  margin: 0;
-  text-align: left;
-  line-height: 1.2;
-}
-
-.entity-card-footer {
-  padding-top: 12px;
-  border-top: 1px solid #f3f4f6;
 }
 
 .entity-state-badges {
@@ -310,24 +222,6 @@
 .entity-no-projects {
   font-size: 13px;
   color: #9ca3af;
-}
-
-.entity-card-new {
-  border: 2px dashed #e5e7eb;
-  background-color: transparent;
-  align-items: center;
-  justify-content: center;
-  color: #9ca3af;
-  font-size: 14px;
-  font-weight: 500;
-  min-height: 120px;
-}
-
-.entity-card-new:hover {
-  border-color: #0B1F3A;
-  color: #0B1F3A;
-  transform: none;
-  box-shadow: none;
 }
 
 /* --- Vista lista de entidades --- */

@@ -8,9 +8,10 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
 import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter, filterChoicesFor } from '../lib/customFields'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
-import ColumnHeaderCell from '../components/ColumnHeaderCell'
-import ColumnFilterMenu from '../components/ColumnFilterMenu'
 import FiltersPanelButton from '../components/FiltersPanelButton'
+import TableGrid from '../components/TableGrid'
+import { CardGrid, CardTile, CardTileNew } from '../components/CardGrid'
+import { getInitials, getAvatarColor } from '../lib/avatarColors'
 import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
 import './Entities.css'
 
@@ -20,22 +21,6 @@ const PRODUCT_STATIC_COLUMNS = [
   { key: 'projects_total', label: 'Proyectos totales' },
 ]
 const PRODUCT_DEFAULT_VISIBLE = ['name', 'product_type', 'entity', 'projects_total']
-
-const AVATAR_COLORS = [
-  ['#EFF6FF', '#1D4ED8'],
-  ['#F5F3FF', '#6D28D9'],
-  ['#ECFDF5', '#059669'],
-  ['#FFFBEB', '#D97706'],
-  ['#FEF2F2', '#DC2626'],
-]
-
-function getInitials(name) {
-  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-}
-
-function getAvatarColor(name) {
-  return AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length]
-}
 
 function getProductSortValue(key, product, productFieldDefs) {
   switch (key) {
@@ -363,35 +348,18 @@ export default function Products() {
           onColResize={(key, width) => saveCols(cols.map(c => c.key === key ? { ...c, width } : c))}
         />
       ) : (
-        <div className="entities-grid">
+        <CardGrid>
           {sorted.map(product => {
-            const [bgColor, textColor] = getAvatarColor(product.name)
             const counts = getStateCounts(product.negotiation_products)
             return (
-              <div key={product.id} className="entity-card" onClick={() => setSelectedProduct(product)}>
-                {canBulkDelete && (
-                  <input
-                    type="checkbox"
-                    className="entity-card-checkbox"
-                    checked={selectedIds.has(product.id)}
-                    onClick={e => e.stopPropagation()}
-                    onChange={() => toggleSelect(product.id)}
-                  />
-                )}
-                <div className="entity-card-header">
-                  <div className="entity-avatar" style={{ backgroundColor: bgColor, color: textColor }}>
-                    {getInitials(product.name)}
-                  </div>
-                  <div className="entity-info">
-                    <h3 className="entity-name">
-                      <span className="entity-name-text">{product.name}</span>
-                      {product.product_type?.name && <span className="neg-chip neg-chip-blue entity-type-chip">{product.product_type.name}</span>}
-                    </h3>
-                    <p className="entity-country">{product.entity?.name ? `Vendedor: ${product.entity.name}` : 'Sin entidad vendedora'}</p>
-                  </div>
-                </div>
-                <div className="entity-card-footer">
-                  {Object.keys(counts).length > 0 ? (
+              <CardTile
+                key={product.id}
+                avatarLabel={product.name}
+                title={product.name}
+                titleBadge={product.product_type?.name && <span className="neg-chip neg-chip-blue entity-type-chip">{product.product_type.name}</span>}
+                subtitle={product.entity?.name ? `Vendedor: ${product.entity.name}` : 'Sin entidad vendedora'}
+                footer={
+                  Object.keys(counts).length > 0 ? (
                     <div className="entity-state-badges">
                       {Object.entries(counts).map(([status, count]) => {
                         const cfg = getStateConfig(status)
@@ -404,15 +372,17 @@ export default function Products() {
                     </div>
                   ) : (
                     <span className="entity-no-projects">Sin proyectos</span>
-                  )}
-                </div>
-              </div>
+                  )
+                }
+                selected={selectedIds.has(product.id)}
+                showCheckbox={canBulkDelete}
+                onToggleSelect={() => toggleSelect(product.id)}
+                onClick={() => setSelectedProduct(product)}
+              />
             )
           })}
-          <div className="entity-card entity-card-new" onClick={() => setShowModal(true)}>
-            <span>+ Nuevo producto</span>
-          </div>
-        </div>
+          <CardTileNew label="Nuevo producto" onClick={() => setShowModal(true)} />
+        </CardGrid>
       )}
 
       {showModal && (
@@ -462,56 +432,36 @@ function renderProductCell(key, product, productFieldDefs, members) {
 }
 
 function ProductsGridTable({ products, productFieldDefs, productTypes, cols, allColumns, members, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
-  const visibleCols = cols.filter(c => c.visible)
+  function getColumnFilter(key) {
+    const fieldDef = productFieldDefs.find(d => d.key === key)
+    if (!fieldDef || !isFieldFilterable(fieldDef)) return null
+    const filterValue = customFilterValues?.[key]
+    return {
+      options: filterChoicesFor(fieldDef, { members, productTypes }),
+      selected: Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : []),
+      onChange: v => onFilterChange(key, v),
+    }
+  }
+
   return (
-    <div className="neg-table-wrapper">
-      <table className="neg-table">
-        <thead>
-          <tr>
-            {canBulkDelete && (
-              <th className="neg-th-check">
-                <input type="checkbox" checked={allVisibleSelected} onChange={onToggleSelectAll} title="Seleccionar todos los visibles" />
-              </th>
-            )}
-            {visibleCols.map(c => {
-              const def = allColumns.find(x => x.key === c.key)
-              const fieldDef = productFieldDefs.find(d => d.key === c.key)
-              const filterable = fieldDef ? isFieldFilterable(fieldDef) : false
-              const filterValue = customFilterValues?.[c.key]
-              const selected = Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : [])
-              return (
-                <ColumnHeaderCell
-                  key={c.key}
-                  label={def?.label}
-                  sortDir={sortKey === c.key ? sortDir : null}
-                  onSort={() => onSort(c.key)}
-                  filterable={filterable}
-                  filterActive={selected.length > 0}
-                  width={c.width}
-                  onResize={w => onColResize(c.key, w)}
-                >
-                  {filterable && (
-                    <ColumnFilterMenu options={filterChoicesFor(fieldDef, { members, productTypes })} selected={selected} onChange={v => onFilterChange(c.key, v)} />
-                  )}
-                </ColumnHeaderCell>
-              )
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {products.map(product => (
-            <tr key={product.id} onClick={() => onSelect(product)} className="neg-table-row">
-              {canBulkDelete && (
-                <td className="neg-td-check" onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" checked={selectedIds.has(product.id)} onChange={() => onToggleSelect(product.id)} />
-                </td>
-              )}
-              {visibleCols.map(c => renderProductCell(c.key, product, productFieldDefs, members))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <TableGrid
+      rows={products}
+      rowKey={product => product.id}
+      cols={cols}
+      allColumns={allColumns}
+      renderCell={(key, product) => renderProductCell(key, product, productFieldDefs, members)}
+      getColumnFilter={getColumnFilter}
+      sortKey={sortKey}
+      sortDir={sortDir}
+      onSort={onSort}
+      onColResize={onColResize}
+      showCheckbox={canBulkDelete}
+      selectedIds={selectedIds}
+      onToggleSelect={onToggleSelect}
+      allVisibleSelected={allVisibleSelected}
+      onToggleSelectAll={onToggleSelectAll}
+      onSelectRow={onSelect}
+    />
   )
 }
 

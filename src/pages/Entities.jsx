@@ -18,9 +18,10 @@ import { formatAmount } from '../components/DealMilestones'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
 import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter, filterChoicesFor } from '../lib/customFields'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
-import ColumnHeaderCell from '../components/ColumnHeaderCell'
-import ColumnFilterMenu from '../components/ColumnFilterMenu'
 import FiltersPanelButton from '../components/FiltersPanelButton'
+import TableGrid from '../components/TableGrid'
+import { CardGrid, CardTile, CardTileNew } from '../components/CardGrid'
+import { getInitials, getAvatarColor } from '../lib/avatarColors'
 import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
 import './Entities.css'
 
@@ -32,14 +33,6 @@ const ENTITY_STATIC_COLUMNS = [
 ]
 const ENTITY_DEFAULT_VISIBLE = ['name', 'entity_type', 'country', 'contacts_count', 'projects_total']
 
-const AVATAR_COLORS = [
-  ['#EFF6FF', '#1D4ED8'],
-  ['#F5F3FF', '#6D28D9'],
-  ['#ECFDF5', '#059669'],
-  ['#FFFBEB', '#D97706'],
-  ['#FEF2F2', '#DC2626'],
-]
-
 // Valor comparable por columna para el click-para-ordenar del encabezado —
 // null siempre ordena al final, ver sortRows en lib/tableSort.js.
 function getEntitySortValue(key, entity, entityFieldDefs, members) {
@@ -50,14 +43,6 @@ function getEntitySortValue(key, entity, entityFieldDefs, members) {
     case 'projects_total': return entity.negotiation_entities?.length || null
     default: return customFieldSortValue(entityFieldDefs?.find(d => d.key === key), entity, members, getCustomFieldValue, renderCustomFieldDisplay)
   }
-}
-
-function getInitials(name) {
-  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-}
-
-function getAvatarColor(name) {
-  return AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length]
 }
 
 export default function Entities({ entityTypeId, entityTypeName, entityTypeSingular }) {
@@ -482,36 +467,19 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           onColResize={(key, width) => saveCols(cols.map(c => c.key === key ? { ...c, width } : c))}
         />
       ) : (
-        <div className="entities-grid">
+        <CardGrid>
           {sorted.map(entity => {
-            const [bgColor, textColor] = getAvatarColor(entity.name)
             const counts = getStateCounts(entity.negotiation_entities)
             return (
-              <div key={entity.id} className="entity-card" onClick={() => setSelectedEntity(entity)}>
-                {canBulkDelete && (
-                  <input
-                    type="checkbox"
-                    className="entity-card-checkbox"
-                    checked={selectedIds.has(entity.id)}
-                    onClick={e => e.stopPropagation()}
-                    onChange={() => toggleSelect(entity.id)}
-                  />
-                )}
-                <div className="entity-card-header">
-                  <div className="entity-avatar" style={{ backgroundColor: bgColor, color: textColor }}>
-                    {getInitials(entity.name)}
-                  </div>
-                  <div className="entity-info">
-                    <h3 className="entity-name">
-                      {entity.country_code && <img src={getFlagUrl(entity.country_code)} alt="" className="entity-flag" />}
-                      <span className="entity-name-text">{entity.name}</span>
-                      {!entityTypeId && entity.entity_type?.name && <span className="neg-chip neg-chip-blue entity-type-chip">{entity.entity_type.name}</span>}
-                    </h3>
-                    {entity.country_code && <p className="entity-country">{getCountryName(entity.country_code)}</p>}
-                  </div>
-                </div>
-                <div className="entity-card-footer">
-                  {Object.keys(counts).length > 0 ? (
+              <CardTile
+                key={entity.id}
+                avatarLabel={entity.name}
+                title={entity.name}
+                titlePrefix={entity.country_code && <img src={getFlagUrl(entity.country_code)} alt="" className="entity-flag" />}
+                titleBadge={!entityTypeId && entity.entity_type?.name && <span className="neg-chip neg-chip-blue entity-type-chip">{entity.entity_type.name}</span>}
+                subtitle={entity.country_code && getCountryName(entity.country_code)}
+                footer={
+                  Object.keys(counts).length > 0 ? (
                     <div className="entity-state-badges">
                       {Object.entries(counts).map(([status, count]) => {
                         const cfg = getStateConfig(status)
@@ -524,15 +492,17 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
                     </div>
                   ) : (
                     <span className="entity-no-projects">Sin proyectos</span>
-                  )}
-                </div>
-              </div>
+                  )
+                }
+                selected={selectedIds.has(entity.id)}
+                showCheckbox={canBulkDelete}
+                onToggleSelect={() => toggleSelect(entity.id)}
+                onClick={() => setSelectedEntity(entity)}
+              />
             )
           })}
-          <div className="entity-card entity-card-new" onClick={() => setShowModal(true)}>
-            <span>+ {newLabel}</span>
-          </div>
-        </div>
+          <CardTileNew label={newLabel} onClick={() => setShowModal(true)} />
+        </CardGrid>
       )}
 
       {showModal && (
@@ -598,56 +568,36 @@ function renderEntityCell(key, entity, entityFieldDefs, members) {
 // de Negotiations.css: son estilos de tabla genéricos, ya bundleados en la
 // misma hoja de estilos global de la app.
 function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, members, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
-  const visibleCols = cols.filter(c => c.visible)
+  function getColumnFilter(key) {
+    const fieldDef = entityFieldDefs.find(d => d.key === key)
+    if (!fieldDef || !isFieldFilterable(fieldDef)) return null
+    const filterValue = customFilterValues?.[key]
+    return {
+      options: filterChoicesFor(fieldDef, { members }),
+      selected: Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : []),
+      onChange: v => onFilterChange(key, v),
+    }
+  }
+
   return (
-    <div className="neg-table-wrapper">
-      <table className="neg-table">
-        <thead>
-          <tr>
-            {canBulkDelete && (
-              <th className="neg-th-check">
-                <input type="checkbox" checked={allVisibleSelected} onChange={onToggleSelectAll} title="Seleccionar todos los visibles" />
-              </th>
-            )}
-            {visibleCols.map(c => {
-              const def = allColumns.find(x => x.key === c.key)
-              const fieldDef = entityFieldDefs.find(d => d.key === c.key)
-              const filterable = fieldDef ? isFieldFilterable(fieldDef) : false
-              const filterValue = customFilterValues?.[c.key]
-              const selected = Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : [])
-              return (
-                <ColumnHeaderCell
-                  key={c.key}
-                  label={def?.label}
-                  sortDir={sortKey === c.key ? sortDir : null}
-                  onSort={() => onSort(c.key)}
-                  filterable={filterable}
-                  filterActive={selected.length > 0}
-                  width={c.width}
-                  onResize={w => onColResize(c.key, w)}
-                >
-                  {filterable && (
-                    <ColumnFilterMenu options={filterChoicesFor(fieldDef, { members })} selected={selected} onChange={v => onFilterChange(c.key, v)} />
-                  )}
-                </ColumnHeaderCell>
-              )
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {entities.map(entity => (
-            <tr key={entity.id} onClick={() => onSelect(entity)} className="neg-table-row">
-              {canBulkDelete && (
-                <td className="neg-td-check" onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" checked={selectedIds.has(entity.id)} onChange={() => onToggleSelect(entity.id)} />
-                </td>
-              )}
-              {visibleCols.map(c => renderEntityCell(c.key, entity, entityFieldDefs, members))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <TableGrid
+      rows={entities}
+      rowKey={entity => entity.id}
+      cols={cols}
+      allColumns={allColumns}
+      renderCell={(key, entity) => renderEntityCell(key, entity, entityFieldDefs, members)}
+      getColumnFilter={getColumnFilter}
+      sortKey={sortKey}
+      sortDir={sortDir}
+      onSort={onSort}
+      onColResize={onColResize}
+      showCheckbox={canBulkDelete}
+      selectedIds={selectedIds}
+      onToggleSelect={onToggleSelect}
+      allVisibleSelected={allVisibleSelected}
+      onToggleSelectAll={onToggleSelectAll}
+      onSelectRow={onSelect}
+    />
   )
 }
 

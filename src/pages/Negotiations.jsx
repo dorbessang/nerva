@@ -16,9 +16,9 @@ import { logActivity } from '../lib/activity'
 import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, isFieldFilterable, matchesFieldFilter, filterChoicesFor, SPECIAL_FIELD_TYPES } from '../lib/customFields'
 import { CustomFieldInput, CustomFieldReadOnly } from '../components/CustomFieldInput'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
-import ColumnHeaderCell from '../components/ColumnHeaderCell'
-import ColumnFilterMenu from '../components/ColumnFilterMenu'
 import FiltersPanelButton from '../components/FiltersPanelButton'
+import TableGrid from '../components/TableGrid'
+import { CardGrid, CardTile } from '../components/CardGrid'
 import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
 import './Negotiations.css'
 
@@ -840,66 +840,45 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
 }
 
 function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customStates, customFilterValues, onFilterChange, entities, entityTypeFilters, onEntityTypeFilterChange, onColResize }) {
-  const visibleCols = cols.filter(c => c.visible)
+  function getColumnFilter(key) {
+    if (key.startsWith('entity_type:')) {
+      const typeId = key.slice('entity_type:'.length)
+      return {
+        options: entities.filter(en => en.entity_type_id === typeId).map(en => ({ id: en.id, label: en.name })),
+        selected: entityTypeFilters?.[typeId] || [],
+        onChange: v => onEntityTypeFilterChange(typeId, v),
+      }
+    }
+    const fieldDef = customFieldDefs.find(d => d.key === key)
+    if (!fieldDef || !isFieldFilterable(fieldDef)) return null
+    const filterValue = customFilterValues?.[key]
+    return {
+      options: filterChoicesFor(fieldDef, { customStates, members }),
+      selected: Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : []),
+      onChange: v => onFilterChange(key, v),
+    }
+  }
 
   return (
-    <div className="neg-table-wrapper">
-      <table className="neg-table">
-        <thead>
-          <tr>
-            <th className="neg-th-check">
-              <input type="checkbox" checked={allVisibleSelected} onChange={onToggleSelectAll} title="Seleccionar todos los visibles" />
-            </th>
-            {visibleCols.map(c => {
-              const def = allColumns.find(x => x.key === c.key)
-              if (c.key.startsWith('entity_type:')) {
-                const typeId = c.key.slice('entity_type:'.length)
-                const selected = entityTypeFilters?.[typeId] || []
-                const options = entities.filter(en => en.entity_type_id === typeId).map(en => ({ id: en.id, label: en.name }))
-                return (
-                  <ColumnHeaderCell key={c.key} label={def?.label} sortDir={sortKey === c.key ? sortDir : null} onSort={() => onSort(c.key)} filterable filterActive={selected.length > 0} width={c.width} onResize={w => onColResize(c.key, w)}>
-                    <ColumnFilterMenu options={options} selected={selected} onChange={v => onEntityTypeFilterChange(typeId, v)} />
-                  </ColumnHeaderCell>
-                )
-              }
-              const fieldDef = customFieldDefs.find(d => d.key === c.key)
-              const filterable = fieldDef ? isFieldFilterable(fieldDef) : false
-              const filterValue = customFilterValues?.[c.key]
-              const selected = Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : [])
-              return (
-                <ColumnHeaderCell
-                  key={c.key}
-                  label={def?.label}
-                  sortDir={sortKey === c.key ? sortDir : null}
-                  onSort={() => onSort(c.key)}
-                  filterable={filterable}
-                  filterActive={selected.length > 0}
-                  width={c.width}
-                  onResize={w => onColResize(c.key, w)}
-                >
-                  {filterable && (
-                    <ColumnFilterMenu options={filterChoicesFor(fieldDef, { customStates, members })} selected={selected} onChange={v => onFilterChange(c.key, v)} />
-                  )}
-                </ColumnHeaderCell>
-              )
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {negotiations.map(neg => {
-            const rowClass = neg.activity_status === 'paused' ? 'neg-row-paused' : neg.activity_status === 'inactive' ? 'neg-row-inactive' : ''
-            return (
-              <tr key={neg.id} onClick={() => onSelect(neg)} className={`neg-table-row ${rowClass}`}>
-                <td className="neg-td-check" onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" checked={selectedIds.has(neg.id)} onChange={() => onToggleSelect(neg.id)} />
-                </td>
-                {visibleCols.map(c => renderCell(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members))}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+    <TableGrid
+      rows={negotiations}
+      rowKey={neg => neg.id}
+      cols={cols}
+      allColumns={allColumns}
+      renderCell={(key, neg) => renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members)}
+      getColumnFilter={getColumnFilter}
+      sortKey={sortKey}
+      sortDir={sortDir}
+      onSort={onSort}
+      onColResize={onColResize}
+      showCheckbox
+      selectedIds={selectedIds}
+      onToggleSelect={onToggleSelect}
+      allVisibleSelected={allVisibleSelected}
+      onToggleSelectAll={onToggleSelectAll}
+      onSelectRow={onSelect}
+      rowClassName={neg => neg.activity_status === 'paused' ? 'neg-row-paused' : neg.activity_status === 'inactive' ? 'neg-row-inactive' : ''}
+    />
   )
 }
 
@@ -978,35 +957,30 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
   const visibleFields = cols.filter(c => c.visible && c.key !== 'product' && c.key !== 'status')
 
   return (
-    <div className="neg-cards-grid">
+    <CardGrid>
       {negotiations.map(neg => {
         const cfg = getStateConfig(neg.status)
         const actIcon = neg.activity_status === 'inactive' ? '💤' : neg.activity_status === 'paused' ? '⏸' : null
-        const cardClass = neg.activity_status === 'paused' ? 'neg-card-paused' : neg.activity_status === 'inactive' ? 'neg-card-inactive' : ''
+        const cardClass = neg.activity_status === 'paused' ? 'card-tile-paused' : neg.activity_status === 'inactive' ? 'card-tile-inactive' : ''
+        const title = neg.product || neg.title
+        const fields = visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members)).filter(Boolean)
         return (
-          <div key={neg.id} className={`neg-card ${cardClass}`} onClick={() => onSelect(neg)}>
-            <div className="neg-card-select-strip" onClick={e => e.stopPropagation()}>
-              <input
-                type="checkbox"
-                className="neg-card-checkbox"
-                checked={selectedIds.has(neg.id)}
-                onChange={() => onToggleSelect(neg.id)}
-              />
-            </div>
-            <div className="neg-card-body">
-              <div className="neg-card-header">
-                <div className="neg-card-title">
-                  {actIcon && <span className={`neg-paused-icon ${neg.activity_status === 'inactive' ? 'neg-icon-inactive' : 'neg-icon-paused'}`}>{actIcon}</span>}
-                  {neg.product || neg.title}
-                </div>
-                <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>
-              </div>
-              {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members))}
-            </div>
-          </div>
+          <CardTile
+            key={neg.id}
+            avatarLabel={title}
+            title={title}
+            titlePrefix={actIcon && <span className={`neg-paused-icon ${neg.activity_status === 'inactive' ? 'neg-icon-inactive' : 'neg-icon-paused'}`}>{actIcon}</span>}
+            headerRight={<span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>}
+            footer={fields.length > 0 ? fields : null}
+            selected={selectedIds.has(neg.id)}
+            showCheckbox
+            onToggleSelect={() => onToggleSelect(neg.id)}
+            onClick={() => onSelect(neg)}
+            className={cardClass}
+          />
         )
       })}
-    </div>
+    </CardGrid>
   )
 }
 
