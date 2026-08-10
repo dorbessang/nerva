@@ -6,7 +6,7 @@ import ProductModal from '../components/ProductModal'
 import { NegotiationDetail, NegotiationModal } from './Negotiations'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
-import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter, filterChoicesFor, describeFieldFilters } from '../lib/customFields'
+import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesAllFieldFilters, filterChoicesFor, describeFieldFilters } from '../lib/customFields'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
 import FiltersPanelButton from '../components/FiltersPanelButton'
 import TableGrid from '../components/TableGrid'
@@ -201,6 +201,18 @@ export default function Products() {
     })
   }
 
+  // Todo lo que matchea excepto (opcionalmente) el filtro de un campo
+  // puntual — así el checklist de cada filtro se arma solo con lo que
+  // realmente puede aparecer dado todo lo demás ya elegido (facetado,
+  // estilo Excel), en vez de mostrar un catálogo entero sin usar.
+  function matchesAllProductFilters(p, { excludeDefKey } = {}) {
+    if (!p.name.toLowerCase().includes(search.toLowerCase())) return false
+    return matchesAllFieldFilters(filterableProductDefs, p, customFilterValues, excludeDefKey)
+  }
+  function productFacetRows(excludeDefKey) {
+    return products.filter(p => matchesAllProductFilters(p, { excludeDefKey }))
+  }
+
   // Botón "Filtros" (Mosaico/Kanban no tienen encabezado de columna) — el
   // tipo de producto queda afuera porque ya tiene su fila de tarjetas arriba.
   const filterPanelGroups = toolbarFilterableDefs.map(def => {
@@ -208,16 +220,13 @@ export default function Products() {
     return {
       key: def.key,
       label: def.label,
-      options: filterChoicesFor(def, { members, rows: products }),
+      options: filterChoicesFor(def, { members, productTypes, rows: productFacetRows(def.key) }),
       selected: Array.isArray(value) ? value : (value ? [value] : []),
       onChange: v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v })),
     }
   })
 
-  const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) &&
-    filterableProductDefs.every(def => matchesFieldFilter(def, p, customFilterValues[def.key]))
-  )
+  const filtered = products.filter(p => matchesAllProductFilters(p))
 
   const totalFilterParts = [
     ...describeFieldFilters(filterableProductDefs, customFilterValues, { members, productTypes, rows: products }),
@@ -340,6 +349,7 @@ export default function Products() {
         <ProductsGridTable
           products={sorted}
           allRows={products}
+          getFacetRows={productFacetRows}
           productFieldDefs={productFieldDefs}
           productTypes={productTypes}
           getStateConfig={getStateConfig}
@@ -470,13 +480,13 @@ function renderProductCell(key, product, productFieldDefs, members, getStateConf
   }
 }
 
-function ProductsGridTable({ products, allRows, productFieldDefs, productTypes, cols, allColumns, members, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
+function ProductsGridTable({ products, allRows, getFacetRows, productFieldDefs, productTypes, cols, allColumns, members, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
   function getColumnFilter(key) {
     const fieldDef = productFieldDefs.find(d => d.key === key)
     if (!fieldDef || !isFieldFilterable(fieldDef)) return null
     const filterValue = customFilterValues?.[key]
     return {
-      options: filterChoicesFor(fieldDef, { members, productTypes, rows: allRows || products }),
+      options: filterChoicesFor(fieldDef, { members, productTypes, rows: getFacetRows ? getFacetRows(key) : (allRows || products) }),
       selected: Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : []),
       onChange: v => onFilterChange(key, v),
     }

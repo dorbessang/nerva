@@ -4,6 +4,15 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-10 (5)
+
+### Fix: filtros mostraban catálogos enteros (ej. los ~195 países del mundo) en vez de los valores realmente cargados
+- Bug reportado por el usuario probando el filtro de País en Entidades: el checklist ofrecía todos los países del mundo aunque el workspace solo tuviera entidades de 5. `filterChoicesFor` (país/usuario/estado/tipo de producto/select/multiselect) devolvía siempre el catálogo de referencia completo — ahora se recorta a los valores que realmente aparecen en las filas relevantes, para cualquier tipo de campo, no solo los de texto libre (que ya tenían este criterio desde una ronda anterior)
+- Agregado además el filtrado **facetado** (estilo Excel): el checklist de cada filtro ahora se arma contra las filas que matchean *todos los demás* filtros activos (búsqueda, otros campos, tipo de entidad en Proyectos, "Actividad") — si hay entidades de 15 países pero la selección actual (por otro filtro) sólo tiene 3 activos, el filtro de País ofrece esos 3, no los 15. Aplica en las 3 páginas, tanto en el encabezado de columna de Tabla como en el botón "Filtros" de Mosaico/Kanban
+- La fila de tarjetas superior (Estado en Proyectos, Tipo de producto en Productos, el campo elegido como tarjetas en Entidades) queda **sin facetar** a propósito — sigue mostrando el panorama completo de la solapa actual, mismo criterio que ya tenía antes; solo se le aplica el recorte a "valores realmente cargados" (nunca cero tarjetas de países sin ninguna entidad)
+- Refactor de paso: `filtered` en las 3 páginas ahora se arma con una función `matchesAllXFilters(row, { excludeDefKey })` reusable tanto para el resultado final como para calcular las filas de cada faceta — nuevo helper `matchesAllFieldFilters` en `customFields.js`
+- Sin SQL — cambio de código nada más
+
 ## 2026-08-10 (4)
 
 ### Feature: tarjeta de Total + porcentaje en Proyectos/Entidades/Productos

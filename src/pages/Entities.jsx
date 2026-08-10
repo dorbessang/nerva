@@ -16,7 +16,7 @@ import { notifyTaskAssigned } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { formatAmount } from '../components/DealMilestones'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
-import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter, filterChoicesFor, describeFieldFilters } from '../lib/customFields'
+import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesAllFieldFilters, filterChoicesFor, describeFieldFilters } from '../lib/customFields'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
 import FiltersPanelButton from '../components/FiltersPanelButton'
 import TableGrid from '../components/TableGrid'
@@ -264,7 +264,24 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     ? entities.filter(e => e.entity_type_id === activeTypeTab)
     : entities
 
-  const cardFilterChoices = cardFilterDef ? filterChoicesFor(cardFilterDef, { customStates: negotiationStates, members }) : []
+  // Todo lo que matchea excepto (opcionalmente) el filtro de un campo
+  // puntual — así el checklist de cada filtro se arma solo con lo que
+  // realmente puede aparecer dado todo lo demás ya elegido (facetado,
+  // estilo Excel), en vez de mostrar un catálogo entero sin usar.
+  function matchesAllEntityFilters(e, { excludeDefKey } = {}) {
+    if (!e.name.toLowerCase().includes(search.toLowerCase())) return false
+    return matchesAllFieldFilters(filterableEntityDefs, e, customFilterValues, excludeDefKey)
+  }
+  function entityFacetRows(excludeDefKey) {
+    return typeScopedEntities.filter(e => matchesAllEntityFilters(e, { excludeDefKey }))
+  }
+
+  // La fila de tarjetas (a diferencia del checklist) no se facetea contra
+  // otros filtros activos — mismo criterio que Estado en Proyectos y Tipo
+  // de producto en Productos, siempre muestra el panorama completo de la
+  // solapa actual. Pero sí se recorta a valores realmente cargados (nunca
+  // un catálogo entero como los ~195 países del mundo).
+  const cardFilterChoices = cardFilterDef ? filterChoicesFor(cardFilterDef, { customStates: negotiationStates, members, rows: typeScopedEntities }) : []
   const cardFilterCounts = cardFilterChoices.map(choice => {
     const count = typeScopedEntities.filter(e => {
       const raw = cardFilterDef.storage_column ? e[cardFilterDef.storage_column] : getCustomFieldValue(e.custom_fields, cardFilterDef.key)
@@ -288,16 +305,13 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     return {
       key: def.key,
       label: def.label,
-      options: filterChoicesFor(def, { customStates: negotiationStates, members, rows: typeScopedEntities }),
+      options: filterChoicesFor(def, { customStates: negotiationStates, members, rows: entityFacetRows(def.key) }),
       selected: Array.isArray(value) ? value : (value ? [value] : []),
       onChange: v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v })),
     }
   })
 
-  const filtered = typeScopedEntities.filter(e =>
-    e.name.toLowerCase().includes(search.toLowerCase()) &&
-    filterableEntityDefs.every(def => matchesFieldFilter(def, e, customFilterValues[def.key]))
-  )
+  const filtered = typeScopedEntities.filter(e => matchesAllEntityFilters(e))
 
   const allVisibleSelected = filtered.length > 0 && filtered.every(e => selectedIds.has(e.id))
   function toggleSelectAll() {
@@ -476,6 +490,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
         <EntitiesGridTable
           entities={sorted}
           allRows={typeScopedEntities}
+          getFacetRows={entityFacetRows}
           entityFieldDefs={entityFieldDefs}
           getStateConfig={getStateConfig}
           cols={safeCols}
@@ -620,13 +635,13 @@ function renderEntityCell(key, entity, entityFieldDefs, members, getStateConfig)
 // la vieja `EntitiesTable` de filas fijas. Reusa las clases `neg-table-*`
 // de Negotiations.css: son estilos de tabla genéricos, ya bundleados en la
 // misma hoja de estilos global de la app.
-function EntitiesGridTable({ entities, allRows, entityFieldDefs, cols, allColumns, members, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
+function EntitiesGridTable({ entities, allRows, getFacetRows, entityFieldDefs, cols, allColumns, members, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
   function getColumnFilter(key) {
     const fieldDef = entityFieldDefs.find(d => d.key === key)
     if (!fieldDef || !isFieldFilterable(fieldDef)) return null
     const filterValue = customFilterValues?.[key]
     return {
-      options: filterChoicesFor(fieldDef, { members, rows: allRows || entities }),
+      options: filterChoicesFor(fieldDef, { members, rows: getFacetRows ? getFacetRows(key) : (allRows || entities) }),
       selected: Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : []),
       onChange: v => onFilterChange(key, v),
     }

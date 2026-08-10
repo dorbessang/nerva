@@ -161,32 +161,73 @@ export function isMultiValueFilter(def) {
 }
 
 // Opciones para el widget de filtro — {id, label} — según el tipo del campo.
-// `rows` (las filas visibles en la página que llama) solo hace falta para
-// los tipos de valor libre, que arman su checklist a partir de lo cargado.
+// `rows` (las filas relevantes en la página que llama, ya facetadas contra
+// cualquier otro filtro activo) es lo que recorta la lista a lo que
+// realmente puede elegirse — nunca un catálogo de referencia completo (ej.
+// los ~195 países del mundo cuando el workspace solo tiene entidades de 5).
+// Si no se pasa `rows` cae al catálogo completo, para no romper algún
+// consumidor que todavía no lo pasa.
 export function filterChoicesFor(def, { customStates, members, productTypes, rows } = {}) {
   const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
-  if (type === 'status') return (customStates || []).map(s => ({ id: s.name, label: s.name }))
-  if (type === 'select' || type === 'multiselect') return def.options?.choices || []
-  if (type === 'country') return getAllCountries().map(c => ({ id: c.code, label: c.name }))
-  if (type === 'user') return (members || []).map(m => ({ id: m.user_id, label: m.profile?.full_name || 'Usuario' }))
-  if (type === 'boolean') return [{ id: 'true', label: 'Sí' }, { id: 'false', label: 'No' }]
-  if (type === 'product_type') return (productTypes || []).map(t => ({ id: t.id, label: t.name }))
+  const present = rows ? presentRawValues(def, rows) : null
+
+  if (type === 'status') {
+    const base = (customStates || []).map(s => ({ id: s.name, label: s.name }))
+    return present ? base.filter(c => present.has(c.id)) : base
+  }
+  if (type === 'select' || type === 'multiselect') {
+    const base = def.options?.choices || []
+    return present ? base.filter(c => present.has(String(c.id))) : base
+  }
+  if (type === 'country') {
+    if (!present) return getAllCountries().map(c => ({ id: c.code, label: c.name }))
+    return [...present].sort().map(code => ({ id: code, label: getCountryName(code) || code }))
+  }
+  if (type === 'user') {
+    const base = (members || []).map(m => ({ id: m.user_id, label: m.profile?.full_name || 'Usuario' }))
+    return present ? base.filter(c => present.has(String(c.id))) : base
+  }
+  if (type === 'boolean') {
+    const base = [{ id: 'true', label: 'Sí' }, { id: 'false', label: 'No' }]
+    return present ? base.filter(c => present.has(c.id)) : base
+  }
+  if (type === 'product_type') {
+    const base = (productTypes || []).map(t => ({ id: t.id, label: t.name }))
+    return present ? base.filter(c => present.has(String(c.id))) : base
+  }
   if (FREEFORM_FILTERABLE_TYPES.includes(type)) return uniqueValueChoices(def, rows)
   return []
 }
 
-function uniqueValueChoices(def, rows) {
-  const seen = new Set()
+// Set de valores realmente cargados para `def` en `rows` — cubre tanto
+// campos de un solo valor como de varios (multiselect, país/usuario
+// "permite varios"), todo normalizado a string para comparar por igual.
+function presentRawValues(def, rows) {
+  const set = new Set()
   ;(rows || []).forEach(row => {
     const raw = rawFieldValue(def, row)
     if (raw === undefined || raw === null || raw === '') return
-    seen.add(String(raw))
+    if (Array.isArray(raw)) raw.forEach(v => set.add(String(v)))
+    else set.add(String(raw))
   })
-  return [...seen].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(v => ({ id: v, label: v }))
+  return set
+}
+
+function uniqueValueChoices(def, rows) {
+  const present = presentRawValues(def, rows)
+  return [...present].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(v => ({ id: v, label: v }))
 }
 
 function rawFieldValue(def, obj) {
   return def.storage_column ? obj[def.storage_column] : getCustomFieldValue(obj.custom_fields, def.key)
+}
+
+// true si `obj` matchea todos los filtros de `defs` EXCEPTO el del campo
+// `excludeKey` — para armar el checklist de un filtro facetado contra todo
+// lo demás ya elegido (estilo Excel: abrís el filtro de País y solo ves los
+// países que "sobreviven" dado lo que ya filtraste en otras columnas).
+export function matchesAllFieldFilters(defs, obj, filterValues, excludeKey) {
+  return (defs || []).every(def => def.key === excludeKey || matchesFieldFilter(def, obj, filterValues?.[def.key]))
 }
 
 // Etiquetas legibles de los filtros de campo actualmente activos — ej.

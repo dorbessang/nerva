@@ -332,6 +332,13 @@ Propuesta del propio usuario, con estructura detallada incluida en el pedido ("�
 - [x] Porcentaje agregado junto al conteo en todas las tarjetas con barra de progreso (Estado en Proyectos, tarjetas de filtro en Entidades, Tipo de producto en Productos)
 - [ ] Sin SQL — cambio de código nada más
 
+##### Follow-up inmediato (13): filtros facetados — solo valores realmente disponibles
+- [x] `filterChoicesFor` recorta TODOS los tipos enumerables (país/usuario/estado/tipo de producto/select/multiselect) a los valores presentes en las filas relevantes, no un catálogo de referencia completo (el bug reportado: ~195 países del mundo en el filtro de País de Entidades, cuando el workspace solo tenía 5)
+- [x] Filtrado facetado estilo Excel: el checklist de cada filtro se arma contra las filas que matchean todos los DEMÁS filtros activos (búsqueda, otros campos, tipo de entidad, actividad) — recorta dinámicamente a medida que se aplican otros filtros, en las 3 páginas, tanto en el encabezado de columna como en el botón "Filtros"
+- [x] La fila de tarjetas superior (Estado/Tipo de producto/tarjetas de Entidades) queda sin facetar a propósito, mismo criterio que ya tenía — solo se le aplica el recorte a valores realmente cargados
+- [x] Nuevo helper `matchesAllFieldFilters` en `customFields.js`, reusado por `matchesAllXFilters(row, {excludeDefKey})` en las 3 páginas
+- [ ] Sin SQL — cambio de código nada más
+
 ### Pantalla de bienvenida para workspaces nuevos sin configurar
 Al abrir el primer cliente pagador (workspace de equipo creado a mano vía SQL, sin flujo de alta propio todavía), el owner entraba a una app completamente vacía — sin tipos de entidad, sin estados, sin campos custom — y tenía que armar todo desde Configuración antes de poder cargar el primer dato. Se pidió una pantalla de bienvenida que ofrezca eso de entrada.
 - [x] Columna nueva `workspaces.onboarded boolean not null default true` — default `true` a propósito, para que ningún workspace ya en uso muestre esta pantalla retroactivamente. Los workspaces nuevos se crean con `onboarded = false` explícito en el insert de bootstrap

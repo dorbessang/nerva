@@ -13,7 +13,7 @@ import Documents from '../components/Documents'
 import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
-import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, isFieldFilterable, matchesFieldFilter, filterChoicesFor, describeFieldFilters, SPECIAL_FIELD_TYPES } from '../lib/customFields'
+import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, isFieldFilterable, matchesAllFieldFilters, filterChoicesFor, describeFieldFilters, SPECIAL_FIELD_TYPES } from '../lib/customFields'
 import { CustomFieldInput, CustomFieldReadOnly } from '../components/CustomFieldInput'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
 import FiltersPanelButton from '../components/FiltersPanelButton'
@@ -338,31 +338,13 @@ export default function Negotiations() {
   const filterableDefs = customFieldDefs.filter(isFieldFilterable)
   const statusDef = customFieldDefs.find(d => d.field_type === 'status')
 
-  // Grupos del botón "Filtros" (Mosaico/Kanban no tienen encabezado de
-  // columna) — Estado queda afuera porque ya tiene sus tarjetas propias,
-  // siempre visibles en las 3 vistas.
-  const filterPanelGroups = [
-    ...entityTypeColumnDefs.map(et => ({
-      key: et.key,
-      label: et.label,
-      options: entities.filter(en => en.entity_type_id === et.key.slice('entity_type:'.length)).map(en => ({ id: en.id, label: en.name })),
-      selected: entityTypeFilters[et.key.slice('entity_type:'.length)] || [],
-      onChange: v => setEntityTypeFilters(prev => ({ ...prev, [et.key.slice('entity_type:'.length)]: v })),
-    })),
-    ...filterableDefs.filter(d => d.field_type !== 'status').map(def => {
-      const value = customFilterValues[def.key]
-      return {
-        key: def.key,
-        label: def.label,
-        options: filterChoicesFor(def, { customStates, members, rows: negotiations }),
-        selected: Array.isArray(value) ? value : (value ? [value] : []),
-        onChange: v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v })),
-      }
-    }),
-  ]
-
-  const filtered = negotiations.filter(n => {
-    if (!filterableDefs.every(def => matchesFieldFilter(def, n, customFilterValues[def.key]))) return false
+  // Todo lo que matchea excepto (opcionalmente) el filtro de un campo
+  // puntual — así el checklist de cada filtro se arma solo con lo que
+  // realmente puede aparecer dado todo lo demás ya elegido (facetado,
+  // estilo Excel: filtrar por Cliente=Acme recorta qué países quedan
+  // disponibles en el filtro de País), en vez de un catálogo entero.
+  function matchesAllNegFilters(n, { excludeDefKey } = {}) {
+    if (!matchesAllFieldFilters(filterableDefs, n, customFilterValues, excludeDefKey)) return false
     for (const [typeId, entityIds] of Object.entries(entityTypeFilters)) {
       if (!entityIds || entityIds.length === 0) continue
       const ids = (n.negotiation_entities || []).filter(ne => ne.entity?.entity_type_id === typeId).map(ne => ne.entity.id)
@@ -383,7 +365,35 @@ export default function Negotiations() {
       if (!matchesProject && !matchesProduct) return false
     }
     return true
-  })
+  }
+  function negFacetRows(excludeDefKey) {
+    return negotiations.filter(n => matchesAllNegFilters(n, { excludeDefKey }))
+  }
+
+  // Grupos del botón "Filtros" (Mosaico/Kanban no tienen encabezado de
+  // columna) — Estado queda afuera porque ya tiene sus tarjetas propias,
+  // siempre visibles en las 3 vistas.
+  const filterPanelGroups = [
+    ...entityTypeColumnDefs.map(et => ({
+      key: et.key,
+      label: et.label,
+      options: entities.filter(en => en.entity_type_id === et.key.slice('entity_type:'.length)).map(en => ({ id: en.id, label: en.name })),
+      selected: entityTypeFilters[et.key.slice('entity_type:'.length)] || [],
+      onChange: v => setEntityTypeFilters(prev => ({ ...prev, [et.key.slice('entity_type:'.length)]: v })),
+    })),
+    ...filterableDefs.filter(d => d.field_type !== 'status').map(def => {
+      const value = customFilterValues[def.key]
+      return {
+        key: def.key,
+        label: def.label,
+        options: filterChoicesFor(def, { customStates, members, rows: negFacetRows(def.key) }),
+        selected: Array.isArray(value) ? value : (value ? [value] : []),
+        onChange: v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v })),
+      }
+    }),
+  ]
+
+  const filtered = negotiations.filter(n => matchesAllNegFilters(n))
 
   // Aclaración de la tarjeta de subtotal ("N proyectos: Cliente, Activo") —
   // solo nombra lo que el usuario activó a mano, el modo "activos" por
@@ -727,7 +737,7 @@ export default function Negotiations() {
       ) : filtered.length === 0 ? (
         <div className="neg-empty">No hay proyectos todavía.</div>
       ) : view === 'table' ? (
-        <TableView negotiations={sorted} allRows={negotiations} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} allColumns={allColumns} customFieldDefs={customFieldDefs} members={members}
+        <TableView negotiations={sorted} allRows={negotiations} getFacetRows={negFacetRows} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} allColumns={allColumns} customFieldDefs={customFieldDefs} members={members}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} allVisibleSelected={allVisibleSelected} onToggleSelectAll={toggleSelectAllVisible}
           sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
           customStates={customStates} customFilterValues={customFilterValues} onFilterChange={(key, v) => setCustomFilterValues(prev => ({ ...prev, [key]: v }))}
@@ -872,7 +882,7 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
   }
 }
 
-function TableView({ negotiations, allRows, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customStates, customFilterValues, onFilterChange, entities, entityTypeFilters, onEntityTypeFilterChange, onColResize }) {
+function TableView({ negotiations, allRows, getFacetRows, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customStates, customFilterValues, onFilterChange, entities, entityTypeFilters, onEntityTypeFilterChange, onColResize }) {
   function getColumnFilter(key) {
     if (key.startsWith('entity_type:')) {
       const typeId = key.slice('entity_type:'.length)
@@ -886,7 +896,7 @@ function TableView({ negotiations, allRows, getStateConfig, getEntityName, getEn
     if (!fieldDef || !isFieldFilterable(fieldDef)) return null
     const filterValue = customFilterValues?.[key]
     return {
-      options: filterChoicesFor(fieldDef, { customStates, members, rows: allRows || negotiations }),
+      options: filterChoicesFor(fieldDef, { customStates, members, rows: getFacetRows ? getFacetRows(key) : (allRows || negotiations) }),
       selected: Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : []),
       onChange: v => onFilterChange(key, v),
     }
