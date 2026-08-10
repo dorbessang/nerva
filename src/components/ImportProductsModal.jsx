@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { parseSpreadsheet, getCell, getCellRaw, downloadTemplate } from '../lib/importXlsx'
 import { getCountryCode } from './CountrySelector'
 import { renderCustomFieldDisplay } from '../lib/customFields'
+import { matchEntity } from '../lib/entityMatching'
 import './ImportModal.css'
 
 function parseDate(v) {
@@ -36,8 +37,10 @@ function parseFieldValue(def, cell, cellRaw, { productTypes, entities }) {
   }
   if (type === 'product_entity') {
     if (!cell) return { value: null, warning: null }
-    const match = entities.find(e => e.name.toLowerCase() === cell.toLowerCase())
-    return { value: match?.id || null, warning: match ? null : `"${def.label}": entidad "${cell}" no encontrada` }
+    const { exact, fuzzy } = matchEntity(cell, entities)
+    if (exact) return { value: exact.id, warning: null }
+    if (fuzzy.length > 0) return { value: null, warning: null, dup: { key: def.key, label: def.label, text: cell, candidates: fuzzy } }
+    return { value: null, warning: `"${def.label}": entidad "${cell}" no encontrada` }
   }
   if (type === 'select') {
     if (!cell) return { value: null, warning: null }
@@ -94,14 +97,16 @@ function buildRows(raw, importFields, ctx) {
   return raw.map((r, idx) => {
     const values = {}
     const warnings = []
+    const dupFields = []
     for (const def of importFields) {
       const header = def.label.toLowerCase()
       const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
       const cell = type === 'date' ? '' : getCell(r, header)
       const cellRaw = type === 'date' ? getCellRaw(r, header) : ''
-      const { value, warning } = parseFieldValue(def, cell, cellRaw, ctx)
+      const { value, warning, dup } = parseFieldValue(def, cell, cellRaw, ctx)
       values[def.key] = value
       if (warning) warnings.push(warning)
+      if (dup) dupFields.push(dup)
     }
     const nameDef = importFields.find(d => d.storage_column === 'name')
     const name = nameDef ? values[nameDef.key] : null
@@ -113,16 +118,16 @@ function buildRows(raw, importFields, ctx) {
     if (name && seen.has(name.toLowerCase())) warnings.push('Nombre repetido en el archivo')
     if (name) seen.add(name.toLowerCase())
 
-    return { idx, values, name, errors, warnings }
+    return { idx, values, name, errors, warnings, dupFields }
   })
 }
 
 // Vista previa de una celda — product_type/product_entity se guardan como
 // id (resuelto contra lo cargado en el workspace), acá se muestra el
 // nombre matcheado en vez del id crudo para que la previsualización sea legible.
-function previewValue(def, row, { productTypes, entities }) {
+function previewValue(def, row, { productTypes, entities }, resolvedId) {
   if (def.field_type === 'product_type') return productTypes.find(t => t.id === row.values[def.key])?.name || '—'
-  if (def.field_type === 'product_entity') return entities.find(e => e.id === row.values[def.key])?.name || '—'
+  if (def.field_type === 'product_entity') return entities.find(e => e.id === (resolvedId ?? row.values[def.key]))?.name || '—'
   return renderCustomFieldDisplay(def, row.values[def.key])
 }
 
@@ -133,6 +138,9 @@ export default function ImportProductsModal({ workspaceId, productFieldDefs = []
   const [importing, setImporting] = useState(false)
   const [productTypes, setProductTypes] = useState([])
   const [entities, setEntities] = useState([])
+  // `${idx}:${fieldKey}` -> 'unlinked' | `link:<id>` — default 'unlinked' (igual
+  // que hoy: si no se resuelve, el campo queda vacío, no bloquea el import).
+  const [dupResolutions, setDupResolutions] = useState({})
 
   useEffect(() => {
     supabase.from('product_types').select('id, name').order('sort_order').then(({ data }) => setProductTypes(data || []))
@@ -151,11 +159,32 @@ export default function ImportProductsModal({ workspaceId, productFieldDefs = []
       const raw = await parseSpreadsheet(file)
       if (raw.length === 0) { setFileError('El archivo no tiene filas.'); return }
       setRows(buildRows(raw, importFields, ctx))
+      setDupResolutions({})
       setStep('preview')
     } catch {
       setFileError('No se pudo leer el archivo. ¿Es un .xlsx o .csv válido?')
     }
     e.target.value = ''
+  }
+
+  function dupResolutionOf(idx, key) {
+    return dupResolutions[`${idx}:${key}`] || 'unlinked'
+  }
+
+  function setDupResolution(idx, key, value) {
+    setDupResolutions(prev => ({ ...prev, [`${idx}:${key}`]: value }))
+  }
+
+  // Aplica lo elegido en el preview para los campos que quedaron dudosos
+  // (product_entity con parecidos) antes de insertar.
+  function resolvedValues(r) {
+    if (r.dupFields.length === 0) return r.values
+    const values = { ...r.values }
+    for (const dup of r.dupFields) {
+      const res = dupResolutionOf(r.idx, dup.key)
+      values[dup.key] = res.startsWith('link:') ? res.slice(5) : null
+    }
+    return values
   }
 
   const validRows = rows.filter(r => r.errors.length === 0)
@@ -166,8 +195,9 @@ export default function ImportProductsModal({ workspaceId, productFieldDefs = []
     await supabase.from('products').insert(validRows.map(r => {
       const row = { workspace_id: workspaceId }
       const customFields = {}
+      const values = resolvedValues(r)
       for (const def of importFields) {
-        const v = r.values[def.key]
+        const v = values[def.key]
         if (def.storage_column) {
           row[def.storage_column] = v
         } else if (v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)) {
@@ -237,17 +267,41 @@ export default function ImportProductsModal({ workspaceId, productFieldDefs = []
                   </thead>
                   <tbody>
                     {rows.map(r => (
-                      <tr key={r.idx} className={r.errors.length > 0 ? 'import-row-error' : r.warnings.length > 0 ? 'import-row-warning' : ''}>
+                      <tr key={r.idx} className={r.errors.length > 0 ? 'import-row-error' : r.dupFields.length > 0 ? 'import-row-duplicate' : r.warnings.length > 0 ? 'import-row-warning' : ''}>
                         <td>{r.idx + 1}</td>
-                        {importFields.map(d => (
-                          <td key={d.key}>{previewValue(d, r, ctx)}</td>
-                        ))}
+                        {importFields.map(d => {
+                          const dup = r.dupFields.find(x => x.key === d.key)
+                          const res = dup ? dupResolutionOf(r.idx, dup.key) : null
+                          const resolvedId = res && res.startsWith('link:') ? res.slice(5) : null
+                          return <td key={d.key}>{previewValue(d, r, ctx, resolvedId)}</td>
+                        })}
                         <td>
-                          {r.errors.length > 0
-                            ? <span className="import-status import-status--error">✗ {r.errors.join(', ')}</span>
-                            : r.warnings.length > 0
-                              ? <span className="import-status import-status--warning">⚠ {r.warnings.join(', ')}</span>
-                              : <span className="import-status import-status--ok">✓ OK</span>}
+                          {r.errors.length > 0 ? (
+                            <span className="import-status import-status--error">✗ {r.errors.join(', ')}</span>
+                          ) : r.dupFields.length > 0 ? (
+                            <div className="import-dup-cell">
+                              {r.dupFields.map(dup => (
+                                <div key={dup.key}>
+                                  <span className="import-status import-status--duplicate">⚠ "{dup.label}": "{dup.text}" parecido a "{dup.candidates[0].candidate.name}"</span>
+                                  <select
+                                    className="import-dup-select"
+                                    value={dupResolutionOf(r.idx, dup.key)}
+                                    onChange={e => setDupResolution(r.idx, dup.key, e.target.value)}
+                                  >
+                                    <option value="unlinked">Dejar sin vincular</option>
+                                    {dup.candidates.map(fc => (
+                                      <option key={fc.candidate.id} value={`link:${fc.candidate.id}`}>Usar: {fc.candidate.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              ))}
+                              {r.warnings.length > 0 && <span className="import-status import-status--warning">⚠ {r.warnings.join(', ')}</span>}
+                            </div>
+                          ) : r.warnings.length > 0 ? (
+                            <span className="import-status import-status--warning">⚠ {r.warnings.join(', ')}</span>
+                          ) : (
+                            <span className="import-status import-status--ok">✓ OK</span>
+                          )}
                         </td>
                       </tr>
                     ))}

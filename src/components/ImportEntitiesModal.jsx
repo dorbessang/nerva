@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { parseSpreadsheet, getCell, getCellRaw, downloadTemplate } from '../lib/importXlsx'
 import { getCountryCode } from './CountrySelector'
 import { renderCustomFieldDisplay } from '../lib/customFields'
+import { matchEntity } from '../lib/entityMatching'
 import './ImportModal.css'
 
 function parseDate(v) {
@@ -98,7 +99,7 @@ const CONTACT_FIELDS = [
   { key: 'contact_phone', label: 'Contacto: Teléfono' },
 ]
 
-function buildRows(raw, importFields, hasContacts) {
+function buildRows(raw, importFields, hasContacts, existingEntities) {
   const seen = new Set()
   return raw.map((r, idx) => {
     const values = {}
@@ -133,7 +134,12 @@ function buildRows(raw, importFields, hasContacts) {
     if (name && seen.has(name.toLowerCase())) warnings.push('Nombre repetido en el archivo')
     if (name) seen.add(name.toLowerCase())
 
-    return { idx, values, name, contact, errors, warnings }
+    // Coincidencia contra lo ya cargado: exacta (tras normalizar) se resuelve
+    // sola más abajo; parecida queda marcada para que se decida en el preview.
+    let duplicate = { exact: null, fuzzy: [] }
+    if (name) duplicate = matchEntity(name, existingEntities)
+
+    return { idx, values, name, contact, errors, warnings, duplicate }
   })
 }
 
@@ -142,6 +148,15 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
   const [rows, setRows] = useState([])
   const [fileError, setFileError] = useState('')
   const [importing, setImporting] = useState(false)
+  const [existingEntities, setExistingEntities] = useState([])
+  // idx -> 'create' | 'skip' | `link:<id>` — default es 'create' (fila dudosa sin
+  // resolver se crea igual, ya se avisó en el preview).
+  const [resolutions, setResolutions] = useState({})
+
+  useEffect(() => {
+    if (!entityTypeId) return
+    supabase.from('entities').select('id, name').eq('entity_type_id', entityTypeId).then(({ data }) => setExistingEntities(data || []))
+  }, [entityTypeId])
 
   const importFields = importFieldsOf(entityFieldDefs)
   const contactsDef = entityFieldDefs.find(d => d.field_type === 'contacts')
@@ -154,7 +169,8 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
     try {
       const raw = await parseSpreadsheet(file)
       if (raw.length === 0) { setFileError('El archivo no tiene filas.'); return }
-      setRows(buildRows(raw, importFields, !!contactsDef))
+      setRows(buildRows(raw, importFields, !!contactsDef, existingEntities))
+      setResolutions({})
       setStep('preview')
     } catch (err) {
       setFileError('No se pudo leer el archivo. ¿Es un .xlsx o .csv válido?')
@@ -162,12 +178,32 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
     e.target.value = ''
   }
 
-  const validRows = rows.filter(r => r.errors.length === 0)
+  function resolutionOf(idx) {
+    return resolutions[idx] || 'create'
+  }
+
+  function setResolution(idx, value) {
+    setResolutions(prev => ({ ...prev, [idx]: value }))
+  }
+
+  const okRows = rows.filter(r => r.errors.length === 0)
+  // Filas que efectivamente crean una entidad nueva: sin error, sin match
+  // exacto (esas ya existen), y no resueltas como "omitir" ni "usar la existente".
+  const rowsToCreate = okRows.filter(r => !r.duplicate.exact && resolutionOf(r.idx) === 'create')
+  // Filas cuyo contacto (si trae uno) hay que colgar de una entidad ya
+  // existente en vez de una nueva: match exacto automático, o "usar la
+  // existente" elegido a mano.
+  const rowsToLink = okRows.flatMap(r => {
+    if (r.duplicate.exact) return [{ row: r, entityId: r.duplicate.exact.id }]
+    const res = resolutionOf(r.idx)
+    if (res.startsWith('link:')) return [{ row: r, entityId: res.slice(5) }]
+    return []
+  })
 
   async function handleImport() {
     setImporting(true)
     const now = new Date().toISOString()
-    const { data: inserted } = await supabase.from('entities').insert(validRows.map(r => {
+    const { data: inserted } = await supabase.from('entities').insert(rowsToCreate.map(r => {
       const row = { workspace_id: workspaceId, entity_type_id: entityTypeId, status: 'active' }
       const customFields = {}
       for (const def of importFields) {
@@ -182,12 +218,19 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
       return row
     })).select('id')
 
+    const contactRows = []
     if (inserted) {
-      const contactRows = validRows
-        .map((r, i) => r.contact ? { ...r.contact, entity_id: inserted[i]?.id } : null)
-        .filter(c => c?.entity_id)
-        .map(c => ({ workspace_id: workspaceId, entity_id: c.entity_id, name: c.name, role: c.role, email: c.email, phone: c.phone, is_primary: true }))
-      if (contactRows.length > 0) await supabase.from('contacts').insert(contactRows)
+      rowsToCreate.forEach((r, i) => {
+        if (r.contact && inserted[i]?.id) contactRows.push({ ...r.contact, entity_id: inserted[i].id })
+      })
+    }
+    rowsToLink.forEach(({ row: r, entityId }) => {
+      if (r.contact) contactRows.push({ ...r.contact, entity_id: entityId })
+    })
+    if (contactRows.length > 0) {
+      await supabase.from('contacts').insert(contactRows.map(c => (
+        { workspace_id: workspaceId, entity_id: c.entity_id, name: c.name, role: c.role, email: c.email, phone: c.phone, is_primary: true }
+      )))
     }
 
     setImporting(false)
@@ -233,8 +276,9 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
           {step === 'preview' && (
             <>
               <p className="import-hint">
-                {validRows.length} de {rows.length} fila{rows.length !== 1 ? 's' : ''} lista{validRows.length !== 1 ? 's' : ''} para importar.
-                {rows.length !== validRows.length && ` Las filas con error no se van a importar.`}
+                {rowsToCreate.length} de {rows.length} fila{rows.length !== 1 ? 's' : ''} van a crear un {singularLower} nuevo.
+                {rowsToLink.length > 0 && ` ${rowsToLink.length} se vinculan a un ${singularLower} que ya existe.`}
+                {rows.length !== okRows.length && ` Las filas con error no se van a importar.`}
               </p>
               <div className="import-preview-table-wrap">
                 <table className="import-preview-table">
@@ -248,7 +292,7 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
                   </thead>
                   <tbody>
                     {rows.map(r => (
-                      <tr key={r.idx} className={r.errors.length > 0 ? 'import-row-error' : r.warnings.length > 0 ? 'import-row-warning' : ''}>
+                      <tr key={r.idx} className={r.errors.length > 0 ? 'import-row-error' : r.duplicate.exact || r.duplicate.fuzzy.length > 0 ? 'import-row-duplicate' : r.warnings.length > 0 ? 'import-row-warning' : ''}>
                         <td>{r.idx + 1}</td>
                         {importFields.map(d => (
                           <td key={d.key}>{renderCustomFieldDisplay(d, r.values[d.key])}</td>
@@ -262,11 +306,30 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
                           </>
                         )}
                         <td>
-                          {r.errors.length > 0
-                            ? <span className="import-status import-status--error">✗ {r.errors.join(', ')}</span>
-                            : r.warnings.length > 0
-                              ? <span className="import-status import-status--warning">⚠ {r.warnings.join(', ')}</span>
-                              : <span className="import-status import-status--ok">✓ OK</span>}
+                          {r.errors.length > 0 ? (
+                            <span className="import-status import-status--error">✗ {r.errors.join(', ')}</span>
+                          ) : r.duplicate.exact ? (
+                            <span className="import-status import-status--duplicate">= Ya existe "{r.duplicate.exact.name}", no se crea</span>
+                          ) : r.duplicate.fuzzy.length > 0 ? (
+                            <div className="import-dup-cell">
+                              <span className="import-status import-status--duplicate">⚠ Parecido a "{r.duplicate.fuzzy[0].candidate.name}"</span>
+                              <select
+                                className="import-dup-select"
+                                value={resolutionOf(r.idx)}
+                                onChange={e => setResolution(r.idx, e.target.value)}
+                              >
+                                <option value="create">Crear {singularLower} nuevo</option>
+                                {r.duplicate.fuzzy.map(fc => (
+                                  <option key={fc.candidate.id} value={`link:${fc.candidate.id}`}>Usar: {fc.candidate.name}</option>
+                                ))}
+                                <option value="skip">Omitir esta fila</option>
+                              </select>
+                            </div>
+                          ) : r.warnings.length > 0 ? (
+                            <span className="import-status import-status--warning">⚠ {r.warnings.join(', ')}</span>
+                          ) : (
+                            <span className="import-status import-status--ok">✓ OK</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -275,8 +338,8 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
               </div>
               <div className="import-actions">
                 <button className="import-btn-cancel" onClick={() => setStep('upload')}>← Elegir otro archivo</button>
-                <button className="import-btn-confirm" disabled={validRows.length === 0 || importing} onClick={handleImport}>
-                  {importing ? 'Importando…' : `Importar ${validRows.length} fila${validRows.length !== 1 ? 's' : ''}`}
+                <button className="import-btn-confirm" disabled={(rowsToCreate.length + rowsToLink.length) === 0 || importing} onClick={handleImport}>
+                  {importing ? 'Importando…' : `Importar ${rowsToCreate.length + rowsToLink.length} fila${(rowsToCreate.length + rowsToLink.length) !== 1 ? 's' : ''}`}
                 </button>
               </div>
             </>

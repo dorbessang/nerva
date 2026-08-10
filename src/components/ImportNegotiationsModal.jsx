@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { parseSpreadsheet, getCell, getCellRaw, downloadTemplate } from '../lib/importXlsx'
 import { renderCustomFieldDisplay } from '../lib/customFields'
+import { matchEntity } from '../lib/entityMatching'
 import './ImportModal.css'
 
 function parseDate(v) {
@@ -94,16 +95,23 @@ function buildRows(raw, importFields, entities, customStates) {
     const product = productDef ? values[productDef.key] : null
 
     const providerName = getCell(r, 'proveedor')
-    let entityMatch = null
+    let entityId = null
+    let providerDup = null
     if (providerName) {
-      entityMatch = entities.find(e => e.name.toLowerCase() === providerName.toLowerCase())
-      if (!entityMatch) warnings.push(`Proveedor "${providerName}" no encontrado`)
+      const { exact, fuzzy } = matchEntity(providerName, entities)
+      if (exact) {
+        entityId = exact.id
+      } else if (fuzzy.length > 0) {
+        providerDup = { text: providerName, candidates: fuzzy }
+      } else {
+        warnings.push(`Proveedor "${providerName}" no encontrado`)
+      }
     }
 
     const errors = []
     if (!product) errors.push('Falta el producto')
 
-    return { idx, values, product, providerName, entityId: entityMatch?.id || null, errors, warnings }
+    return { idx, values, product, providerName, entityId, providerDup, errors, warnings }
   })
 }
 
@@ -112,6 +120,9 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
   const [rows, setRows] = useState([])
   const [fileError, setFileError] = useState('')
   const [importing, setImporting] = useState(false)
+  // idx -> 'unlinked' | `link:<id>` — default 'unlinked' (igual que hoy: si no
+  // se resuelve, el proveedor queda sin vincular, no bloquea el import).
+  const [dupResolutions, setDupResolutions] = useState({})
 
   const importFields = importFieldsOf(negotiationFieldDefs)
   const hasEntitiesLink = negotiationFieldDefs.some(d => d.field_type === 'entities_link')
@@ -125,11 +136,26 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
       const raw = await parseSpreadsheet(file)
       if (raw.length === 0) { setFileError('El archivo no tiene filas.'); return }
       setRows(buildRows(raw, importFields, entities, customStates))
+      setDupResolutions({})
       setStep('preview')
     } catch (err) {
       setFileError('No se pudo leer el archivo. ¿Es un .xlsx o .csv válido?')
     }
     e.target.value = ''
+  }
+
+  function dupResolutionOf(idx) {
+    return dupResolutions[idx] || 'unlinked'
+  }
+
+  function setDupResolution(idx, value) {
+    setDupResolutions(prev => ({ ...prev, [idx]: value }))
+  }
+
+  function resolvedEntityId(r) {
+    if (!r.providerDup) return r.entityId
+    const res = dupResolutionOf(r.idx)
+    return res.startsWith('link:') ? res.slice(5) : null
   }
 
   const validRows = rows.filter(r => r.errors.length === 0)
@@ -140,7 +166,7 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
     const { data } = await supabase.from('negotiations').insert(validRows.map(r => {
       const row = {
         workspace_id: workspaceId,
-        primary_entity_id: r.entityId,
+        primary_entity_id: resolvedEntityId(r),
         currency: 'USD',
         participants: [],
         companies: [],
@@ -161,7 +187,7 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
 
     if (data) {
       const links = validRows
-        .map((r, i) => r.entityId ? { negotiation_id: data[i].id, entity_id: r.entityId, role: null } : null)
+        .map((r, i) => resolvedEntityId(r) ? { negotiation_id: data[i].id, entity_id: resolvedEntityId(r), role: null } : null)
         .filter(Boolean)
       if (links.length > 0) await supabase.from('negotiation_entities').insert(links)
     }
@@ -190,7 +216,7 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
                 {hasEntitiesLink && <span className="import-header-chip">Proveedor</span>}
               </div>
               <p className="import-hint import-hint--small">
-                "Proveedor" tiene que coincidir con el nombre exacto de una entidad ya cargada. "Estado" tiene que coincidir con uno de los estados configurados en Settings — si no coincide o se deja vacío, se usa el primero de la lista.
+                "Proveedor" se resuelve por nombre contra las entidades ya cargadas — si no hay una coincidencia clara, se va a poder elegir en la vista previa. "Estado" tiene que coincidir con uno de los estados configurados en Settings — si no coincide o se deja vacío, se usa el primero de la lista.
               </p>
               <button
                 className="import-template-btn"
@@ -224,18 +250,34 @@ export default function ImportNegotiationsModal({ workspaceId, entities, customS
                   </thead>
                   <tbody>
                     {rows.map(r => (
-                      <tr key={r.idx} className={r.errors.length > 0 ? 'import-row-error' : r.warnings.length > 0 ? 'import-row-warning' : ''}>
+                      <tr key={r.idx} className={r.errors.length > 0 ? 'import-row-error' : r.providerDup ? 'import-row-duplicate' : r.warnings.length > 0 ? 'import-row-warning' : ''}>
                         <td>{r.idx + 1}</td>
                         {importFields.map(d => (
                           <td key={d.key}>{renderCustomFieldDisplay(d, r.values[d.key])}</td>
                         ))}
                         {hasEntitiesLink && <td>{r.providerName || '—'}</td>}
                         <td>
-                          {r.errors.length > 0
-                            ? <span className="import-status import-status--error">✗ {r.errors.join(', ')}</span>
-                            : r.warnings.length > 0
-                              ? <span className="import-status import-status--warning">⚠ {r.warnings.join(', ')}</span>
-                              : <span className="import-status import-status--ok">✓ OK</span>}
+                          {r.errors.length > 0 ? (
+                            <span className="import-status import-status--error">✗ {r.errors.join(', ')}</span>
+                          ) : r.providerDup ? (
+                            <div className="import-dup-cell">
+                              <span className="import-status import-status--duplicate">⚠ Proveedor "{r.providerDup.text}" parecido a "{r.providerDup.candidates[0].candidate.name}"</span>
+                              <select
+                                className="import-dup-select"
+                                value={dupResolutionOf(r.idx)}
+                                onChange={e => setDupResolution(r.idx, e.target.value)}
+                              >
+                                <option value="unlinked">Dejar sin vincular</option>
+                                {r.providerDup.candidates.map(fc => (
+                                  <option key={fc.candidate.id} value={`link:${fc.candidate.id}`}>Usar: {fc.candidate.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          ) : r.warnings.length > 0 ? (
+                            <span className="import-status import-status--warning">⚠ {r.warnings.join(', ')}</span>
+                          ) : (
+                            <span className="import-status import-status--ok">✓ OK</span>
+                          )}
                         </td>
                       </tr>
                     ))}

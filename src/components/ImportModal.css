@@ -115,11 +115,31 @@
 
 .import-row-error { background: #FEF2F2; }
 .import-row-warning { background: #FFFBEB; }
+.import-row-duplicate { background: #EFF6FF; }
 
 .import-status { font-weight: 600; }
 .import-status--ok { color: #059669; }
 .import-status--warning { color: #D97706; }
 .import-status--error { color: #DC2626; }
+.import-status--duplicate { color: #1D4ED8; }
+
+.import-dup-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  white-space: normal;
+}
+
+.import-dup-select {
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1.5px solid #BFDBFE;
+  color: #1D4ED8;
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
 
 .import-actions {
   display: flex;

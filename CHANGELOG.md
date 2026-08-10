@@ -4,6 +4,19 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-10 (7)
+
+### Feature: detección de duplicados en los 3 imports (Entidades/Productos/Proyectos)
+- `ImportEntitiesModal.jsx` (el que crea proveedores/clientes) no comparaba contra la base al importar — solo detectaba duplicados dentro del mismo archivo. Si se subía un CSV con una entidad ya cargada, se intentaba crear igual (el `insert` bulk ni siquiera revisaba el error). Productos y Proyectos sí resolvían la columna de proveedor contra entidades existentes, pero con match exacto binario (encontrado / "no encontrado"), sin tolerar variaciones de escritura ni typos
+- Nuevo `src/lib/entityMatching.js`, compartido por los 3 modales — sin librerías externas ni pg_trgm (mismo criterio que la búsqueda global, que usa `ilike` liso por no justificarse el volumen):
+  - `normalizeName`: saca tildes, puntuación (`"S.A."` → `sa`, no `"s a"`) y sufijos legales comunes (SA, SRL, Inc, Corp, Ltda, etc.) — dos nombres que normalizan igual matchean solos, sin pedir nada
+  - `similarity`: combina Dice sobre palabras (agarra reordenamientos: "Acme Distribuidora" ~ "Distribuidora Acme") y Damerau-Levenshtein sobre el string normalizado (agarra typos: "Acem Corp" ~ "Acme Corp"), se queda con el score más generoso de los dos
+  - Umbral deliberadamente flojo (0.45): los imports acá se usan poco y en tandas grandes (migración de sistemas viejos, listados de productos por proveedor) — preguntar de más sale más barato que dejar pasar un duplicado real
+- **Entidades**: match exacto se resuelve solo (no crea, vincula el contacto de la fila si trae uno a la entidad existente). Match parecido (no exacto) queda en el preview con selector por fila: Crear nueva / Usar la existente / Omitir esta fila — default si no se toca: Crear nueva
+- **Productos y Proyectos**: mismo criterio para resolver "Proveedor" contra entidades ya cargadas, pero sin opción de "crear nueva" (estos imports no crean entidades) — selector es Usar: <candidato> / Dejar sin vincular (default, igual que el comportamiento de hoy)
+- Nueva clase visual `import-row-duplicate` / `import-status--duplicate` (celeste) en el preview, distinta de warning (ámbar) y error (rojo), para diferenciar "hay una decisión que tomar" de "hay un problema"
+- Sin SQL — cambio de código nada más
+
 ## 2026-08-10 (6)
 
 ### Feature: Import/Export masivo de Productos
