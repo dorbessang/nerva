@@ -4,6 +4,15 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-10 (4)
+
+### Feature: tarjeta de Total + porcentaje en Proyectos/Entidades/Productos
+- Nueva tarjeta "Total" siempre primera en la fila de tarjetas de las 3 páginas (y en cada página por tipo de entidad, que reusa el mismo componente `Entities`): muestra el total sin filtrar (en Entidades, si hay una solapa de tipo activa, el total es de ese tipo — ya viene recortado en `typeScopedEntities`)
+- Si hay algún filtro activo (búsqueda, checklist de columna, tarjetas de tipo/estado/país...) la tarjeta agrega una segunda línea de subtotal, nombrando qué está filtrado cuando se puede armar una etiqueta legible — ej. "5 entidades: Argentina". Nuevo helper `describeFieldFilters` en `customFields.js` arma esas etiquetas reusando `filterChoicesFor`; en Proyectos también se nombra el filtro de "Actividad" cuando no está en el modo por defecto
+- `TotalStatCard` (nuevo, compartido — `src/components/StatCards.jsx`) — antes esta fila de tarjetas en Entidades ni existía si el workspace no tenía un campo configurado como "tarjetas de filtro"; ahora la tarjeta de Total sale siempre, las de abajo (tipo/estado/país) siguen siendo opcionales
+- Todas las tarjetas con barra de progreso (Estado en Proyectos, tarjetas de filtro en Entidades, Tipo de producto en Productos) ahora muestran también el porcentaje junto al conteo
+- Sin SQL — cambio de código nada más
+
 ## 2026-08-10 (3)
 
 ### Fix: 4 ajustes reportados probando Tabla/Mosaico — Contactos, orden preset, espaciado, filtros incompletos

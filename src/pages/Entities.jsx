@@ -16,11 +16,12 @@ import { notifyTaskAssigned } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { formatAmount } from '../components/DealMilestones'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
-import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter, filterChoicesFor } from '../lib/customFields'
+import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter, filterChoicesFor, describeFieldFilters } from '../lib/customFields'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
 import FiltersPanelButton from '../components/FiltersPanelButton'
 import TableGrid from '../components/TableGrid'
 import { CardGrid, CardTile, CardTileNew } from '../components/CardGrid'
+import TotalStatCard from '../components/StatCards'
 import { getInitials, getAvatarColor } from '../lib/avatarColors'
 import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
 import './Entities.css'
@@ -316,6 +317,16 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   // femenino, no puede resolverse igual que el resto de los usos de `singular`.
   const newLabel = entityTypeId ? `Nuevo ${singular}` : 'Nueva entidad'
 
+  // Tarjeta de total — en el modo unificado, si hay una solapa de tipo
+  // activa, el total refleja ese tipo (ya viene recortado en
+  // `typeScopedEntities`), no el total de todas las entidades.
+  const activeTypeTabDef = !entityTypeId && activeTypeTab ? allEntityTypes.find(t => t.id === activeTypeTab) : null
+  const totalPlural = entityTypeId ? plural : (activeTypeTabDef ? (activeTypeTabDef.plural || activeTypeTabDef.name).toLowerCase() : 'entidades')
+  const totalFilterParts = [
+    ...describeFieldFilters(filterableEntityDefs, customFilterValues, { customStates: negotiationStates, members }),
+    search ? `"${search}"` : null,
+  ]
+
   return (
     <div className="entities-container">
       <div className="entities-header">
@@ -338,27 +349,27 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
         </div>
       )}
 
-      {cardFilterDef && cardFilterCounts.length > 0 && (
-        <div className="neg-stats">
-          {cardFilterCounts.map(c => {
-            const selected = Array.isArray(customFilterValues[cardFilterDef.key]) ? customFilterValues[cardFilterDef.key] : []
-            return (
-              <div
-                key={c.id}
-                className={`neg-stat-card ${selected.includes(c.id) ? 'active' : ''}`}
-                onClick={() => toggleCardFilterValue(c.id)}
-                style={{ cursor: 'pointer' }}
-              >
-                <div className="neg-stat-label">{c.label}</div>
-                <div className="neg-stat-count" style={{ color: c.color }}>{c.count}</div>
-                <div className="neg-stat-bar">
-                  <div className="neg-stat-bar-fill" style={{ width: typeScopedEntities.length ? `${(c.count / typeScopedEntities.length) * 100}%` : '0%', backgroundColor: c.color }} />
-                </div>
+      <div className="neg-stats">
+        <TotalStatCard label={`Total ${totalPlural}`} plural={totalPlural} total={typeScopedEntities.length} filteredCount={filtered.length} filterParts={totalFilterParts} />
+        {cardFilterDef && cardFilterCounts.map(c => {
+          const selected = Array.isArray(customFilterValues[cardFilterDef.key]) ? customFilterValues[cardFilterDef.key] : []
+          const pct = typeScopedEntities.length ? Math.round((c.count / typeScopedEntities.length) * 100) : 0
+          return (
+            <div
+              key={c.id}
+              className={`neg-stat-card ${selected.includes(c.id) ? 'active' : ''}`}
+              onClick={() => toggleCardFilterValue(c.id)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="neg-stat-label">{c.label}</div>
+              <div className="neg-stat-count" style={{ color: c.color }}>{c.count}<span className="neg-stat-pct">{pct}%</span></div>
+              <div className="neg-stat-bar">
+                <div className="neg-stat-bar-fill" style={{ width: `${pct}%`, backgroundColor: c.color }} />
               </div>
-            )
-          })}
-        </div>
-      )}
+            </div>
+          )
+        })}
+      </div>
 
       <div className="entities-toolbar">
         <div className="filter-field">

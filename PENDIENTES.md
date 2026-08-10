@@ -326,6 +326,12 @@ Propuesta del propio usuario, con estructura detallada incluida en el pedido ("�
 - [x] Filtros de columna solo alcanzaban a los campos con lista de opciones predefinida — se extiende a texto/número/fecha/link/email/teléfono, armando el checklist con los valores realmente cargados (mismo criterio que un filtro de Excel). Se separa `isCardFilterable` (para "tarjetas de filtro", sigue restringido al set chico) de `isFieldFilterable` (para el checklist, ahora amplio)
 - [ ] Sin SQL — cambio de código nada más
 
+##### Follow-up inmediato (12): tarjeta de Total + porcentaje en las 3 páginas
+- [x] `TotalStatCard` (nuevo, compartido) — primera tarjeta siempre visible en Proyectos/Entidades/Productos (y cada página por tipo de entidad, mismo componente `Entities`), con el total sin filtrar. En Entidades, si hay una solapa de tipo activa, el total es de ese tipo
+- [x] Subtotal condicional: si hay algún filtro activo, segunda línea nombrando qué está filtrado cuando se puede armar una etiqueta legible (ej. "5 entidades: Argentina") — nuevo helper `describeFieldFilters` en `customFields.js`
+- [x] Porcentaje agregado junto al conteo en todas las tarjetas con barra de progreso (Estado en Proyectos, tarjetas de filtro en Entidades, Tipo de producto en Productos)
+- [ ] Sin SQL — cambio de código nada más
+
 ### Pantalla de bienvenida para workspaces nuevos sin configurar
 Al abrir el primer cliente pagador (workspace de equipo creado a mano vía SQL, sin flujo de alta propio todavía), el owner entraba a una app completamente vacía — sin tipos de entidad, sin estados, sin campos custom — y tenía que armar todo desde Configuración antes de poder cargar el primer dato. Se pidió una pantalla de bienvenida que ofrezca eso de entrada.
 - [x] Columna nueva `workspaces.onboarded boolean not null default true` — default `true` a propósito, para que ningún workspace ya en uso muestre esta pantalla retroactivamente. Los workspaces nuevos se crean con `onboarded = false` explícito en el insert de bootstrap

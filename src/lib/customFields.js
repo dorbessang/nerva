@@ -189,6 +189,23 @@ function rawFieldValue(def, obj) {
   return def.storage_column ? obj[def.storage_column] : getCustomFieldValue(obj.custom_fields, def.key)
 }
 
+// Etiquetas legibles de los filtros de campo actualmente activos — ej.
+// ["Argentina"] o ["Cliente, Proveedor", "Activo"] — una entrada por
+// campo con algún valor tildado. Se usa para armar la aclaración de la
+// tarjeta de subtotal ("5 entidades: Argentina"), no hace falta nombrar
+// cada filtro posible, solo los que realmente están activos.
+export function describeFieldFilters(defs, filterValues, choicesOpts) {
+  const parts = []
+  ;(defs || []).forEach(def => {
+    const v = filterValues?.[def.key]
+    const arr = Array.isArray(v) ? v : (v ? [v] : [])
+    if (arr.length === 0) return
+    const choices = filterChoicesFor(def, choicesOpts)
+    parts.push(arr.map(id => choices.find(c => String(c.id) === String(id))?.label || id).join(', '))
+  })
+  return parts
+}
+
 // true si `obj` matchea el filtro elegido para este campo — filterValue
 // vacío/undefined siempre matchea (sin filtro activo). `filterValue` puede
 // ser un valor único (widget viejo, un <select>) o un array (checklist tipo

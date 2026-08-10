@@ -6,11 +6,12 @@ import ProductModal from '../components/ProductModal'
 import { NegotiationDetail, NegotiationModal } from './Negotiations'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
-import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter, filterChoicesFor } from '../lib/customFields'
+import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter, filterChoicesFor, describeFieldFilters } from '../lib/customFields'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
 import FiltersPanelButton from '../components/FiltersPanelButton'
 import TableGrid from '../components/TableGrid'
 import { CardGrid, CardTile, CardTileNew } from '../components/CardGrid'
+import TotalStatCard from '../components/StatCards'
 import { getInitials, getAvatarColor } from '../lib/avatarColors'
 import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
 import './Entities.css'
@@ -218,6 +219,11 @@ export default function Products() {
     filterableProductDefs.every(def => matchesFieldFilter(def, p, customFilterValues[def.key]))
   )
 
+  const totalFilterParts = [
+    ...describeFieldFilters(filterableProductDefs, customFilterValues, { members, productTypes, rows: products }),
+    search ? `"${search}"` : null,
+  ]
+
   const allVisibleSelected = filtered.length > 0 && filtered.every(p => selectedIds.has(p.id))
   function toggleSelectAll() {
     setSelectedIds(allVisibleSelected ? new Set() : new Set(filtered.map(p => p.id)))
@@ -236,27 +242,27 @@ export default function Products() {
         </button>
       </div>
 
-      {productTypeCounts.length > 0 && (
-        <div className="neg-stats">
-          {productTypeCounts.map(pt => {
-            const selected = Array.isArray(customFilterValues[productTypeDef?.key]) ? customFilterValues[productTypeDef.key] : []
-            return (
-              <div
-                key={pt.id}
-                className={`neg-stat-card ${selected.includes(pt.id) ? 'active' : ''}`}
-                onClick={() => toggleProductTypeFilter(pt.id)}
-                style={{ cursor: 'pointer' }}
-              >
-                <div className="neg-stat-label">{pt.plural || pt.name}</div>
-                <div className="neg-stat-count" style={{ color: pt.color }}>{pt.count}</div>
-                <div className="neg-stat-bar">
-                  <div className="neg-stat-bar-fill" style={{ width: products.length ? `${(pt.count / products.length) * 100}%` : '0%', backgroundColor: pt.color }} />
-                </div>
+      <div className="neg-stats">
+        <TotalStatCard label="Total productos" plural="productos" total={products.length} filteredCount={filtered.length} filterParts={totalFilterParts} />
+        {productTypeCounts.map(pt => {
+          const selected = Array.isArray(customFilterValues[productTypeDef?.key]) ? customFilterValues[productTypeDef.key] : []
+          const pct = products.length ? Math.round((pt.count / products.length) * 100) : 0
+          return (
+            <div
+              key={pt.id}
+              className={`neg-stat-card ${selected.includes(pt.id) ? 'active' : ''}`}
+              onClick={() => toggleProductTypeFilter(pt.id)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="neg-stat-label">{pt.plural || pt.name}</div>
+              <div className="neg-stat-count" style={{ color: pt.color }}>{pt.count}<span className="neg-stat-pct">{pct}%</span></div>
+              <div className="neg-stat-bar">
+                <div className="neg-stat-bar-fill" style={{ width: `${pct}%`, backgroundColor: pt.color }} />
               </div>
-            )
-          })}
-        </div>
-      )}
+            </div>
+          )
+        })}
+      </div>
 
       <div className="entities-toolbar">
         <div className="filter-field">

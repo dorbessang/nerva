@@ -13,11 +13,12 @@ import Documents from '../components/Documents'
 import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
-import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, isFieldFilterable, matchesFieldFilter, filterChoicesFor, SPECIAL_FIELD_TYPES } from '../lib/customFields'
+import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, isFieldFilterable, matchesFieldFilter, filterChoicesFor, describeFieldFilters, SPECIAL_FIELD_TYPES } from '../lib/customFields'
 import { CustomFieldInput, CustomFieldReadOnly } from '../components/CustomFieldInput'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
 import FiltersPanelButton from '../components/FiltersPanelButton'
 import TableGrid from '../components/TableGrid'
+import TotalStatCard from '../components/StatCards'
 import { CardGrid, CardTile } from '../components/CardGrid'
 import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
 import './Negotiations.css'
@@ -384,6 +385,22 @@ export default function Negotiations() {
     return true
   })
 
+  // Aclaración de la tarjeta de subtotal ("N proyectos: Cliente, Activo") —
+  // solo nombra lo que el usuario activó a mano, el modo "activos" por
+  // defecto de `filterActivity` no cuenta como un filtro puesto adrede.
+  const activityFilterLabels = { all: 'Todos', paused: 'Pausados', inactive: 'Inactivos', low_activity: 'Baja actividad' }
+  const totalFilterParts = [
+    ...describeFieldFilters(filterableDefs, customFilterValues, { customStates, members }),
+    ...entityTypeColumnDefs.map(et => {
+      const typeId = et.key.slice('entity_type:'.length)
+      const ids = entityTypeFilters[typeId]
+      if (!ids || ids.length === 0) return null
+      return ids.map(id => entities.find(e => e.id === id)?.name || id).join(', ')
+    }).filter(Boolean),
+    search ? `"${search}"` : null,
+    filterActivity !== 'active' ? activityFilterLabels[filterActivity] : null,
+  ]
+
   // Orden por columna (click en el encabezado de Tabla, o el selector de
   // Tarjetas) — mismo estado para ambas vistas, así se mantienen en sync.
   const sorted = sortKey
@@ -526,27 +543,31 @@ export default function Negotiations() {
       </div>
 
       <div className="neg-stats">
-        {stateCounts.map(s => (
-          <div
-            key={s.name}
-            className={`neg-stat-card ${statusDef && statusFilterIncludes(customFilterValues[statusDef.key], s.name) ? 'active' : ''}`}
-            onClick={() => {
-              if (!statusDef) return
-              setCustomFilterValues(v => {
-                const cur = v[statusDef.key]
-                const arr = Array.isArray(cur) ? cur : (cur ? [cur] : [])
-                return { ...v, [statusDef.key]: arr.includes(s.name) ? arr.filter(x => x !== s.name) : [...arr, s.name] }
-              })
-            }}
-            style={{ cursor: 'pointer' }}
-          >
-            <div className="neg-stat-label">{s.name}</div>
-            <div className="neg-stat-count" style={{ color: s.color }}>{s.count}</div>
-            <div className="neg-stat-bar">
-              <div className="neg-stat-bar-fill" style={{ width: s.total ? `${(s.count / s.total) * 100}%` : '0%', backgroundColor: s.color }} />
+        <TotalStatCard label="Total proyectos" plural="proyectos" total={negotiations.length} filteredCount={filtered.length} filterParts={totalFilterParts} />
+        {stateCounts.map(s => {
+          const pct = s.total ? Math.round((s.count / s.total) * 100) : 0
+          return (
+            <div
+              key={s.name}
+              className={`neg-stat-card ${statusDef && statusFilterIncludes(customFilterValues[statusDef.key], s.name) ? 'active' : ''}`}
+              onClick={() => {
+                if (!statusDef) return
+                setCustomFilterValues(v => {
+                  const cur = v[statusDef.key]
+                  const arr = Array.isArray(cur) ? cur : (cur ? [cur] : [])
+                  return { ...v, [statusDef.key]: arr.includes(s.name) ? arr.filter(x => x !== s.name) : [...arr, s.name] }
+                })
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="neg-stat-label">{s.name}</div>
+              <div className="neg-stat-count" style={{ color: s.color }}>{s.count}<span className="neg-stat-pct">{pct}%</span></div>
+              <div className="neg-stat-bar">
+                <div className="neg-stat-bar-fill" style={{ width: `${pct}%`, backgroundColor: s.color }} />
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
         <div className="neg-stat-card neg-stat-card--pipeline">
           <div className="neg-stat-label">Valor de pipeline ({filtered.length})</div>
           <div className="neg-pipeline-row">

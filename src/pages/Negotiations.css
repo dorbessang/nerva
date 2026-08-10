@@ -179,6 +179,26 @@
   transition: width 0.3s ease;
 }
 
+.neg-stat-pct {
+  font-size: 12px;
+  font-weight: 500;
+  color: #9ca3af;
+  margin-left: 4px;
+}
+
+/* Tarjeta de total — primera de la fila, no clickeable (no es un filtro,
+   es el punto de referencia contra el que se leen las demás). */
+.neg-stat-card--total {
+  background: #F8FAFC;
+  border-color: #CBD5E1;
+}
+
+.neg-stat-subtotal {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
 .neg-toolbar {
   display: flex;
   gap: 8px;
