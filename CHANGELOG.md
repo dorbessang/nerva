@@ -4,6 +4,16 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-07 (9)
+
+### Feature: botón "Filtros" — acceso a todos los filtros también en Mosaico y Kanban
+- Hueco real detectado junto con el usuario: al sacar los filtros del toolbar de Proyectos en una ronda anterior (confiando en que el encabezado de la Tabla los reemplazaba), se perdió el acceso a filtrar por Cliente/Proveedor/Participantes/etc. en las vistas Mosaico y Kanban — el encabezado de columna solo existe en Tabla
+- `FiltersPanelButton.jsx` (nuevo, compartido): un solo botón "Filtros" que abre un panel con un `ColumnFilterMenu` (buscador + checklist) por cada campo filtrable — mismo componente que ya usa el encabezado de columna, mismo estado, expuesto por un segundo camino. Visible en las tres vistas de Proyectos/Entidades/Productos, no solo Tabla
+- Los campos que ya tienen su propia fila de tarjetas siempre visible (Estado en Proyectos, Tipo de producto en Productos, el campo elegido como tarjetas en Entidades) quedan afuera del panel — ya tienen acceso en cualquier vista por otro lado, no hace falta duplicarlo
+- Entidades y Productos: sus filtros de toolbar (antes un `<select>` de una sola opción por campo, siempre visibles en fila) pasan a vivir también dentro de este único botón, mismo criterio que Proyectos — consistencia entre las tres páginas
+- Buscador: confirmado con el usuario, queda con alcance acotado por página (nombre, o nombre + producto vinculado en Proyectos como ya estaba) — la búsqueda libre por cualquier campo es responsabilidad del buscador global del header, no de estos buscadores por página
+- Limpieza de paso (confirmada con el usuario): se saca el toggle "Mostrar como filtro" de Configuración — quedó del todo obsoleto ahora que la elegibilidad para filtrar la decide el `field_type` (`isFieldFilterable`) y el acceso real es el encabezado de columna + este botón nuevo. También se elimina `CustomFieldFilter` (el `<select>` que quedó sin ningún consumidor)
+
 ## 2026-08-07 (8)
 
 ### Fix: editar una entidad con contactos "viejos" rompía el guardado (y borraba los contactos)

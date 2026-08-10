@@ -18,6 +18,7 @@ import { CustomFieldInput, CustomFieldReadOnly } from '../components/CustomField
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
 import ColumnHeaderCell from '../components/ColumnHeaderCell'
 import ColumnFilterMenu from '../components/ColumnFilterMenu'
+import FiltersPanelButton from '../components/FiltersPanelButton'
 import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
 import './Negotiations.css'
 
@@ -324,6 +325,29 @@ export default function Negotiations() {
   const filterableDefs = customFieldDefs.filter(isFieldFilterable)
   const statusDef = customFieldDefs.find(d => d.field_type === 'status')
 
+  // Grupos del botón "Filtros" (Mosaico/Kanban no tienen encabezado de
+  // columna) — Estado queda afuera porque ya tiene sus tarjetas propias,
+  // siempre visibles en las 3 vistas.
+  const filterPanelGroups = [
+    ...entityTypeColumnDefs.map(et => ({
+      key: et.key,
+      label: et.label,
+      options: entities.filter(en => en.entity_type_id === et.key.slice('entity_type:'.length)).map(en => ({ id: en.id, label: en.name })),
+      selected: entityTypeFilters[et.key.slice('entity_type:'.length)] || [],
+      onChange: v => setEntityTypeFilters(prev => ({ ...prev, [et.key.slice('entity_type:'.length)]: v })),
+    })),
+    ...filterableDefs.filter(d => d.field_type !== 'status').map(def => {
+      const value = customFilterValues[def.key]
+      return {
+        key: def.key,
+        label: def.label,
+        options: filterChoicesFor(def, { customStates, members }),
+        selected: Array.isArray(value) ? value : (value ? [value] : []),
+        onChange: v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v })),
+      }
+    }),
+  ]
+
   const filtered = negotiations.filter(n => {
     if (!filterableDefs.every(def => matchesFieldFilter(def, n, customFilterValues[def.key]))) return false
     for (const [typeId, entityIds] of Object.entries(entityTypeFilters)) {
@@ -586,6 +610,7 @@ export default function Negotiations() {
             <option value="">Todos (activos e inactivos)</option>
           </select>
         </div>
+        <FiltersPanelButton groups={filterPanelGroups} />
         <div className="neg-view-toggle">
           <button className={`neg-view-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')} title="Vista tabla"><Table2 size={15} /></button>
           <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Vista cards"><LayoutGrid size={15} /></button>

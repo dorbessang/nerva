@@ -1122,7 +1122,6 @@ function TabCamposPersonalizados({ workspaceId }) {
   const [newCountryMultiple, setNewCountryMultiple] = useState(false)
   const [newCountryShowFlag, setNewCountryShowFlag] = useState(true)
   const [newRequired, setNewRequired] = useState(false)
-  const [newFilterable, setNewFilterable] = useState(false)
   const [fieldOrder, setFieldOrder] = useState(null)
   const [dragSrc, setDragSrc] = useState(null)
   const [dragOver, setDragOver] = useState(null)
@@ -1186,7 +1185,6 @@ function TabCamposPersonalizados({ workspaceId }) {
     setNewLabel(''); setNewType('text'); setNewChoices([])
     setNewUnderlyingType('select'); setNewTriggerMode('deadline'); setNewAlertDays(30)
     setNewCountryMultiple(false); setNewCountryShowFlag(true); setNewRequired(false)
-    setNewFilterable(false)
   }
 
   function buildOptions(type, underlyingType, choices, triggerMode, alertDays, countryMultiple, countryShowFlag) {
@@ -1211,7 +1209,6 @@ function TabCamposPersonalizados({ workspaceId }) {
       field_type: newType,
       options: buildOptions(newType, newUnderlyingType, newChoices, newTriggerMode, newAlertDays, newCountryMultiple, newCountryShowFlag),
       required: newRequired,
-      filterable: newFilterable,
       sort_order: fields.length,
     })
     resetForm()
@@ -1234,7 +1231,6 @@ function TabCamposPersonalizados({ workspaceId }) {
       label: editing.label.trim(),
       options: editing.options,
       required: editing.required,
-      filterable: editing.filterable,
       card_filter: !!editing.card_filter,
     }).eq('id', editing.id)
     setEditing(null)
@@ -1323,17 +1319,6 @@ function TabCamposPersonalizados({ workspaceId }) {
                 </div>
               )}
               {isFieldFilterable(f) && (
-                <div className="cf-tracked-row">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={!!editing.filterable}
-                      onChange={e => setEditing(ed => ({ ...ed, filterable: e.target.checked }))}
-                    /> Mostrar como filtro
-                  </label>
-                </div>
-              )}
-              {isFieldFilterable(f) && (
                 <div className="cf-tracked-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
                   <label style={{ minWidth: 0 }}>
                     <input
@@ -1362,13 +1347,12 @@ function TabCamposPersonalizados({ workspaceId }) {
                   {f.field_type === 'tracked' && ` · ${f.options.trigger_mode === 'deadline' ? 'fecha límite' : 'inactividad'}, ${f.options.alert_days} días`}
                   {f.field_type === 'country' && f.options.multiple && ' · varios países'}
                   {f.required && ' · obligatorio'}
-                  {f.filterable && ' · filtro'}
                   {f.card_filter && ' · tarjetas de filtro'}
                 </div>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button className="settings-btn-secondary" onClick={() => setEditing({ id: f.id, label: f.label, options: f.options, required: f.required, filterable: f.filterable, card_filter: f.card_filter })}>
+              <button className="settings-btn-secondary" onClick={() => setEditing({ id: f.id, label: f.label, options: f.options, required: f.required, card_filter: f.card_filter })}>
                 Editar
               </button>
               {!f.is_structural && (
@@ -1488,12 +1472,6 @@ function TabCamposPersonalizados({ workspaceId }) {
           <div className="cf-tracked-row">
             <label><input type="checkbox" checked={newRequired} onChange={e => setNewRequired(e.target.checked)} /> Obligatorio</label>
           </div>
-
-          {isFieldFilterable({ field_type: newType, options: { underlying_type: newUnderlyingType } }) && (
-            <div className="cf-tracked-row">
-              <label><input type="checkbox" checked={newFilterable} onChange={e => setNewFilterable(e.target.checked)} /> Mostrar como filtro</label>
-            </div>
-          )}
 
           <button className="settings-btn-primary" style={{ alignSelf: 'flex-start' }} onClick={handleAdd} disabled={saving}>
             + Agregar campo

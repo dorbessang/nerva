@@ -5,11 +5,12 @@ import { supabase } from '../lib/supabase'
 import ProductModal from '../components/ProductModal'
 import { NegotiationDetail, NegotiationModal } from './Negotiations'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
-import { CustomFieldReadOnly, CustomFieldFilter } from '../components/CustomFieldInput'
+import { CustomFieldReadOnly } from '../components/CustomFieldInput'
 import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesFieldFilter, filterChoicesFor } from '../lib/customFields'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
 import ColumnHeaderCell from '../components/ColumnHeaderCell'
 import ColumnFilterMenu from '../components/ColumnFilterMenu'
+import FiltersPanelButton from '../components/FiltersPanelButton'
 import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
 import './Entities.css'
 
@@ -210,6 +211,19 @@ export default function Products() {
     })
   }
 
+  // Botón "Filtros" (Mosaico/Kanban no tienen encabezado de columna) — el
+  // tipo de producto queda afuera porque ya tiene su fila de tarjetas arriba.
+  const filterPanelGroups = toolbarFilterableDefs.map(def => {
+    const value = customFilterValues[def.key]
+    return {
+      key: def.key,
+      label: def.label,
+      options: filterChoicesFor(def, { members }),
+      selected: Array.isArray(value) ? value : (value ? [value] : []),
+      onChange: v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v })),
+    }
+  })
+
   const filtered = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) &&
     filterableProductDefs.every(def => matchesFieldFilter(def, p, customFilterValues[def.key]))
@@ -266,17 +280,7 @@ export default function Products() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        {toolbarFilterableDefs.map(def => (
-          <div className="filter-field" key={def.key}>
-            <label className="filter-field-label">{def.label}</label>
-            <CustomFieldFilter
-              def={def}
-              value={customFilterValues[def.key]}
-              onChange={v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v }))}
-              members={members}
-            />
-          </div>
-        ))}
+        <FiltersPanelButton groups={filterPanelGroups} />
         <div className="neg-view-toggle">
           <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Mosaico"><LayoutGrid size={15} /></button>
           <button className={`neg-view-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')} title="Tabla"><Table2 size={15} /></button>

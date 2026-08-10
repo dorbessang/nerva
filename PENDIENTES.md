@@ -284,6 +284,15 @@ Al probar las tarjetas de "Tipo de empresa", el usuario reportó que editar una 
 ##### SQL pendiente de aplicar
 - [ ] `alter table public.custom_field_definitions add column if not exists card_filter boolean not null default false;` — **ya corrido por el usuario en esta ronda**, se deja el bloque documentado por historial
 
+##### Follow-up inmediato (7): botón "Filtros" para Mosaico/Kanban — acordado y construido
+Se pensó junto con el usuario antes de tocar código (pidió explícitamente no implementar hasta acordar el enfoque). Confirmado: un solo botón "Filtros" en el toolbar, visible en las 3 vistas, que abre un panel reutilizando `ColumnFilterMenu` por campo — en vez de volver a poner N desplegables sueltos (eso era justo la queja original sobre el toolbar de Proyectos). Sobre el buscador: confirmado que la búsqueda 100% libre vive únicamente en el buscador global del header — los buscadores de cada página quedan acotados a nombre (o nombre + producto vinculado, como ya estaba en Proyectos), no se tocan.
+- [x] `FiltersPanelButton.jsx` (nuevo, compartido) — botón + panel popover con un `ColumnFilterMenu` por campo filtrable, mismo estado que ya escriben el encabezado de columna y (en Proyectos) las tarjetas de tipo de entidad
+- [x] Proyectos: hueco real corregido — antes de esta ronda, Mosaico/Kanban solo tenían acceso a Estado (tarjetas propias) y Actividad; ahora también a Cliente/Proveedor/Participantes/etc. vía este botón
+- [x] Entidades/Productos: sus filtros de toolbar (un `<select>` de una sola opción por campo, siempre en fila) se consolidan en este mismo botón — mejora de consistencia, no había un hueco funcional ahí (ya tenían acceso en toda vista), pero quedaba desprolijo y con un widget más pobre que el checklist
+- [x] Los campos con tarjetas propias siempre visibles (Estado, Tipo de producto, el campo elegido para tarjetas en Entidades) quedan afuera del panel — no hace falta duplicarlos, ya tienen acceso en cualquier vista
+- [x] Limpieza confirmada con el usuario: se saca el toggle "Mostrar como filtro" de Configuración (dead code documentado la ronda anterior, ahora confirmado innecesario) y el componente `CustomFieldFilter` que quedó sin consumidores
+- [ ] Sin SQL — cambio de código nada más
+
 ### Pantalla de bienvenida para workspaces nuevos sin configurar
 Al abrir el primer cliente pagador (workspace de equipo creado a mano vía SQL, sin flujo de alta propio todavía), el owner entraba a una app completamente vacía — sin tipos de entidad, sin estados, sin campos custom — y tenía que armar todo desde Configuración antes de poder cargar el primer dato. Se pidió una pantalla de bienvenida que ofrezca eso de entrada.
 - [x] Columna nueva `workspaces.onboarded boolean not null default true` — default `true` a propósito, para que ningún workspace ya en uso muestre esta pantalla retroactivamente. Los workspaces nuevos se crean con `onboarded = false` explícito en el insert de bootstrap
