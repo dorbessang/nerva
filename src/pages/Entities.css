@@ -200,6 +200,14 @@
   flex-shrink: 0;
 }
 
+/* Celda "Nombre" en Tabla — bandera + nombre quedaban pegados sin ningún
+   espaciado propio (heredaban el <td> genérico, sin display:flex). */
+.entities-td-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .entity-state-badges {
   display: flex;
   flex-wrap: wrap;

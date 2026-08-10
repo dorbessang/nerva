@@ -319,6 +319,13 @@ Propuesta del propio usuario, con estructura detallada incluida en el pedido ("�
 - [x] Contactos: consultado explícitamente con el usuario, se decide dejarlo tal cual — sigue viviendo dentro de "Campos" de Entidades, sin sub-sección propia, porque hoy no hay nada más configurable ahí (los sub-campos del contacto están fijos en código, no son data-driven)
 - [ ] Sin SQL — cambio de código nada más
 
+##### Follow-up inmediato (11): 4 ajustes reportados probando Tabla/Mosaico en uso real
+- [x] Contactos: se saca por completo de Tabla/Mosaico de Entidades, incluido el conteo (`contacts_count`) que había quedado — solo se ve en el modal de la entidad
+- [x] Orden preset de columnas: ahora sigue el orden ya armado en Configuración → Campos (`computeFieldOrder`) en vez del orden de creación crudo — cada usuario lo sigue pudiendo reordenar después a su gusto, eso no cambia
+- [x] UI: bandera pegada al nombre en la columna "Nombre" de Entidades — celda sin `display:flex` propio, corregido
+- [x] Filtros de columna solo alcanzaban a los campos con lista de opciones predefinida — se extiende a texto/número/fecha/link/email/teléfono, armando el checklist con los valores realmente cargados (mismo criterio que un filtro de Excel). Se separa `isCardFilterable` (para "tarjetas de filtro", sigue restringido al set chico) de `isFieldFilterable` (para el checklist, ahora amplio)
+- [ ] Sin SQL — cambio de código nada más
+
 ### Pantalla de bienvenida para workspaces nuevos sin configurar
 Al abrir el primer cliente pagador (workspace de equipo creado a mano vía SQL, sin flujo de alta propio todavía), el owner entraba a una app completamente vacía — sin tipos de entidad, sin estados, sin campos custom — y tenía que armar todo desde Configuración antes de poder cargar el primer dato. Se pidió una pantalla de bienvenida que ofrezca eso de entrada.
 - [x] Columna nueva `workspaces.onboarded boolean not null default true` — default `true` a propósito, para que ningún workspace ya en uso muestre esta pantalla retroactivamente. Los workspaces nuevos se crean con `onboarded = false` explícito en el insert de bootstrap

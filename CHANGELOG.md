@@ -4,6 +4,15 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-10 (3)
+
+### Fix: 4 ajustes reportados probando Tabla/Mosaico — Contactos, orden preset, espaciado, filtros incompletos
+- **Contactos ya no aparece en Tabla/Mosaico, ni siquiera como conteo**: `ENTITY_STATIC_COLUMNS` tenía una columna "Contactos" (`contacts_count`, visible por defecto) mostrando cuántos contactos tiene la entidad — el dato en sí solo se ve en el modal, así que se saca por completo (columna, opción del selector, orden, sort)
+- **Orden preset de columnas ahora sigue el orden de Configuración → Campos**: antes, la primera vez que se abría Tabla/Mosaico (sin preferencia guardada), los campos custom aparecían en orden de creación (`sort_order` crudo de la base) en vez del orden ya reordenado a mano en Configuración. Ahora usa `computeFieldOrder` (mismo helper que ya ordenaba los campos dentro del modal de detalle/alta) para el orden inicial — una vez que cada usuario reordena a su gusto desde "⚙ Columnas", esa preferencia manda como siempre
+- **Bandera pegada al nombre en la columna "Nombre" de Entidades**: la celda no tenía ningún espaciado propio (heredaba el `<td>` genérico sin `display:flex`) — se agrega `.entities-td-name { display:flex; align-items:center; gap:8px }`
+- **Filtros de columna incompletos**: solo los campos con una lista de opciones predefinida (select/multiselect/país/usuario/casilla/estado/tipo de producto) tenían filtro tipo Excel en el encabezado — texto libre, texto largo, número, fecha, link, email y teléfono se quedaban afuera. Se extiende el mismo checklist a esos tipos, armando las opciones a partir de los valores realmente cargados en las filas (`uniqueValueChoices`, mismo criterio que un filtro de columna de Excel — con buscador para no perderse entre muchos valores). El campo elegido como "tarjetas de filtro" en Configuración sigue restringido al set chico de tipos enumerables (`isCardFilterable`, nueva), separado de `isFieldFilterable` (ahora más amplio) — una fila de tarjetas no tiene sentido con decenas de valores de texto libre
+- Sin SQL — cambio de código nada más
+
 ## 2026-08-10 (2)
 
 ### Refactor: Configuración reorganizada por módulo (Proyectos / Entidades / Productos)

@@ -50,6 +50,7 @@ export default function Products() {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [bulkWorking, setBulkWorking] = useState(false)
   const [members, setMembers] = useState([])
+  const [fieldOrder, setFieldOrder] = useState(null)
   const [customFilterValues, setCustomFilterValues] = useState({})
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState(null)
@@ -60,14 +61,19 @@ export default function Products() {
     setSortKey(dir ? key : null)
   }
 
+  // Orden preset de columnas (antes de que cada usuario lo reordene a
+  // mano) sigue el orden ya armado en Configuración → Campos.
+  const orderedProductFieldDefs = fieldOrder === null
+    ? productFieldDefs
+    : computeFieldOrder('product', fieldOrder, productFieldDefs).map(key => productFieldDefs.find(d => d.key === key)).filter(Boolean)
   const [cols, saveCols] = useColumnPrefs({
     storageKey: `nerva_product_col_prefs_${user?.id}`,
     staticColumns: PRODUCT_STATIC_COLUMNS,
     defaultVisible: PRODUCT_DEFAULT_VISIBLE,
-    customFieldDefs: productFieldDefs,
+    customFieldDefs: orderedProductFieldDefs,
   })
   const allColumns = [
-    ...productFieldDefs.map(d => ({ key: d.key, label: d.label, alwaysVisible: d.key === 'name' })),
+    ...orderedProductFieldDefs.map(d => ({ key: d.key, label: d.label, alwaysVisible: d.key === 'name' })),
     ...PRODUCT_STATIC_COLUMNS,
   ]
 
@@ -105,6 +111,11 @@ export default function Products() {
       .select('user_id, profile:user_id ( full_name )')
       .eq('workspace_id', workspaceId)
       .then(({ data }) => setMembers(data || []))
+  }, [workspaceId])
+
+  useEffect(() => {
+    supabase.from('workspaces').select('field_order').eq('id', workspaceId).single()
+      .then(({ data }) => setFieldOrder(data?.field_order || {}))
   }, [workspaceId])
 
   async function fetchCustomFieldDefs() {
@@ -196,7 +207,7 @@ export default function Products() {
     return {
       key: def.key,
       label: def.label,
-      options: filterChoicesFor(def, { members }),
+      options: filterChoicesFor(def, { members, rows: products }),
       selected: Array.isArray(value) ? value : (value ? [value] : []),
       onChange: v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v })),
     }
@@ -322,6 +333,7 @@ export default function Products() {
       ) : view === 'table' ? (
         <ProductsGridTable
           products={sorted}
+          allRows={products}
           productFieldDefs={productFieldDefs}
           productTypes={productTypes}
           getStateConfig={getStateConfig}
@@ -452,13 +464,13 @@ function renderProductCell(key, product, productFieldDefs, members, getStateConf
   }
 }
 
-function ProductsGridTable({ products, productFieldDefs, productTypes, cols, allColumns, members, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
+function ProductsGridTable({ products, allRows, productFieldDefs, productTypes, cols, allColumns, members, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
   function getColumnFilter(key) {
     const fieldDef = productFieldDefs.find(d => d.key === key)
     if (!fieldDef || !isFieldFilterable(fieldDef)) return null
     const filterValue = customFilterValues?.[key]
     return {
-      options: filterChoicesFor(fieldDef, { members, productTypes }),
+      options: filterChoicesFor(fieldDef, { members, productTypes, rows: allRows || products }),
       selected: Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : []),
       onChange: v => onFilterChange(key, v),
     }

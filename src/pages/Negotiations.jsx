@@ -153,6 +153,7 @@ export default function Negotiations() {
   const [members, setMembers] = useState([])
   const [customStates, setCustomStates] = useState([])
   const [customFieldDefs, setCustomFieldDefs] = useState([])
+  const [fieldOrder, setFieldOrder] = useState(null)
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 860) ? 'cards' : 'table')
   const [customFilterValues, setCustomFilterValues] = useState({})
@@ -177,7 +178,13 @@ export default function Negotiations() {
   // "Cliente", "Proveedor", "Distribuidor"... según lo que exista en Entidades.
   const entitiesLinkDef = customFieldDefs.find(d => d.field_type === 'entities_link')
   const entityTypeColumnDefs = entitiesLinkDef ? entityTypes.map(et => ({ key: `entity_type:${et.id}`, label: et.plural || et.name })) : []
-  const columnFieldDefs = [...customFieldDefs.filter(d => d.field_type !== 'entities_link'), ...entityTypeColumnDefs]
+  // Orden preset de columnas (antes de que cada usuario lo reordene a mano)
+  // sigue el orden ya armado en Configuración → Campos, no el de creación.
+  const plainFieldDefs = customFieldDefs.filter(d => d.field_type !== 'entities_link')
+  const orderedFieldDefs = fieldOrder === null
+    ? plainFieldDefs
+    : computeFieldOrder('negotiation', fieldOrder, plainFieldDefs).map(key => plainFieldDefs.find(d => d.key === key)).filter(Boolean)
+  const columnFieldDefs = [...orderedFieldDefs, ...entityTypeColumnDefs]
   const defaultVisible = ['product', ...entityTypeColumnDefs.map(d => d.key), 'status', 'companies', 'target_date']
   const [cols, saveCols] = useColumnPrefs({
     storageKey: `nerva_col_prefs_${user?.id}`,
@@ -213,6 +220,11 @@ export default function Negotiations() {
   }, [location.search, negotiations])
 
   useEffect(() => { fetchAll() }, [])
+
+  useEffect(() => {
+    supabase.from('workspaces').select('field_order').eq('id', workspaceId).single()
+      .then(({ data }) => setFieldOrder(data?.field_order || {}))
+  }, [workspaceId])
 
   async function fetchAll() {
     setLoading(true)
@@ -341,7 +353,7 @@ export default function Negotiations() {
       return {
         key: def.key,
         label: def.label,
-        options: filterChoicesFor(def, { customStates, members }),
+        options: filterChoicesFor(def, { customStates, members, rows: negotiations }),
         selected: Array.isArray(value) ? value : (value ? [value] : []),
         onChange: v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v })),
       }
@@ -694,7 +706,7 @@ export default function Negotiations() {
       ) : filtered.length === 0 ? (
         <div className="neg-empty">No hay proyectos todavía.</div>
       ) : view === 'table' ? (
-        <TableView negotiations={sorted} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} allColumns={allColumns} customFieldDefs={customFieldDefs} members={members}
+        <TableView negotiations={sorted} allRows={negotiations} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} allColumns={allColumns} customFieldDefs={customFieldDefs} members={members}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} allVisibleSelected={allVisibleSelected} onToggleSelectAll={toggleSelectAllVisible}
           sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
           customStates={customStates} customFilterValues={customFilterValues} onFilterChange={(key, v) => setCustomFilterValues(prev => ({ ...prev, [key]: v }))}
@@ -839,7 +851,7 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
   }
 }
 
-function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customStates, customFilterValues, onFilterChange, entities, entityTypeFilters, onEntityTypeFilterChange, onColResize }) {
+function TableView({ negotiations, allRows, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customStates, customFilterValues, onFilterChange, entities, entityTypeFilters, onEntityTypeFilterChange, onColResize }) {
   function getColumnFilter(key) {
     if (key.startsWith('entity_type:')) {
       const typeId = key.slice('entity_type:'.length)
@@ -853,7 +865,7 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
     if (!fieldDef || !isFieldFilterable(fieldDef)) return null
     const filterValue = customFilterValues?.[key]
     return {
-      options: filterChoicesFor(fieldDef, { customStates, members }),
+      options: filterChoicesFor(fieldDef, { customStates, members, rows: allRows || negotiations }),
       selected: Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : []),
       onChange: v => onFilterChange(key, v),
     }

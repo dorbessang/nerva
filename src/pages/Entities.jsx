@@ -26,12 +26,14 @@ import { nextSortDir, sortRows, customFieldSortValue } from '../lib/tableSort'
 import './Entities.css'
 
 // Columnas que no son un campo custom configurable — calculadas a partir de
-// relaciones (contactos, proyectos vinculados), no de custom_field_definitions.
+// relaciones (proyectos vinculados), no de custom_field_definitions.
+// Contactos NO tiene columna acá a propósito — es un sub-formulario que
+// solo se ve en el modal de la entidad, ni el dato crudo ni un conteo
+// tienen que aparecer en Tabla/Mosaico.
 const ENTITY_STATIC_COLUMNS = [
-  { key: 'contacts_count', label: 'Contactos' },
   { key: 'projects_total', label: 'Proyectos totales' },
 ]
-const ENTITY_DEFAULT_VISIBLE = ['name', 'entity_type', 'country', 'contacts_count', 'projects_total']
+const ENTITY_DEFAULT_VISIBLE = ['name', 'entity_type', 'country', 'projects_total']
 
 // Valor comparable por columna para el click-para-ordenar del encabezado —
 // null siempre ordena al final, ver sortRows en lib/tableSort.js.
@@ -39,7 +41,6 @@ function getEntitySortValue(key, entity, entityFieldDefs, members) {
   switch (key) {
     case 'name': return entity.name?.toLowerCase() || null
     case 'entity_type': return entity.entity_type?.name?.toLowerCase() || null
-    case 'contacts_count': return entity.contacts?.length || null
     case 'projects_total': return entity.negotiation_entities?.length || null
     default: return customFieldSortValue(entityFieldDefs?.find(d => d.key === key), entity, members, getCustomFieldValue, renderCustomFieldDisplay)
   }
@@ -70,6 +71,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [bulkWorking, setBulkWorking] = useState(false)
   const [members, setMembers] = useState([])
+  const [fieldOrder, setFieldOrder] = useState(null)
   const [customFilterValues, setCustomFilterValues] = useState({})
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState(null)
@@ -86,20 +88,28 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
 
   // Columnas de la vista Tabla — igual criterio que Proyectos: los campos
   // reales (custom_field_definitions) tienen prioridad de label, "contacts"
-  // no entra (es un sub-formulario repetible, no una celda; su versión
-  // tabular es el conteo en ENTITY_STATIC_COLUMNS).
+  // no entra (es un sub-formulario repetible, no una celda). El orden
+  // preset (antes de que cada usuario lo reordene a mano) sigue el mismo
+  // orden que ya se armó en Configuración → Campos, no el de creación.
+  const orderedEntityFieldDefs = (() => {
+    const withoutContacts = entityFieldDefs.filter(d => d.field_type !== 'contacts')
+    if (fieldOrder === null) return withoutContacts
+    return computeFieldOrder('entity', fieldOrder, withoutContacts)
+      .map(key => withoutContacts.find(d => d.key === key))
+      .filter(Boolean)
+  })()
   const [cols, saveCols] = useColumnPrefs({
     storageKey: `nerva_entity_col_prefs_${user?.id}_${entityTypeId || 'all'}`,
     staticColumns: ENTITY_STATIC_COLUMNS,
     defaultVisible: ENTITY_DEFAULT_VISIBLE,
-    customFieldDefs: entityFieldDefs.filter(d => d.field_type !== 'contacts'),
+    customFieldDefs: orderedEntityFieldDefs,
   })
   const allColumns = [
-    ...entityFieldDefs.filter(d => d.field_type !== 'contacts').map(d => ({ key: d.key, label: d.label, alwaysVisible: d.key === 'name' })),
+    ...orderedEntityFieldDefs.map(d => ({ key: d.key, label: d.label, alwaysVisible: d.key === 'name' })),
     ...ENTITY_STATIC_COLUMNS,
   ]
-  // Contactos es un sub-formulario repetible, no una celda — su versión
-  // tabular es el conteo (`contacts_count`, ya en ENTITY_STATIC_COLUMNS).
+  // Contactos es un sub-formulario repetible que solo se ve en el modal de
+  // la entidad — nunca en Tabla/Mosaico, ni el campo crudo ni un conteo.
   // Filtro defensivo acá además del de arriba: si alguien tiene una
   // preferencia de columnas guardada de antes de esta exclusión (localStorage
   // viejo), nunca debe poder mostrar el campo crudo en Tabla/Mosaico.
@@ -156,6 +166,11 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
       .select('user_id, profile:user_id ( full_name )')
       .eq('workspace_id', workspaceId)
       .then(({ data }) => setMembers(data || []))
+  }, [workspaceId])
+
+  useEffect(() => {
+    supabase.from('workspaces').select('field_order').eq('id', workspaceId).single()
+      .then(({ data }) => setFieldOrder(data?.field_order || {}))
   }, [workspaceId])
 
   async function fetchCustomFieldDefs() {
@@ -272,7 +287,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     return {
       key: def.key,
       label: def.label,
-      options: filterChoicesFor(def, { customStates: negotiationStates, members }),
+      options: filterChoicesFor(def, { customStates: negotiationStates, members, rows: typeScopedEntities }),
       selected: Array.isArray(value) ? value : (value ? [value] : []),
       onChange: v => setCustomFilterValues(prev => ({ ...prev, [def.key]: v })),
     }
@@ -449,6 +464,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
       ) : view === 'table' ? (
         <EntitiesGridTable
           entities={sorted}
+          allRows={typeScopedEntities}
           entityFieldDefs={entityFieldDefs}
           getStateConfig={getStateConfig}
           cols={safeCols}
@@ -566,7 +582,7 @@ function renderProjectsTotalCell(negotiationLinks, getStateConfig) {
 // Celda de una columna de la grilla de Entidades — despacha por key igual
 // que renderCell en Negotiations.jsx: primero los casos especiales (no son
 // un campo custom simple: nombre con bandera, tipo resuelto vía el join,
-// los 2 calculados de ENTITY_STATIC_COLUMNS) y default a `entityFieldDefs`.
+// el calculado de ENTITY_STATIC_COLUMNS) y default a `entityFieldDefs`.
 function renderEntityCell(key, entity, entityFieldDefs, members, getStateConfig) {
   switch (key) {
     case 'name':
@@ -578,8 +594,6 @@ function renderEntityCell(key, entity, entityFieldDefs, members, getStateConfig)
       )
     case 'entity_type':
       return <td key={key}>{entity.entity_type?.name || '—'}</td>
-    case 'contacts_count':
-      return <td key={key}>{entity.contacts?.length || 0}</td>
     case 'projects_total':
       return <td key={key}>{renderProjectsTotalCell(entity.negotiation_entities, getStateConfig)}</td>
     default: {
@@ -595,13 +609,13 @@ function renderEntityCell(key, entity, entityFieldDefs, members, getStateConfig)
 // la vieja `EntitiesTable` de filas fijas. Reusa las clases `neg-table-*`
 // de Negotiations.css: son estilos de tabla genéricos, ya bundleados en la
 // misma hoja de estilos global de la app.
-function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, members, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
+function EntitiesGridTable({ entities, allRows, entityFieldDefs, cols, allColumns, members, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
   function getColumnFilter(key) {
     const fieldDef = entityFieldDefs.find(d => d.key === key)
     if (!fieldDef || !isFieldFilterable(fieldDef)) return null
     const filterValue = customFilterValues?.[key]
     return {
-      options: filterChoicesFor(fieldDef, { members }),
+      options: filterChoicesFor(fieldDef, { members, rows: allRows || entities }),
       selected: Array.isArray(filterValue) ? filterValue : (filterValue ? [filterValue] : []),
       onChange: v => onFilterChange(key, v),
     }

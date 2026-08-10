@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import { notifyRoleChanged } from '../lib/notifications'
-import { computeFieldOrder, isFieldFilterable } from '../lib/customFields'
+import { computeFieldOrder, isCardFilterable } from '../lib/customFields'
 import { extractFunctionError } from '../lib/edgeFunctionError'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
@@ -1358,7 +1358,7 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
                   </label>
                 </div>
               )}
-              {isFieldFilterable(f) && (
+              {isCardFilterable(f) && (
                 <div className="cf-tracked-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
                   <label style={{ minWidth: 0 }}>
                     <input

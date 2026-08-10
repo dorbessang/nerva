@@ -126,12 +126,29 @@ export function isWideCustomField(def) {
   return type === 'textarea' || type === 'multiselect' || ((type === 'country' || type === 'user') && def.options?.multiple)
 }
 
-// Tipos de campo que encajan con un filtro tipo "elegí un valor de una
-// lista" — texto libre/número/fecha y los compuestos no tienen un widget
-// de filtro genérico razonable (para eso ya está el buscador de texto).
+// Tipos con una lista de opciones predefinida (elegida al crear el campo,
+// o resuelta desde otra tabla del workspace) — el checklist de filtro sale
+// directo de ahí, no de los datos cargados.
 const FILTERABLE_TYPES = ['select', 'multiselect', 'country', 'user', 'boolean', 'status', 'product_type']
 
+// Tipos de valor libre (texto/número/fecha/link/email/teléfono): no tienen
+// opciones predefinidas, pero igual son filtrables — el checklist se arma
+// con los valores realmente cargados en esas filas, mismo criterio que un
+// filtro de columna de Excel (con buscador para no perderse entre muchos).
+const FREEFORM_FILTERABLE_TYPES = ['text', 'textarea', 'number', 'date', 'link', 'email', 'phone']
+
+// Elegible para el checklist de filtro (encabezado de columna / botón
+// "Filtros") — prácticamente cualquier campo simple.
 export function isFieldFilterable(def) {
+  const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
+  return FILTERABLE_TYPES.includes(type) || FREEFORM_FILTERABLE_TYPES.includes(type)
+}
+
+// Elegible para "tarjetas de filtro" (fila de tarjetas siempre visible,
+// Configuración → Entidades → Campos) — a diferencia del checklist, ahí
+// hace falta un conjunto chico y predefinido de valores; un campo de texto
+// libre con decenas de valores distintos no funciona como tarjetas.
+export function isCardFilterable(def) {
   const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
   return FILTERABLE_TYPES.includes(type)
 }
@@ -144,7 +161,9 @@ export function isMultiValueFilter(def) {
 }
 
 // Opciones para el widget de filtro — {id, label} — según el tipo del campo.
-export function filterChoicesFor(def, { customStates, members, productTypes } = {}) {
+// `rows` (las filas visibles en la página que llama) solo hace falta para
+// los tipos de valor libre, que arman su checklist a partir de lo cargado.
+export function filterChoicesFor(def, { customStates, members, productTypes, rows } = {}) {
   const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
   if (type === 'status') return (customStates || []).map(s => ({ id: s.name, label: s.name }))
   if (type === 'select' || type === 'multiselect') return def.options?.choices || []
@@ -152,7 +171,18 @@ export function filterChoicesFor(def, { customStates, members, productTypes } = 
   if (type === 'user') return (members || []).map(m => ({ id: m.user_id, label: m.profile?.full_name || 'Usuario' }))
   if (type === 'boolean') return [{ id: 'true', label: 'Sí' }, { id: 'false', label: 'No' }]
   if (type === 'product_type') return (productTypes || []).map(t => ({ id: t.id, label: t.name }))
+  if (FREEFORM_FILTERABLE_TYPES.includes(type)) return uniqueValueChoices(def, rows)
   return []
+}
+
+function uniqueValueChoices(def, rows) {
+  const seen = new Set()
+  ;(rows || []).forEach(row => {
+    const raw = rawFieldValue(def, row)
+    if (raw === undefined || raw === null || raw === '') return
+    seen.add(String(raw))
+  })
+  return [...seen].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(v => ({ id: v, label: v }))
 }
 
 function rawFieldValue(def, obj) {
@@ -174,5 +204,8 @@ export function matchesFieldFilter(def, obj, filterValue) {
     const rawArr = Array.isArray(raw) ? raw : []
     return wanted.some(v => rawArr.includes(v))
   }
-  return wanted.includes(raw)
+  // Los ids de choices de valor libre son siempre string (ver
+  // uniqueValueChoices) — normalizamos acá para que un campo numérico o de
+  // fecha siga matcheando aunque el valor guardado no sea un string.
+  return wanted.includes(typeof raw === 'string' ? raw : String(raw))
 }
