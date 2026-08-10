@@ -58,7 +58,16 @@ function extractMentionedUserIds(text, members) {
 // sueltas (solo scoped por workspaceId). `contextLabel` es el nombre del
 // proyecto/entidad (si aplica), solo para el texto de la notificación de
 // @mención.
-export default function NotesPostIts({ negotiationId, entityId, workspaceId, canEdit, onChanged, contextLabel }) {
+//
+// `page` (solo tiene sentido junto con negotiationId) filtra/asigna en qué
+// "página" del proyecto vive cada nota — 'bitacora' (o sin especificar) es
+// la general (page NULL en la base), cualquier otro valor ('financiero',
+// 'tareas', 'documentos') queda fijado ahí. `variant` cambia el renderizado:
+// 'postit' (default, el collage de siempre) o 'timeline' (lista cronológica
+// prolija, usada por la Bitácora — mismo dato, sin la estética de post-it).
+// `hideComposer` oculta el input de alta (las notas con página se crean
+// desde el modal de Editar del proyecto, no inline en cada tab).
+export default function NotesPostIts({ negotiationId, entityId, workspaceId, canEdit, onChanged, contextLabel, page, variant = 'postit', hideComposer = false }) {
   const { user, profile } = useAuth()
   const [notes, setNotes] = useState([])
   const [newNote, setNewNote] = useState('')
@@ -72,14 +81,20 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
   const newNoteInputRef = useRef(null)
   const editTextareaRef = useRef(null)
 
-  useEffect(() => { fetchNotes() }, [negotiationId, entityId])
+  useEffect(() => { fetchNotes() }, [negotiationId, entityId, page])
   useEffect(() => { fetchMembers() }, [workspaceId])
 
   async function fetchNotes() {
-    let query = supabase.from('negotiation_notes').select('*').order('note_date', { ascending: true })
-    if (negotiationId) query = query.eq('negotiation_id', negotiationId)
-    else if (entityId) query = query.eq('entity_id', entityId)
-    else query = query.is('negotiation_id', null).is('entity_id', null).eq('workspace_id', workspaceId)
+    let query = supabase.from('negotiation_notes').select('*')
+    if (negotiationId) {
+      query = query.eq('negotiation_id', negotiationId)
+      if (page) query = page === 'bitacora' ? query.is('page', null) : query.eq('page', page)
+    } else if (entityId) {
+      query = query.eq('entity_id', entityId)
+    } else {
+      query = query.is('negotiation_id', null).is('entity_id', null).eq('workspace_id', workspaceId)
+    }
+    query = query.order('note_date', { ascending: variant !== 'timeline' })
     const { data, error } = await query
     if (error) console.error('fetchNotes error:', error.message)
     if (data) setNotes(data)
@@ -139,6 +154,7 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
       workspace_id: workspaceId,
       content,
       note_date: newNoteDate,
+      page: negotiationId && page && page !== 'bitacora' ? page : null,
     }).select('id').single()
     if (error) { console.error('addNote error:', error.message); setSavingNote(false); return }
     await logActivity(supabase, {
@@ -172,11 +188,70 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
     onChanged?.()
   }
 
+  function renderEditInput(n, className) {
+    return (
+      <div style={{ position: 'relative' }}>
+        <textarea
+          ref={editTextareaRef}
+          className={className}
+          value={editingNoteText}
+          autoFocus
+          onChange={e => handleFieldChange('edit', e.target.value, e.target.selectionStart)}
+          onBlur={() => { if (!mention) handleSaveNoteEdit(n.id) }}
+          onKeyDown={e => {
+            if (mention?.field === 'edit') {
+              if (e.key === 'Escape') { e.preventDefault(); setMention(null) }
+              return
+            }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveNoteEdit(n.id) }
+            if (e.key === 'Escape') setEditingNoteId(null)
+          }}
+          style={{ background: 'transparent', border: 'none', outline: 'none', width: '100%', font: 'inherit', fontSize: 13, resize: 'none', lineHeight: 1.5, padding: 0, color: '#374151' }}
+          rows={3}
+        />
+        {mention?.field === 'edit' && (
+          <div className="mention-dropdown">
+            {mention.items.map(m => (
+              <div key={m.user_id} className="mention-dropdown-item" onMouseDown={e => { e.preventDefault(); selectMention(m) }}>
+                @{m.name}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div>
-      <div className="neg-notes-list">
-        {notes.length === 0 && <p className="detail-empty">Sin notas todavía.</p>}
-        {notes.map((n, idx) => {
+      <div className={variant === 'timeline' ? 'neg-bitacora-list' : 'neg-notes-list'}>
+        {notes.length === 0 && !hideComposer && <p className="detail-empty">Sin notas todavía.</p>}
+        {variant === 'timeline' ? notes.map((n, idx) => {
+          const isEditing = editingNoteId === n.id
+          return (
+            <div key={n.id} className="neg-bitacora-row">
+              <div className="neg-bitacora-rail">
+                <span className="neg-bitacora-date">
+                  {new Date(n.note_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                </span>
+                {idx < notes.length - 1 && <span className="neg-bitacora-line"></span>}
+              </div>
+              <span className="neg-bitacora-dot"></span>
+              <div className="neg-bitacora-content">
+                {isEditing ? renderEditInput(n, 'neg-bitacora-edit-input') : (
+                  <p
+                    className="neg-bitacora-text"
+                    onDoubleClick={canEdit ? () => { setEditingNoteId(n.id); setEditingNoteText(n.content) } : undefined}
+                    title={canEdit ? 'Doble click para editar' : undefined}
+                  >{n.content}</p>
+                )}
+                {!isEditing && canEdit && (
+                  <button className="neg-bitacora-remove" onClick={() => handleDeleteNote(n.id)} title="Eliminar">✕</button>
+                )}
+              </div>
+            </div>
+          )
+        }) : notes.map((n, idx) => {
           const hash = n.id ? n.id.charCodeAt(0) + n.id.charCodeAt(4) : idx
           const col = NOTE_COLORS[hash % NOTE_COLORS.length]
           const rotations = [-3, -1.5, 0, 1.5, 3]
@@ -193,37 +268,7 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
               <span className="neg-note-date" style={{ color: col.date }}>
                 {new Date(n.note_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
               </span>
-              {isEditing ? (
-                <div style={{ position: 'relative' }}>
-                  <textarea
-                    ref={editTextareaRef}
-                    className="neg-note-edit-input"
-                    value={editingNoteText}
-                    autoFocus
-                    onChange={e => handleFieldChange('edit', e.target.value, e.target.selectionStart)}
-                    onBlur={() => { if (!mention) handleSaveNoteEdit(n.id) }}
-                    onKeyDown={e => {
-                      if (mention?.field === 'edit') {
-                        if (e.key === 'Escape') { e.preventDefault(); setMention(null) }
-                        return
-                      }
-                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveNoteEdit(n.id) }
-                      if (e.key === 'Escape') setEditingNoteId(null)
-                    }}
-                    style={{ background: 'transparent', border: 'none', outline: 'none', width: '100%', font: 'inherit', fontSize: 13, resize: 'none', lineHeight: 1.5, padding: 0, color: '#374151' }}
-                    rows={3}
-                  />
-                  {mention?.field === 'edit' && (
-                    <div className="mention-dropdown">
-                      {mention.items.map(m => (
-                        <div key={m.user_id} className="mention-dropdown-item" onMouseDown={e => { e.preventDefault(); selectMention(m) }}>
-                          @{m.name}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
+              {isEditing ? renderEditInput(n, 'neg-note-edit-input') : (
                 <span
                   className="neg-note-content"
                   onDoubleClick={canEdit ? () => { setEditingNoteId(n.id); setEditingNoteText(n.content) } : undefined}
@@ -237,7 +282,7 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
           )
         })}
       </div>
-      {canEdit && (
+      {canEdit && !hideComposer && (
         <div className="neg-note-add">
           <input
             type="date"

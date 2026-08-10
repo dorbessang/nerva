@@ -4,6 +4,22 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-10 (11)
+
+### Feature: rediseño del modal de Proyecto — Vista con barra fija + tabs, Financiero siempre presente, Bitácora, notas fijadas por página
+- Motivado por feedback directo: el modal de detalle de Proyecto se sentía "desprolijo" comparado con el de Entidades (una sola columna larga de ~10 secciones apiladas), las Notas quedaban perdidas en el medio del scroll, y faltaba una bitácora de texto libre con fecha (distinta del log automático de Actividad)
+- **Requiere el SQL ya corrido** (`unit_of_measure`/`payment_terms`/`estimated_value` en `negotiations`, tabla `negotiation_price_history`, `page` en `negotiation_notes`, `financial_config` en `workspaces`)
+- **`NegotiationDetail` (Vista)**: mismo patrón que ya funciona en Entidades — barra izquierda fija (280px: hero, Resumen con días sin actividad/tareas pendientes/total de hitos, Entidades vinculadas, Producto, Información) + columna derecha con tabs (Financiero/Bitácora/Actividad/Tareas/Documentos), en vez de una sola columna con todo apilado
+- **Financiero pasa a ser parte fija de todo proyecto**, como Contactos en Entidades — ya no depende de tener el campo custom "Financiero" configurado. Qué piezas usar (Hitos/Historial de precio/Volumen/Condiciones de pago/Valor estimado) se elige por workspace en **Configuración → Proyectos → Financiero** (switches nuevos, `workspaces.financial_config`) — Moneda no tiene switch, es la base de todo lo demás
+- **Historial de precio** (`PriceHistory.jsx`, nuevo, mismo patrón que `DealMilestones.jsx`): fecha + valor + cantidad (en la unidad elegida para el proyecto: kg/litro/unidad/servicio/proyecto completo) + motivo — separado de Hitos (que son el cronograma de cobro, no la evolución del precio negociado)
+- **Bitácora** (tab nuevo): timeline cronológico de texto libre con fecha, se agrega directo ahí mismo mientras se trabaja — no se confunde con Actividad (que sigue siendo 100% automática) ni son post-its
+- **Notas con página**: las notitas de colores (post-it) ahora se crean desde el modal de **Editar** eligiendo "Pegar en: Bitácora/Financiero/Tareas/Documentos" (`NegotiationNotesEditor.jsx`, nuevo) — en la Vista aparecen fijadas arriba del tab que corresponda, de solo lectura ahí (se pueden seguir editando/borrando con doble-click / ✕, como siempre). `NotesPostIts.jsx` gana `page` (filtra/asigna la página), `variant` (`'postit'` de siempre o `'timeline'`, usada por Bitácora) y `hideComposer` (oculta el input de alta en los tabs donde ya no se crean ahí)
+- **Decisión de alcance**: a diferencia del mockup inicial, Hitos y el Historial de precio quedan editables solo en la Vista (en vivo, mismo criterio que Documentos/Tareas ya tenían) — no se duplicó su alta dentro del modal de Editar, evita redundancia y mantiene el patrón ya establecido en el resto de la app
+- Sin cambios en custom fields (confirmado la sesión anterior): siguen siendo por `object_type`, no por tipo de entidad — no aplica acá
+- Ícono nuevo en Actividad para `price_updated`
+
+## 2026-08-10 (10)
+
 ## 2026-08-10 (10)
 
 ### Feature: tipo secundario en Entidades — una misma entidad puede tener dos roles (ej. Cliente y Proveedor)

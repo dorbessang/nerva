@@ -924,6 +924,104 @@
   gap: 16px;
 }
 
+/* Vista de detalle "Opción C": barra izquierda fija (identidad + resumen +
+   vínculos, siempre visible) + columna derecha con tabs (Financiero/
+   Bitácora/Actividad/Tareas/Documentos) — mismo patrón que
+   .entity-detail-body--cols en Entities.css. */
+.neg-detail-body--split {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.neg-detail-sidebar {
+  padding: 20px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  border-right: 1px solid #f0f2f5;
+  background: #fafafa;
+}
+
+.neg-detail-rightpane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.neg-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 24px;
+  border-bottom: 2px solid #e5e7eb;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.neg-tab {
+  background: transparent;
+  border: none;
+  padding: 12px 14px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.neg-tab:hover { color: #0B1F3A; }
+.neg-tab.active { color: #0B1F3A; border-bottom-color: #0B1F3A; font-weight: 700; }
+
+.neg-tab-panel {
+  padding: 20px 24px 32px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.neg-sidebar-section { display: flex; flex-direction: column; gap: 8px; }
+.neg-sidebar-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.neg-resumen-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.neg-resumen-tile {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+}
+.neg-resumen-tile--wide { grid-column: 1 / -1; }
+.neg-resumen-num { font-size: 16px; font-weight: 700; color: #111827; line-height: 1.1; }
+.neg-resumen-label { font-size: 10.5px; color: #6b7280; margin-top: 3px; line-height: 1.3; }
+.neg-resumen-tile--ok .neg-resumen-num { color: #059669; }
+.neg-resumen-tile--warn .neg-resumen-num { color: #D97706; }
+
+.neg-financiero-meta { font-size: 12px; color: #6b7280; margin: 4px 0 0; }
+
+@media (max-width: 720px) {
+  .neg-detail-body--split { grid-template-columns: 1fr; overflow-y: auto; }
+  .neg-detail-sidebar { border-right: none; border-bottom: 1px solid #f0f2f5; overflow-y: visible; }
+  .neg-detail-rightpane { overflow: visible; }
+}
+
 .neg-detail-hero {
   display: flex;
   align-items: center;
@@ -1141,6 +1239,136 @@
 }
 
 .neg-note-input:focus { border-color: #0B1F3A; }
+
+/* Bitácora — mismo dato que las notas post-it (negotiation_notes), pero en
+   timeline cronológico prolijo en vez de collage de colores. */
+.neg-bitacora-list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+}
+
+.neg-bitacora-row {
+  display: flex;
+  gap: 12px;
+  position: relative;
+}
+
+.neg-bitacora-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 56px;
+}
+
+.neg-bitacora-date {
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+.neg-bitacora-line {
+  width: 1px;
+  flex: 1;
+  background: #e5e7eb;
+  margin-top: 6px;
+  min-height: 12px;
+}
+
+.neg-bitacora-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1D4ED8;
+  margin-top: 6px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px #EFF6FF;
+}
+
+.neg-bitacora-content {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 16px;
+  position: relative;
+}
+
+.neg-bitacora-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #374151;
+  margin: 0;
+  word-break: break-word;
+  cursor: default;
+}
+
+.neg-bitacora-remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: none;
+  border: none;
+  color: #d1d5db;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.neg-bitacora-row:hover .neg-bitacora-remove { opacity: 1; }
+.neg-bitacora-remove:hover { color: #dc2626; }
+
+/* Editor de notitas con página (dentro del modal de Editar un proyecto) */
+.neg-note-page-select {
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  outline: none;
+  flex-shrink: 0;
+  background: #fff;
+}
+.neg-note-page-select:focus { border-color: #0B1F3A; }
+
+.neg-note-mini-list { display: flex; flex-direction: column; margin-top: 4px; }
+.neg-note-mini-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.neg-note-mini-row:last-child { border-bottom: none; }
+.neg-note-page-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: #F1F5F9;
+  color: #6b7280;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.neg-note-mini-date { font-size: 11.5px; color: #9ca3af; width: 44px; flex-shrink: 0; }
+.neg-note-mini-text { font-size: 13px; color: #374151; flex: 1; min-width: 0; }
+.neg-note-mini-remove {
+  background: none;
+  border: none;
+  color: #d1d5db;
+  cursor: pointer;
+  font-size: 12px;
+  flex-shrink: 0;
+  padding: 0;
+  transition: color 0.15s;
+}
+.neg-note-mini-remove:hover { color: #dc2626; }
 
 .mention-dropdown {
   position: absolute;
@@ -1393,6 +1621,24 @@
 .neg-milestone-amount-input { width: 110px; flex-shrink: 0; }
 .neg-milestone-date-input { width: 130px; flex-shrink: 0; }
 .neg-milestone-timing-input { flex: 1.5; min-width: 160px; }
+
+.price-history-summary {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: #F9FAFB;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+.price-history-current { font-size: 18px; font-weight: 700; color: #111827; }
+.price-history-total { display: block; font-size: 11.5px; color: #6b7280; margin-top: 2px; }
+.price-history-delta { font-size: 12px; font-weight: 700; color: #6b7280; flex-shrink: 0; }
+.price-history-delta--down { color: #DC2626; }
+.price-history-delta--up { color: #059669; }
 
 .detail-section-title {
   font-size: 11px;

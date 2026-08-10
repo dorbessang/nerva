@@ -217,6 +217,14 @@
   color: #6b7280;
 }
 
+.settings-row-desc {
+  font-size: 12px;
+  color: #9ca3af;
+  margin: 3px 0 0;
+  line-height: 1.4;
+  max-width: 46ch;
+}
+
 .settings-row-name {
   font-size: 14px;
   font-weight: 600;

@@ -7,8 +7,10 @@ import { useCloseOnOutsideOrEscape } from '../lib/useCloseOnOutsideOrEscape'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import ImportNegotiationsModal from '../components/ImportNegotiationsModal'
 import NotesPostIts from '../components/NotesPostIts'
+import NegotiationNotesEditor from '../components/NegotiationNotesEditor'
 import ActivityTimeline from '../components/ActivityTimeline'
 import DealMilestones, { formatAmount } from '../components/DealMilestones'
+import PriceHistory from '../components/PriceHistory'
 import Documents from '../components/Documents'
 import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
@@ -22,6 +24,7 @@ import TotalStatCard from '../components/StatCards'
 import { CardGrid, CardTile } from '../components/CardGrid'
 import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
 import { entityHasType } from '../lib/entityTypes'
+import { resolveFinancialConfig, UNIT_OPTIONS } from '../lib/financialConfig'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
@@ -1116,7 +1119,6 @@ function KanbanView({ negotiations, customStates, getStateConfig, getEntityName,
 
 export function NegotiationModal({ initial, presetEntity, entities, entityTypes = [], products = [], members, customStates, customFieldDefs = [], onClose, onCancel, onSaved, workspaceId, userId }) {
   const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
-  const financialDef = customFieldDefs.find(d => d.field_type === 'financial')
 
   const empty = {
     title: '', product: '', status: customStates[0]?.name || 'Contactado',
@@ -1125,7 +1127,8 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
     entity_by_type: presetEntity?.entity_type_id ? { [presetEntity.entity_type_id]: presetEntity.id } : {}, // { [entityTypeId]: entityId }
     product_ids: [], // [{ id }]
     tasks: [],
-    currency: 'USD', milestones: [], custom_fields: {}
+    currency: 'USD', milestones: [], custom_fields: {},
+    unit_of_measure: '', payment_terms: '', estimated_value: '',
   }
   const [form, setForm] = useState(initial ? {
     ...empty, ...initial,
@@ -1163,10 +1166,14 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [fieldOrder, setFieldOrder] = useState(null)
+  const [financialConfig, setFinancialConfig] = useState(resolveFinancialConfig(null))
 
   useEffect(() => {
-    supabase.from('workspaces').select('field_order').eq('id', workspaceId).single()
-      .then(({ data }) => setFieldOrder(data?.field_order || {}))
+    supabase.from('workspaces').select('field_order, financial_config').eq('id', workspaceId).single()
+      .then(({ data }) => {
+        setFieldOrder(data?.field_order || {})
+        setFinancialConfig(resolveFinancialConfig(data?.financial_config))
+      })
   }, [workspaceId])
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
@@ -1203,8 +1210,11 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
       observations: form.observations,
       primary_entity_id: primaryEntityId(),
       primary_product_id: form.product_ids[0]?.id || null,
+      currency: form.currency,
+      unit_of_measure: form.unit_of_measure || null,
+      payment_terms: form.payment_terms || null,
+      estimated_value: form.estimated_value ? parseFloat(form.estimated_value) : null,
     }
-    if (financialDef) row.currency = form.currency
     const jsonbValues = {}
     for (const def of gridDefs) {
       if (def.field_type === 'entities_link' || def.field_type === 'products_link') continue
@@ -1436,49 +1446,86 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
             <label>OBSERVACIONES INTERNAS</label>
             <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={3} placeholder="Notas internas del equipo..." />
           </div>
-          {financialDef && (
-            <div className="form-group">
-              <label>{financialDef.label}{financialDef.required ? ' *' : ''}</label>
-              <div className="form-group" style={{ maxWidth: 160, marginBottom: 10 }}>
+          <div className="form-group form-group--wide">
+            <label>FINANCIERO</label>
+            <div className="entity-fields-grid">
+              <div className="form-group">
                 <label>MONEDA</label>
                 <select value={form.currency} onChange={e => set('currency', e.target.value)}>
                   {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <div className="neg-milestone-add" style={{ marginTop: 0 }}>
-                <input type="text" className="neg-note-input neg-milestone-name-input" value={newMilestoneName} onChange={e => setNewMilestoneName(e.target.value)}
-                  placeholder="Ej: Upfront, Milestone Fase 2, Royalties Año 1..." />
-                <input type="number" className="neg-note-date-input neg-milestone-amount-input" value={newMilestoneAmount} onChange={e => setNewMilestoneAmount(e.target.value)}
-                  placeholder="Monto (negativo = pago a hacer)" step="0.01" />
-                <input type="date" className="neg-note-date-input neg-milestone-date-input" value={newMilestoneDate} onChange={e => setNewMilestoneDate(e.target.value)} />
-                <input type="text" className="neg-note-input neg-milestone-timing-input" value={newMilestoneTiming} onChange={e => setNewMilestoneTiming(e.target.value)}
-                  placeholder="Momento (si no hay fecha exacta, ej: al lanzamiento)" />
-                <button type="button" className="btn-secondary" onClick={() => {
-                  const amount = parseFloat(newMilestoneAmount)
-                  if (!newMilestoneName.trim() || Number.isNaN(amount) || amount === 0) return
-                  set('milestones', [...form.milestones, { id: Date.now(), name: newMilestoneName.trim(), amount, estimated_date: newMilestoneDate, timing_note: newMilestoneTiming.trim() }])
-                  setNewMilestoneName(''); setNewMilestoneAmount(''); setNewMilestoneDate(''); setNewMilestoneTiming('')
-                }}>
-                  + Agregar
-                </button>
-              </div>
-              {form.milestones.map(m => (
-                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, border: '1px solid #e5e7eb', marginTop: 6 }}>
-                  <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>{m.name}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: Number(m.amount) < 0 ? '#DC2626' : '#059669' }}>{Number(m.amount).toLocaleString('es-AR')} {form.currency}</span>
-                  {(m.estimated_date || m.timing_note) && (
-                    <span style={{ fontSize: 11, color: '#9ca3af' }}>
-                      {[m.estimated_date ? new Date(m.estimated_date + 'T00:00:00').toLocaleDateString('es-AR') : null, m.timing_note].filter(Boolean).join(' · ')}
-                    </span>
-                  )}
-                  <button type="button" onClick={() => set('milestones', form.milestones.filter(x => x.id !== m.id))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 16 }}>×</button>
+              {financialConfig.historial_precio && financialConfig.volumen && (
+                <div className="form-group">
+                  <label>UNIDAD</label>
+                  <select value={form.unit_of_measure} onChange={e => set('unit_of_measure', e.target.value)}>
+                    <option value="">Sin especificar</option>
+                    {UNIT_OPTIONS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                  </select>
                 </div>
-              ))}
-              {initial && (
-                <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>Los hitos ya existentes se editan desde la vista de detalle del proyecto.</p>
+              )}
+              {financialConfig.condiciones_pago && (
+                <div className="form-group">
+                  <label>CONDICIONES DE PAGO</label>
+                  <input type="text" value={form.payment_terms} onChange={e => set('payment_terms', e.target.value)}
+                    placeholder="Ej: 50% anticipo, 50% contra entrega" />
+                </div>
+              )}
+              {financialConfig.valor_estimado && (
+                <div className="form-group">
+                  <label>VALOR ESTIMADO DEL DEAL</label>
+                  <input type="number" step="0.01" value={form.estimated_value} onChange={e => set('estimated_value', e.target.value)}
+                    placeholder="Cifra a mano, si todavía no hay hitos" />
+                </div>
               )}
             </div>
+
+            {financialConfig.hitos && (
+              <>
+                <label style={{ marginTop: 14, display: 'block' }}>HITOS</label>
+                <div className="neg-milestone-add" style={{ marginTop: 0 }}>
+                  <input type="text" className="neg-note-input neg-milestone-name-input" value={newMilestoneName} onChange={e => setNewMilestoneName(e.target.value)}
+                    placeholder="Ej: Upfront, Milestone Fase 2, Royalties Año 1..." />
+                  <input type="number" className="neg-note-date-input neg-milestone-amount-input" value={newMilestoneAmount} onChange={e => setNewMilestoneAmount(e.target.value)}
+                    placeholder="Monto (negativo = pago a hacer)" step="0.01" />
+                  <input type="date" className="neg-note-date-input neg-milestone-date-input" value={newMilestoneDate} onChange={e => setNewMilestoneDate(e.target.value)} />
+                  <input type="text" className="neg-note-input neg-milestone-timing-input" value={newMilestoneTiming} onChange={e => setNewMilestoneTiming(e.target.value)}
+                    placeholder="Momento (si no hay fecha exacta, ej: al lanzamiento)" />
+                  <button type="button" className="btn-secondary" onClick={() => {
+                    const amount = parseFloat(newMilestoneAmount)
+                    if (!newMilestoneName.trim() || Number.isNaN(amount) || amount === 0) return
+                    set('milestones', [...form.milestones, { id: Date.now(), name: newMilestoneName.trim(), amount, estimated_date: newMilestoneDate, timing_note: newMilestoneTiming.trim() }])
+                    setNewMilestoneName(''); setNewMilestoneAmount(''); setNewMilestoneDate(''); setNewMilestoneTiming('')
+                  }}>
+                    + Agregar
+                  </button>
+                </div>
+                {form.milestones.map(m => (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, border: '1px solid #e5e7eb', marginTop: 6 }}>
+                    <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>{m.name}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: Number(m.amount) < 0 ? '#DC2626' : '#059669' }}>{Number(m.amount).toLocaleString('es-AR')} {form.currency}</span>
+                    {(m.estimated_date || m.timing_note) && (
+                      <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                        {[m.estimated_date ? new Date(m.estimated_date + 'T00:00:00').toLocaleDateString('es-AR') : null, m.timing_note].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                    <button type="button" onClick={() => set('milestones', form.milestones.filter(x => x.id !== m.id))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 16 }}>×</button>
+                  </div>
+                ))}
+                {initial && (
+                  <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>Los hitos ya existentes se editan desde la vista de detalle del proyecto.</p>
+                )}
+              </>
+            )}
+          </div>
+
+          {initial && (
+            <div className="form-group form-group--wide">
+              <label>NOTAS</label>
+              <NegotiationNotesEditor negotiationId={initial.id} workspaceId={workspaceId} />
+            </div>
           )}
+
           <div className="form-group">
             <label>TAREAS INICIALES</label>
             <div className="neg-newtask-row">
@@ -1535,6 +1582,9 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   const [inlineStatus, setInlineStatus] = useState(neg.status || '')
   const [inlineObs, setInlineObs] = useState(neg.observations || '')
   const [inlineCurrency, setInlineCurrency] = useState(neg.currency || 'USD')
+  const [activeTab, setActiveTab] = useState('bitacora')
+  const [financialConfig, setFinancialConfig] = useState(resolveFinancialConfig(null))
+  const [milestonesTotal, setMilestonesTotal] = useState(null)
   const [customFieldValues, setCustomFieldValues] = useState(neg.custom_fields || {})
   const [columnValues, setColumnValues] = useState(() => {
     const init = {}
@@ -1551,7 +1601,6 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   const primaryProduct = neg.primary_product || neg.negotiation_products?.map(np => np.product).filter(Boolean)[0] || null
   const secondaryProducts = (neg.negotiation_products || []).filter(np => np.product?.id && np.product.id !== primaryProduct?.id)
   const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
-  const financialDef = customFieldDefs.find(d => d.field_type === 'financial')
   const entitiesLinkDef = customFieldDefs.find(d => d.field_type === 'entities_link')
   const productsLinkDef = customFieldDefs.find(d => d.field_type === 'products_link')
   const inlineDetailDefs = gridDefs.filter(d => d.field_type !== 'status' && d.field_type !== 'entities_link' && d.field_type !== 'products_link' && d.key !== 'product')
@@ -1561,6 +1610,18 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   }
 
   useEffect(() => { fetchTasks() }, [])
+
+  useEffect(() => {
+    supabase.from('workspaces').select('financial_config').eq('id', neg.workspace_id || workspaceId).single()
+      .then(({ data }) => setFinancialConfig(resolveFinancialConfig(data?.financial_config)))
+  }, [neg.workspace_id, workspaceId])
+
+  useEffect(() => { fetchMilestonesTotal() }, [neg.id, activityRefresh])
+
+  async function fetchMilestonesTotal() {
+    const { data } = await supabase.from('deal_milestones').select('amount').eq('negotiation_id', neg.id)
+    if (data) setMilestonesTotal(data.reduce((sum, m) => sum + Number(m.amount), 0))
+  }
 
   async function fetchTasks() {
     const { data } = await supabase.from('tasks')
@@ -1649,6 +1710,9 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
     return map[status] || status
   }
 
+  const pendingTasksCount = tasks.filter(t => t.status !== 'done').length
+  const daysSinceActivity = neg.last_activity_at ? Math.floor((Date.now() - new Date(neg.last_activity_at)) / 86400000) : null
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="neg-detail-card" onClick={e => e.stopPropagation()}>
@@ -1667,207 +1731,299 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
             <button className="modal-close" onClick={onClose}>✕</button>
           </div>
         </div>
-        <div className="neg-detail-body">
-          <div className="neg-detail-hero">
-            <div className="neg-detail-entity">
-              {flag && <img src={flag} alt="" className="neg-flag-large" />}
-              <span className="neg-detail-entity-name">{entityNames}</span>
-            </div>
-            {canEditInline ? (
-              <select
-                className="neg-inline-select"
-                value={inlineStatus}
-                style={{ backgroundColor: cfg.bg_color, color: cfg.color }}
-                onChange={e => { setInlineStatus(e.target.value); saveInlineField('status', e.target.value) }}
-              >
-                {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-              </select>
-            ) : (
-              <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{inlineStatus}</span>
-            )}
-          </div>
-          {customFieldError && <p className="form-error">{customFieldError}</p>}
-          {inlineDetailDefs.map(def => (
-            <div key={def.key} className="neg-detail-section">
-              <div className="detail-section-title">{def.label}{def.required ? ' *' : ''}</div>
+        <div className="neg-detail-body neg-detail-body--split">
+          <aside className="neg-detail-sidebar">
+            <div className="neg-detail-hero">
+              <div className="neg-detail-entity">
+                {flag && <img src={flag} alt="" className="neg-flag-large" />}
+                <span className="neg-detail-entity-name">{entityNames}</span>
+              </div>
               {canEditInline ? (
-                <CustomFieldInput def={def} value={fieldValue(def)} onChange={v => saveField(def, v)} />
+                <select
+                  className="neg-inline-select"
+                  value={inlineStatus}
+                  style={{ backgroundColor: cfg.bg_color, color: cfg.color }}
+                  onChange={e => { setInlineStatus(e.target.value); saveInlineField('status', e.target.value) }}
+                >
+                  {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                </select>
               ) : (
-                <p className="detail-empty"><CustomFieldReadOnly def={def} value={fieldValue(def)} members={members} /></p>
+                <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{inlineStatus}</span>
               )}
             </div>
-          ))}
-          {entitiesLinkDef && entityTypes.some(et => getEntitiesOfType(neg, et.id).length > 0) && (
-            <div className="neg-detail-section">
-              <div className="detail-section-title">{entitiesLinkDef.label}</div>
-              <div className="neg-secondary-entities">
-                {entityTypes.map(et => {
-                  const ents = getEntitiesOfType(neg, et.id)
-                  if (ents.length === 0) return null
-                  return (
-                    <div key={et.id} className="neg-secondary-entity-row">
-                      {ents[0].country_code && (
-                        <img src={`https://flagcdn.com/w20/${ents[0].country_code.toLowerCase()}.png`} alt="" className="neg-flag" />
-                      )}
-                      <span className="neg-secondary-entity-name">{ents.map(e => e.name).join(', ')}</span>
-                      <span className="neg-secondary-entity-role">{et.name}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-          {productsLinkDef && (primaryProduct || secondaryProducts.length > 0) && (
-            <div className="neg-detail-section">
-              <div className="detail-section-title">{productsLinkDef.label}</div>
-              <div className="neg-secondary-entities">
-                {primaryProduct && (
-                  <div key={primaryProduct.id} className="neg-secondary-entity-row">
-                    <span className="neg-secondary-entity-name">{primaryProduct.name}</span>
-                    <span className="neg-secondary-entity-role">★ Principal</span>
-                  </div>
-                )}
-                {secondaryProducts.map(np => (
-                  <div key={np.product.id} className="neg-secondary-entity-row">
-                    <span className="neg-secondary-entity-name">{np.product.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {financialDef && (
-            <div className="neg-detail-section">
-              <div className="neg-tasks-header">
-                <div className="detail-section-title">{financialDef.label}</div>
-                {canEditInline ? (
-                  <select
-                    className="neg-inline-select neg-inline-select--small"
-                    value={inlineCurrency}
-                    onChange={e => { setInlineCurrency(e.target.value); saveInlineField('currency', e.target.value) }}
-                  >
-                    {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                ) : (
-                  <span className="neg-detail-value">{inlineCurrency}</span>
-                )}
-              </div>
-              <DealMilestones
-                negotiationId={neg.id}
-                workspaceId={neg.workspace_id || workspaceId}
-                currency={inlineCurrency}
-                canEdit={canNote}
-                onChanged={() => { setActivityRefresh(v => v + 1); onActivityChanged?.() }}
-              />
-            </div>
-          )}
-          <div className="neg-detail-section">
-            <div className="detail-section-title">DOCUMENTOS</div>
-            <Documents
-              negotiationId={neg.id}
-              workspaceId={neg.workspace_id || workspaceId}
-              canEdit={canNote}
-              onChanged={() => setActivityRefresh(v => v + 1)}
-            />
-          </div>
-          <div className="neg-detail-section">
-            <div className="detail-section-title">NOTAS</div>
-            <NotesPostIts
-              negotiationId={neg.id}
-              workspaceId={neg.workspace_id || workspaceId}
-              canEdit={canNote}
-              onChanged={() => { setActivityRefresh(v => v + 1); onNotesChanged?.() }}
-              contextLabel={neg.product || neg.title}
-            />
-          </div>
-          <div className="neg-detail-section">
-            <div className="detail-section-title">OBSERVACIONES INTERNAS</div>
-            {canEditInline ? (
-              <textarea
-                className="neg-inline-obs"
-                value={inlineObs}
-                onChange={e => setInlineObs(e.target.value)}
-                onBlur={() => saveInlineField('observations', inlineObs)}
-                placeholder="Sin observaciones todavía."
-                rows={3}
-              />
-            ) : (
-              <p className="detail-empty" style={{ whiteSpace: 'pre-wrap' }}>{inlineObs || 'Sin observaciones todavía.'}</p>
-            )}
-          </div>
-          <div className="neg-detail-section">
-            <div className="neg-tasks-header">
-              <div className="detail-section-title">TAREAS ({tasks.length})</div>
-              {canTask && <button className="neg-add-task-btn" onClick={() => setShowTaskModal(true)}>+ Nueva tarea</button>}
-            </div>
-            {tasks.length === 0 ? (
-              <p className="detail-empty">Sin tareas todavía.</p>
-            ) : (() => {
-              const myTasks = tasks.filter(t => !t.assigned_to || t.assigned_to === myUserId)
-              const otherTasks = tasks.filter(t => t.assigned_to && t.assigned_to !== myUserId)
-              const visibleTasks = effectiveRole === 'viewer' ? myTasks : tasks
+            {customFieldError && <p className="form-error">{customFieldError}</p>}
 
-              return (
-                <div className="neg-tasks-list">
-                  {visibleTasks.map(task => {
-                    const isOther = task.assigned_to && task.assigned_to !== myUserId
-                    const showAssignee = isPrivileged || !isOther
-                    const blocked = isTaskBlocked(task)
-                    const isHighlighted = task.id === highlightTaskId
+            <div className="neg-sidebar-section">
+              <p className="neg-sidebar-label">Resumen</p>
+              <div className="neg-resumen-grid">
+                <div className={`neg-resumen-tile ${daysSinceActivity !== null && daysSinceActivity <= 7 ? 'neg-resumen-tile--ok' : ''}`}>
+                  <div className="neg-resumen-num">{daysSinceActivity !== null ? `${daysSinceActivity}d` : '—'}</div>
+                  <div className="neg-resumen-label">desde última actividad</div>
+                </div>
+                <div className={`neg-resumen-tile ${pendingTasksCount > 0 ? 'neg-resumen-tile--warn' : ''}`}>
+                  <div className="neg-resumen-num">{pendingTasksCount}</div>
+                  <div className="neg-resumen-label">tarea{pendingTasksCount !== 1 ? 's' : ''} pendiente{pendingTasksCount !== 1 ? 's' : ''}</div>
+                </div>
+                {financialConfig.hitos && milestonesTotal !== null && (
+                  <div className="neg-resumen-tile neg-resumen-tile--wide">
+                    <div className="neg-resumen-num">{formatAmount(milestonesTotal)}{inlineCurrency ? ` ${inlineCurrency}` : ''}</div>
+                    <div className="neg-resumen-label">total del deal (hitos)</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {entitiesLinkDef && entityTypes.some(et => getEntitiesOfType(neg, et.id).length > 0) && (
+              <div className="neg-sidebar-section">
+                <p className="neg-sidebar-label">{entitiesLinkDef.label}</p>
+                <div className="neg-secondary-entities">
+                  {entityTypes.map(et => {
+                    const ents = getEntitiesOfType(neg, et.id)
+                    if (ents.length === 0) return null
                     return (
-                      <div
-                        key={task.id}
-                        ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'center' }) : undefined}
-                        className={`neg-task-row ${task.status === 'done' ? 'done' : ''} ${isOther && !isPrivileged ? 'neg-task-row--other' : ''} ${isHighlighted ? 'neg-task-row--highlight' : ''}`}
-                      >
-                        <button
-                          className={`neg-task-check ${task.status === 'done' ? 'checked' : ''}`}
-                          onClick={() => canCompleteTask(task) && handleToggleTask(task)}
-                          disabled={!canCompleteTask(task)}
-                          title={
-                            blocked ? 'Esta tarea depende de otra que todavía no se completó'
-                            : !canCompleteTask(task) && isOther ? 'Solo el asignado puede completar esta tarea'
-                            : undefined
-                          }
-                        >
-                          {task.status === 'done' ? '✓' : blocked ? '🔒' : ''}
-                        </button>
-                        <div className="neg-task-body">
-                          <span className="neg-task-title">
-                            {showAssignee && task.profile
-                              ? <span style={{ color: '#1D4ED8', fontWeight: 600 }}>@{task.profile.full_name.charAt(0).toUpperCase() + task.profile.full_name.slice(1)}: </span>
-                              : isOther ? <span style={{ color: '#9ca3af', fontWeight: 500 }}>Asignado a otro miembro: </span>
-                              : null
-                            }
-                            {task.title}
-                          </span>
-                          {blocked && (
-                            <span className="neg-task-blocked-note">
-                              {isPrivileged
-                                ? `🔒 Bloqueada por "${task.predecessor.title}" (${task.predecessor.profile?.full_name || 'sin asignar'} · ${statusLabel(task.predecessor.status)})`
-                                : '🔒 Pendiente de aprobación previa'}
-                            </span>
-                          )}
-                        </div>
-                        <span className={`neg-task-status badge-${task.status}`}>{statusLabel(task.status)}</span>
-                        {task.due_date && <span className="neg-task-date">{new Date(task.due_date).toLocaleDateString('es-AR')}</span>}
+                      <div key={et.id} className="neg-secondary-entity-row">
+                        {ents[0].country_code && (
+                          <img src={`https://flagcdn.com/w20/${ents[0].country_code.toLowerCase()}.png`} alt="" className="neg-flag" />
+                        )}
+                        <span className="neg-secondary-entity-name">{ents.map(e => e.name).join(', ')}</span>
+                        <span className="neg-secondary-entity-role">{et.name}</span>
                       </div>
                     )
                   })}
-                  {effectiveRole === 'viewer' && otherTasks.length > 0 && (
-                    <div className="neg-task-row neg-task-row--hidden-hint">
-                      <span style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
-                        + {otherTasks.length} tarea{otherTasks.length !== 1 ? 's' : ''} asignada{otherTasks.length !== 1 ? 's' : ''} a otros miembros
-                      </span>
+                </div>
+              </div>
+            )}
+
+            {productsLinkDef && (primaryProduct || secondaryProducts.length > 0) && (
+              <div className="neg-sidebar-section">
+                <p className="neg-sidebar-label">{productsLinkDef.label}</p>
+                <div className="neg-secondary-entities">
+                  {primaryProduct && (
+                    <div key={primaryProduct.id} className="neg-secondary-entity-row">
+                      <span className="neg-secondary-entity-name">{primaryProduct.name}</span>
+                      <span className="neg-secondary-entity-role">★ Principal</span>
                     </div>
                   )}
+                  {secondaryProducts.map(np => (
+                    <div key={np.product.id} className="neg-secondary-entity-row">
+                      <span className="neg-secondary-entity-name">{np.product.name}</span>
+                    </div>
+                  ))}
                 </div>
-              )
-            })()}
-          </div>
-          <div className="neg-detail-section">
-            <div className="detail-section-title">ACTIVIDAD</div>
-            <ActivityTimeline negotiationId={neg.id} refreshKey={activityRefresh} />
-          </div>
+              </div>
+            )}
+
+            {inlineDetailDefs.length > 0 && (
+              <div className="neg-sidebar-section">
+                <p className="neg-sidebar-label">Información</p>
+                {inlineDetailDefs.map(def => (
+                  <div key={def.key} className="neg-detail-section">
+                    <div className="detail-section-title">{def.label}{def.required ? ' *' : ''}</div>
+                    {canEditInline ? (
+                      <CustomFieldInput def={def} value={fieldValue(def)} onChange={v => saveField(def, v)} />
+                    ) : (
+                      <p className="detail-empty"><CustomFieldReadOnly def={def} value={fieldValue(def)} members={members} /></p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="neg-sidebar-section">
+              <p className="neg-sidebar-label">Observaciones internas</p>
+              {canEditInline ? (
+                <textarea
+                  className="neg-inline-obs"
+                  value={inlineObs}
+                  onChange={e => setInlineObs(e.target.value)}
+                  onBlur={() => saveInlineField('observations', inlineObs)}
+                  placeholder="Sin observaciones todavía."
+                  rows={3}
+                />
+              ) : (
+                <p className="detail-empty" style={{ whiteSpace: 'pre-wrap' }}>{inlineObs || 'Sin observaciones todavía.'}</p>
+              )}
+            </div>
+          </aside>
+
+          <section className="neg-detail-rightpane">
+            <div className="neg-tabs">
+              <button className={`neg-tab ${activeTab === 'financiero' ? 'active' : ''}`} onClick={() => setActiveTab('financiero')}>Financiero</button>
+              <button className={`neg-tab ${activeTab === 'bitacora' ? 'active' : ''}`} onClick={() => setActiveTab('bitacora')}>Bitácora</button>
+              <button className={`neg-tab ${activeTab === 'actividad' ? 'active' : ''}`} onClick={() => setActiveTab('actividad')}>Actividad</button>
+              <button className={`neg-tab ${activeTab === 'tareas' ? 'active' : ''}`} onClick={() => setActiveTab('tareas')}>Tareas ({tasks.length})</button>
+              <button className={`neg-tab ${activeTab === 'documentos' ? 'active' : ''}`} onClick={() => setActiveTab('documentos')}>Documentos</button>
+            </div>
+
+            {activeTab === 'financiero' && (
+              <div className="neg-tab-panel">
+                <NotesPostIts negotiationId={neg.id} workspaceId={neg.workspace_id || workspaceId} page="financiero" canEdit={canNote} hideComposer
+                  onChanged={() => { setActivityRefresh(v => v + 1); onNotesChanged?.() }} contextLabel={neg.product || neg.title} />
+
+                <div className="neg-tasks-header">
+                  <div className="detail-section-title">Moneda</div>
+                  {canEditInline ? (
+                    <select
+                      className="neg-inline-select neg-inline-select--small"
+                      value={inlineCurrency}
+                      onChange={e => { setInlineCurrency(e.target.value); saveInlineField('currency', e.target.value) }}
+                    >
+                      {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  ) : (
+                    <span className="neg-detail-value">{inlineCurrency}</span>
+                  )}
+                </div>
+                {(neg.payment_terms || neg.unit_of_measure) && (
+                  <p className="neg-financiero-meta">
+                    {neg.unit_of_measure && `Unidad: ${neg.unit_of_measure}`}
+                    {neg.unit_of_measure && neg.payment_terms && ' · '}
+                    {neg.payment_terms}
+                  </p>
+                )}
+                {financialConfig.valor_estimado && neg.estimated_value && (
+                  <p className="neg-financiero-meta">Valor estimado: {formatAmount(neg.estimated_value)} {inlineCurrency}</p>
+                )}
+
+                {financialConfig.historial_precio && (
+                  <>
+                    <div className="detail-section-title" style={{ marginTop: 18 }}>Historial de precio</div>
+                    <PriceHistory
+                      negotiationId={neg.id}
+                      workspaceId={neg.workspace_id || workspaceId}
+                      currency={inlineCurrency}
+                      unit={neg.unit_of_measure}
+                      showQuantity={financialConfig.volumen}
+                      canEdit={canNote}
+                      onChanged={() => setActivityRefresh(v => v + 1)}
+                    />
+                  </>
+                )}
+
+                {financialConfig.hitos && (
+                  <>
+                    <div className="detail-section-title" style={{ marginTop: 18 }}>Hitos</div>
+                    <DealMilestones
+                      negotiationId={neg.id}
+                      workspaceId={neg.workspace_id || workspaceId}
+                      currency={inlineCurrency}
+                      canEdit={canNote}
+                      onChanged={() => { setActivityRefresh(v => v + 1); onActivityChanged?.() }}
+                    />
+                  </>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'bitacora' && (
+              <div className="neg-tab-panel">
+                <NotesPostIts
+                  negotiationId={neg.id}
+                  workspaceId={neg.workspace_id || workspaceId}
+                  page="bitacora"
+                  variant="timeline"
+                  canEdit={canNote}
+                  onChanged={() => { setActivityRefresh(v => v + 1); onNotesChanged?.() }}
+                  contextLabel={neg.product || neg.title}
+                />
+              </div>
+            )}
+
+            {activeTab === 'actividad' && (
+              <div className="neg-tab-panel">
+                <ActivityTimeline negotiationId={neg.id} refreshKey={activityRefresh} />
+              </div>
+            )}
+
+            {activeTab === 'tareas' && (
+              <div className="neg-tab-panel">
+                <NotesPostIts negotiationId={neg.id} workspaceId={neg.workspace_id || workspaceId} page="tareas" canEdit={canNote} hideComposer
+                  onChanged={() => { setActivityRefresh(v => v + 1); onNotesChanged?.() }} contextLabel={neg.product || neg.title} />
+                <div className="neg-tasks-header">
+                  <div className="detail-section-title">TAREAS ({tasks.length})</div>
+                  {canTask && <button className="neg-add-task-btn" onClick={() => setShowTaskModal(true)}>+ Nueva tarea</button>}
+                </div>
+                {tasks.length === 0 ? (
+                  <p className="detail-empty">Sin tareas todavía.</p>
+                ) : (() => {
+                  const myTasks = tasks.filter(t => !t.assigned_to || t.assigned_to === myUserId)
+                  const otherTasks = tasks.filter(t => t.assigned_to && t.assigned_to !== myUserId)
+                  const visibleTasks = effectiveRole === 'viewer' ? myTasks : tasks
+
+                  return (
+                    <div className="neg-tasks-list">
+                      {visibleTasks.map(task => {
+                        const isOther = task.assigned_to && task.assigned_to !== myUserId
+                        const showAssignee = isPrivileged || !isOther
+                        const blocked = isTaskBlocked(task)
+                        const isHighlighted = task.id === highlightTaskId
+                        return (
+                          <div
+                            key={task.id}
+                            ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'center' }) : undefined}
+                            className={`neg-task-row ${task.status === 'done' ? 'done' : ''} ${isOther && !isPrivileged ? 'neg-task-row--other' : ''} ${isHighlighted ? 'neg-task-row--highlight' : ''}`}
+                          >
+                            <button
+                              className={`neg-task-check ${task.status === 'done' ? 'checked' : ''}`}
+                              onClick={() => canCompleteTask(task) && handleToggleTask(task)}
+                              disabled={!canCompleteTask(task)}
+                              title={
+                                blocked ? 'Esta tarea depende de otra que todavía no se completó'
+                                : !canCompleteTask(task) && isOther ? 'Solo el asignado puede completar esta tarea'
+                                : undefined
+                              }
+                            >
+                              {task.status === 'done' ? '✓' : blocked ? '🔒' : ''}
+                            </button>
+                            <div className="neg-task-body">
+                              <span className="neg-task-title">
+                                {showAssignee && task.profile
+                                  ? <span style={{ color: '#1D4ED8', fontWeight: 600 }}>@{task.profile.full_name.charAt(0).toUpperCase() + task.profile.full_name.slice(1)}: </span>
+                                  : isOther ? <span style={{ color: '#9ca3af', fontWeight: 500 }}>Asignado a otro miembro: </span>
+                                  : null
+                                }
+                                {task.title}
+                              </span>
+                              {blocked && (
+                                <span className="neg-task-blocked-note">
+                                  {isPrivileged
+                                    ? `🔒 Bloqueada por "${task.predecessor.title}" (${task.predecessor.profile?.full_name || 'sin asignar'} · ${statusLabel(task.predecessor.status)})`
+                                    : '🔒 Pendiente de aprobación previa'}
+                                </span>
+                              )}
+                            </div>
+                            <span className={`neg-task-status badge-${task.status}`}>{statusLabel(task.status)}</span>
+                            {task.due_date && <span className="neg-task-date">{new Date(task.due_date).toLocaleDateString('es-AR')}</span>}
+                          </div>
+                        )
+                      })}
+                      {effectiveRole === 'viewer' && otherTasks.length > 0 && (
+                        <div className="neg-task-row neg-task-row--hidden-hint">
+                          <span style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
+                            + {otherTasks.length} tarea{otherTasks.length !== 1 ? 's' : ''} asignada{otherTasks.length !== 1 ? 's' : ''} a otros miembros
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+
+            {activeTab === 'documentos' && (
+              <div className="neg-tab-panel">
+                <NotesPostIts negotiationId={neg.id} workspaceId={neg.workspace_id || workspaceId} page="documentos" canEdit={canNote} hideComposer
+                  onChanged={() => { setActivityRefresh(v => v + 1); onNotesChanged?.() }} contextLabel={neg.product || neg.title} />
+                <div className="detail-section-title">DOCUMENTOS</div>
+                <Documents
+                  negotiationId={neg.id}
+                  workspaceId={neg.workspace_id || workspaceId}
+                  canEdit={canNote}
+                  onChanged={() => setActivityRefresh(v => v + 1)}
+                />
+              </div>
+            )}
+          </section>
         </div>
         <div className="detail-footer">
           {canPause && (

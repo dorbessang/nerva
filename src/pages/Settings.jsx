@@ -7,6 +7,7 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import { notifyRoleChanged } from '../lib/notifications'
 import { computeFieldOrder, isCardFilterable } from '../lib/customFields'
 import { extractFunctionError } from '../lib/edgeFunctionError'
+import { FINANCIAL_FEATURES, resolveFinancialConfig } from '../lib/financialConfig'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 
@@ -86,10 +87,64 @@ function ModuloProyectos({ workspaceId }) {
     <div>
       <div className="settings-type-toggle" style={{ marginBottom: 16 }}>
         <button className={`settings-toggle-btn ${section === 'estados' ? 'active' : ''}`} onClick={() => setSection('estados')}>Estados</button>
+        <button className={`settings-toggle-btn ${section === 'financiero' ? 'active' : ''}`} onClick={() => setSection('financiero')}>Financiero</button>
         <button className={`settings-toggle-btn ${section === 'campos' ? 'active' : ''}`} onClick={() => setSection('campos')}>Campos</button>
       </div>
       {section === 'estados' && <TabEstados workspaceId={workspaceId} />}
+      {section === 'financiero' && <TabFinanciero workspaceId={workspaceId} />}
       {section === 'campos' && <TabCamposPersonalizados workspaceId={workspaceId} objectType="negotiation" />}
+    </div>
+  )
+}
+
+// Financiero es parte fija de todo proyecto (como Contactos en Entidades) —
+// no se prende/apaga por campo custom. Acá se elige, por workspace, qué
+// piezas del módulo usar (ver src/lib/financialConfig.js). Lo que se apaga
+// no borra datos ya cargados, solo deja de mostrarse.
+function TabFinanciero({ workspaceId }) {
+  const [config, setConfig] = useState(resolveFinancialConfig(null))
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => { fetchConfig() }, [workspaceId])
+
+  async function fetchConfig() {
+    const { data } = await supabase.from('workspaces').select('financial_config').eq('id', workspaceId).single()
+    setConfig(resolveFinancialConfig(data?.financial_config))
+    setLoading(false)
+  }
+
+  async function toggle(key) {
+    const next = { ...config, [key]: !config[key] }
+    setConfig(next)
+    await supabase.from('workspaces').update({ financial_config: next }).eq('id', workspaceId)
+  }
+
+  if (loading) return <div className="settings-loading">Cargando...</div>
+
+  return (
+    <div className="settings-section">
+      <div className="settings-block">
+        <h2 className="settings-block-title">Financiero</h2>
+        <p className="settings-hint">
+          El tab Financiero está siempre disponible en todos los proyectos — acá elegís qué piezas usar. Moneda es la base de todo lo demás y siempre está activa. Lo que apagues no borra nada ya cargado, solo deja de mostrarse.
+        </p>
+        <div className="settings-table">
+          {FINANCIAL_FEATURES.map(f => (
+            <div key={f.key} className="settings-row">
+              <div className="settings-row-info">
+                <div className="settings-row-text">
+                  <div className="settings-row-name">{f.label}</div>
+                  <p className="settings-row-desc">{f.desc}</p>
+                </div>
+              </div>
+              <label className="notif-pref-toggle">
+                <input type="checkbox" checked={!!config[f.key]} onChange={() => toggle(f.key)} />
+                <span className="notif-pref-slider" />
+              </label>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

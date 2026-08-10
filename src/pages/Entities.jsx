@@ -157,7 +157,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   }, [entityTypeId])
 
   useEffect(() => {
-    supabase.from('entities').select('id, name, country_code, entity_type_id').order('name')
+    supabase.from('entities').select('id, name, country_code, entity_type_id, secondary_entity_type_id').order('name')
       .then(({ data }) => setAllEntities(naturalSortByName(data || [])))
     supabase.from('entity_types').select('id, name, plural').order('sort_order')
       .then(({ data }) => setAllEntityTypes(data || []))
@@ -841,7 +841,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
   async function refetchNeg(id) {
     const [{ data: full }, { data: ents }, { data: prods }, { data: notesList }] = await Promise.all([
       supabase.from('negotiations').select('*').eq('id', id).single(),
-      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code, entity_type_id)').eq('negotiation_id', id),
+      supabase.from('negotiation_entities').select('negotiation_id, entity_id, role, entity:entity_id(id, name, country_code, entity_type_id)').eq('negotiation_id', id),
       supabase.from('negotiation_products').select('negotiation_id, product_id, product:product_id(id, name)').eq('negotiation_id', id),
       supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', id).order('note_date'),
     ])
