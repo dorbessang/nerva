@@ -39,7 +39,7 @@ export default function Products() {
   const [productTypes, setProductTypes] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [view, setView] = useState('cards')
+  const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 860) ? 'cards' : 'table')
   const [showModal, setShowModal] = useState(false)
   const [showColEditor, setShowColEditor] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState(null)

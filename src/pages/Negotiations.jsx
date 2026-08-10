@@ -702,10 +702,10 @@ export default function Negotiations() {
           onColResize={(key, width) => saveCols(cols.map(c => c.key === key ? { ...c, width } : c))} />
       ) : view === 'cards' ? (
         <CardsView negotiations={sorted} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} customFieldDefs={customFieldDefs} members={members}
-          selectedIds={selectedIds} onToggleSelect={toggleSelect} />
+          selectedIds={selectedIds} onToggleSelect={toggleSelect} entityTypes={entityTypes} />
       ) : (
         <KanbanView negotiations={filtered} customStates={customStates} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} cols={cols} customFieldDefs={customFieldDefs} members={members}
-          onSelect={setSelectedNeg} canEdit={canCreateProject} onMove={handleKanbanMove} />
+          onSelect={setSelectedNeg} canEdit={canCreateProject} onMove={handleKanbanMove} entityTypes={entityTypes} />
       )}
 
       {showModal && (
@@ -882,12 +882,15 @@ function TableView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
   )
 }
 
-function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members) {
+function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members, entityTypes) {
   if (key.startsWith('entity_type:')) {
-    const ents = getEntitiesOfType(neg, key.slice('entity_type:'.length))
+    const typeId = key.slice('entity_type:'.length)
+    const ents = getEntitiesOfType(neg, typeId)
     if (ents.length === 0) return null
+    const typeLabel = entityTypes?.find(et => et.id === typeId)?.name
     return (
       <div key={key} className="neg-card-entity">
+        {typeLabel && <span className="neg-card-entity-type">{typeLabel}:</span>}
         {ents[0].country_code && <img src={`https://flagcdn.com/w20/${ents[0].country_code.toLowerCase()}.png`} alt="" className="neg-flag" />}
         {ents.map(e => e.name).join(', ')}
       </div>
@@ -952,7 +955,7 @@ function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag,
   }
 }
 
-function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, customFieldDefs, members, selectedIds, onToggleSelect }) {
+function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, customFieldDefs, members, selectedIds, onToggleSelect, entityTypes }) {
   // Columnas visibles excluyendo product y status (que van hardcodeados en el header)
   const visibleFields = cols.filter(c => c.visible && c.key !== 'product' && c.key !== 'status')
 
@@ -963,7 +966,7 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
         const actIcon = neg.activity_status === 'inactive' ? '💤' : neg.activity_status === 'paused' ? '⏸' : null
         const cardClass = neg.activity_status === 'paused' ? 'card-tile-paused' : neg.activity_status === 'inactive' ? 'card-tile-inactive' : ''
         const title = neg.product || neg.title
-        const fields = visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members)).filter(Boolean)
+        const fields = visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members, entityTypes)).filter(Boolean)
         return (
           <CardTile
             key={neg.id}
@@ -984,7 +987,7 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
   )
 }
 
-function KanbanView({ negotiations, customStates, getStateConfig, getEntityName, getEntityFlag, onSelect, canEdit, onMove, cols, customFieldDefs, members }) {
+function KanbanView({ negotiations, customStates, getStateConfig, getEntityName, getEntityFlag, onSelect, canEdit, onMove, cols, customFieldDefs, members, entityTypes }) {
   const [dragOverCol, setDragOverCol] = useState(null)
   // Mismos campos configurables que Tabla/Cards ("⚙ Vista"), product y status
   // van hardcodeados en el título de la card / la columna en la que cae.
@@ -1027,7 +1030,7 @@ function KanbanView({ negotiations, customStates, getStateConfig, getEntityName,
                       {actIcon && <span className="neg-kanban-card-icon">{actIcon}</span>}
                       {neg.product || neg.title}
                     </div>
-                    {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members))}
+                    {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members, entityTypes))}
                     {canEdit && (
                       <div className="neg-kanban-card-actions" onClick={e => e.stopPropagation()}>
                         {colIdx > 0 && (

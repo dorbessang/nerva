@@ -847,6 +847,7 @@
 .card-tile-inactive:hover { background: #bae6fd; }
 
 .neg-card-entity { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #6b7280; }
+.neg-card-entity-type { font-weight: 600; color: #9ca3af; }
 .neg-card-date { font-size: 11px; color: #9ca3af; }
 .neg-card-field { margin-top: 8px; }
 .neg-card-text {

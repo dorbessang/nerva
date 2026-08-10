@@ -56,7 +56,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [allEntityTypes, setAllEntityTypes] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [view, setView] = useState('cards')
+  const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 860) ? 'cards' : 'table')
   const [showModal, setShowModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [showColEditor, setShowColEditor] = useState(false)
@@ -98,6 +98,13 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     ...entityFieldDefs.filter(d => d.field_type !== 'contacts').map(d => ({ key: d.key, label: d.label, alwaysVisible: d.key === 'name' })),
     ...ENTITY_STATIC_COLUMNS,
   ]
+  // Contactos es un sub-formulario repetible, no una celda — su versión
+  // tabular es el conteo (`contacts_count`, ya en ENTITY_STATIC_COLUMNS).
+  // Filtro defensivo acá además del de arriba: si alguien tiene una
+  // preferencia de columnas guardada de antes de esta exclusión (localStorage
+  // viejo), nunca debe poder mostrar el campo crudo en Tabla/Mosaico.
+  const contactsFieldKey = entityFieldDefs.find(d => d.field_type === 'contacts')?.key
+  const safeCols = contactsFieldKey ? cols.filter(c => c.key !== contactsFieldKey) : cols
 
   function toggleSelect(id) {
     setSelectedIds(prev => {
@@ -406,7 +413,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
       </div>
 
       {showColEditor && view === 'table' && (
-        <ColumnEditor cols={cols} allColumns={allColumns} onChange={saveCols} onClose={() => setShowColEditor(false)} />
+        <ColumnEditor cols={safeCols} allColumns={allColumns} onChange={saveCols} onClose={() => setShowColEditor(false)} />
       )}
 
       {showImportModal && (
@@ -450,7 +457,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
         <EntitiesGridTable
           entities={sorted}
           entityFieldDefs={entityFieldDefs}
-          cols={cols}
+          cols={safeCols}
           allColumns={allColumns}
           members={members}
           onSelect={setSelectedEntity}

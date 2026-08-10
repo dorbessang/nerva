@@ -304,6 +304,12 @@ Pedido explícito de limpieza de código y armonía visual — las tres páginas
 - [x] Limpieza: ~170 líneas netas menos pese a sumar 3 archivos compartidos — se borraron las 3 implementaciones de tabla viejas, las clases CSS `.neg-card*`/`.entity-card*` que quedaron sin ningún uso, y los helpers de avatar duplicados
 - [ ] Sin SQL — cambio de código nada más
 
+##### Follow-up inmediato (9): ajustes tras probar la unificación — vista por defecto, Contactos, tipo de entidad en Mosaico/Kanban
+- [x] Tabla pasa a ser la vista por defecto en las 3 páginas (en escritorio; Mosaico sigue siendo el default en pantallas angostas, mismo criterio que ya tenía Proyectos) — Entidades/Productos abrían en Mosaico, ahora las tres abren igual
+- [x] Bug real en Entidades: "Contactos" (sub-formulario repetible, no una celda) podía aparecer como columna en Tabla/Mosaico si el navegador tenía una preferencia de columnas guardada de antes de que existiera la exclusión ya aplicada a `allColumns`/Configuración — esa exclusión no cubría `visibleCols` dentro de la grilla en sí. Se agrega un filtro defensivo (`safeCols`) en el único lugar que hacía falta, para que ese campo nunca pueda mostrarse sin importar qué haya quedado guardado de antes
+- [x] Proyectos: cuando hay más de una entidad vinculada de distinto tipo, Mosaico y Kanban ahora muestran el tipo como prefijo del nombre ("Cliente: Acme S.A."), igual que ya distinguía la Tabla con una columna por tipo
+- [ ] Sin SQL — cambio de código nada más
+
 ### Pantalla de bienvenida para workspaces nuevos sin configurar
 Al abrir el primer cliente pagador (workspace de equipo creado a mano vía SQL, sin flujo de alta propio todavía), el owner entraba a una app completamente vacía — sin tipos de entidad, sin estados, sin campos custom — y tenía que armar todo desde Configuración antes de poder cargar el primer dato. Se pidió una pantalla de bienvenida que ofrezca eso de entrada.
 - [x] Columna nueva `workspaces.onboarded boolean not null default true` — default `true` a propósito, para que ningún workspace ya en uso muestre esta pantalla retroactivamente. Los workspaces nuevos se crean con `onboarded = false` explícito en el insert de bootstrap

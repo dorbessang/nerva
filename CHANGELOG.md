@@ -4,6 +4,13 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-07 (11)
+
+### Fix: Tabla como vista por defecto, tipo de entidad visible en Mosaico/Kanban, Contactos nunca en columnas
+- Entidades/Productos abrían en Mosaico por defecto; Proyectos ya abría en Tabla (en desktop). Se unifica: las tres arrancan en Tabla en escritorio, Mosaico solo en pantallas angostas (mismo criterio que ya tenía Proyectos)
+- Bug real corregido en Entidades: "Contactos" (el sub-formulario repetible) podía colarse como columna en Tabla/Mosaico si una preferencia de columnas guardada en el navegador venía de antes de la exclusión que ya existía para `allColumns`/Configuración — esa exclusión no alcanzaba al armar `visibleCols` dentro de la grilla. Ahora hay un filtro defensivo adicional (`safeCols`) que saca ese campo específico de cualquier lugar donde se lean las columnas a mostrar, sin importar qué haya quedado guardado
+- Proyectos: cuando un proyecto tiene más de una entidad vinculada (de distinto tipo — ej. Cliente y Proveedor), Mosaico y Kanban mostraban los nombres sin indicar cuál era cuál (la Tabla sí, con una columna por tipo). Ahora cada entidad vinculada muestra el nombre de su tipo como prefijo ("Cliente: Acme S.A.")
+
 ## 2026-08-07 (10)
 
 ### Refactor: Tabla y Mosaico unificados entre Proyectos/Entidades/Productos
