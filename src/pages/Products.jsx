@@ -168,13 +168,6 @@ export default function Products() {
     return found || { color: '#64748B', bg_color: '#F1F5F9' }
   }
 
-  function getStateCounts(negotiationProducts) {
-    const negs = (negotiationProducts || []).map(n => n.negotiation).filter(Boolean)
-    const counts = {}
-    negs.forEach(n => { counts[n.status] = (counts[n.status] || 0) + 1 })
-    return counts
-  }
-
   const filterableProductDefs = productFieldDefs.filter(isFieldFilterable)
   const productTypeDef = productFieldDefs.find(d => d.field_type === 'product_type')
   // El tipo de producto ya filtra desde las tarjetas de arriba (estilo Estados
@@ -331,6 +324,7 @@ export default function Products() {
           products={sorted}
           productFieldDefs={productFieldDefs}
           productTypes={productTypes}
+          getStateConfig={getStateConfig}
           cols={cols}
           allColumns={allColumns}
           members={members}
@@ -409,10 +403,37 @@ export default function Products() {
   )
 }
 
+// Mismo cálculo que en Mosaico: cuántos proyectos tiene el producto por
+// estado — se reusa acá para pintar los mismos badges en la celda de tabla
+// "Proyectos totales" (sin duplicar lógica entre las dos vistas).
+function getStateCounts(negotiationLinks) {
+  const negs = (negotiationLinks || []).map(n => n.negotiation).filter(Boolean)
+  const counts = {}
+  negs.forEach(n => { counts[n.status] = (counts[n.status] || 0) + 1 })
+  return counts
+}
+
+function renderProjectsTotalCell(negotiationLinks, getStateConfig) {
+  const counts = getStateCounts(negotiationLinks)
+  if (Object.keys(counts).length === 0) return <span className="entity-no-projects">Sin proyectos</span>
+  return (
+    <div className="entity-state-badges">
+      {Object.entries(counts).map(([status, count]) => {
+        const cfg = getStateConfig ? getStateConfig(status) : { color: '#64748B', bg_color: '#F1F5F9' }
+        return (
+          <span key={status} className="entity-state-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>
+            {count} {status}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
 // Celda de columna de la grilla de Productos — despacha por key, casos
 // especiales primero (nombre, tipo/proveedor resueltos vía join, el
 // calculado de PRODUCT_STATIC_COLUMNS) y default a `productFieldDefs`.
-function renderProductCell(key, product, productFieldDefs, members) {
+function renderProductCell(key, product, productFieldDefs, members, getStateConfig) {
   switch (key) {
     case 'name':
       return <td key={key} className="entities-td-name">{product.name}</td>
@@ -421,7 +442,7 @@ function renderProductCell(key, product, productFieldDefs, members) {
     case 'entity':
       return <td key={key}>{product.entity?.name || '—'}</td>
     case 'projects_total':
-      return <td key={key}>{product.negotiation_products?.length || 0}</td>
+      return <td key={key}>{renderProjectsTotalCell(product.negotiation_products, getStateConfig)}</td>
     default: {
       const def = productFieldDefs?.find(d => d.key === key)
       if (!def) return <td key={key}>—</td>
@@ -431,7 +452,7 @@ function renderProductCell(key, product, productFieldDefs, members) {
   }
 }
 
-function ProductsGridTable({ products, productFieldDefs, productTypes, cols, allColumns, members, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
+function ProductsGridTable({ products, productFieldDefs, productTypes, cols, allColumns, members, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
   function getColumnFilter(key) {
     const fieldDef = productFieldDefs.find(d => d.key === key)
     if (!fieldDef || !isFieldFilterable(fieldDef)) return null
@@ -449,7 +470,7 @@ function ProductsGridTable({ products, productFieldDefs, productTypes, cols, all
       rowKey={product => product.id}
       cols={cols}
       allColumns={allColumns}
-      renderCell={(key, product) => renderProductCell(key, product, productFieldDefs, members)}
+      renderCell={(key, product) => renderProductCell(key, product, productFieldDefs, members, getStateConfig)}
       getColumnFilter={getColumnFilter}
       sortKey={sortKey}
       sortDir={sortDir}

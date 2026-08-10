@@ -4,6 +4,12 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-10
+
+### Feature: badges de estado en la columna "Proyectos totales" de Tabla (Entidades/Productos)
+- Repensado explícito pedido por el usuario: la columna mostraba solo un número (`negotiation_entities?.length`). Se reemplaza por el mismo desglose por estado que ya mostraba el pie de las tarjetas en Mosaico (`Object.entries(getStateCounts(...))` + `getStateConfig(status)` → `.entity-state-badges`/`.entity-state-badge`), confirmado con el usuario vía pregunta explícita entre esa opción y una versión más compacta de punto+contador
+- `getStateCounts` pasa de función local (duplicada en `Entities()`/`Products()`, usada solo por Mosaico) a helper de módulo (`renderProjectsTotalCell`), ahora compartido entre Tabla y Mosaico dentro de cada archivo — sin cambiar el comportamiento de Mosaico, que sigue llamando a la misma función
+
 ## 2026-08-07 (11)
 
 ### Fix: Tabla como vista por defecto, tipo de entidad visible en Mosaico/Kanban, Contactos nunca en columnas

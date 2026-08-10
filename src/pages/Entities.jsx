@@ -233,13 +233,6 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     return found || { color: '#64748B', bg_color: '#F1F5F9' }
   }
 
-  function getStateCounts(negotiationEntities) {
-    const negs = (negotiationEntities || []).map(n => n.negotiation).filter(Boolean)
-    const counts = {}
-    negs.forEach(n => { counts[n.status] = (counts[n.status] || 0) + 1 })
-    return counts
-  }
-
   const filterableEntityDefs = entityFieldDefs.filter(isFieldFilterable)
   // Campo elegido a mano en Configuración ("Usar como tarjetas de filtro")
   // para que sus valores salgan como tarjetas clicables arriba, en vez de
@@ -457,6 +450,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
         <EntitiesGridTable
           entities={sorted}
           entityFieldDefs={entityFieldDefs}
+          getStateConfig={getStateConfig}
           cols={safeCols}
           allColumns={allColumns}
           members={members}
@@ -542,11 +536,38 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   )
 }
 
+// Mismo cálculo que en Mosaico: cuántos proyectos tiene la entidad/producto
+// por estado — se reusa acá para pintar los mismos badges en la celda de
+// tabla "Proyectos totales" (sin duplicar lógica entre las dos vistas).
+function getStateCounts(negotiationLinks) {
+  const negs = (negotiationLinks || []).map(n => n.negotiation).filter(Boolean)
+  const counts = {}
+  negs.forEach(n => { counts[n.status] = (counts[n.status] || 0) + 1 })
+  return counts
+}
+
+function renderProjectsTotalCell(negotiationLinks, getStateConfig) {
+  const counts = getStateCounts(negotiationLinks)
+  if (Object.keys(counts).length === 0) return <span className="entity-no-projects">Sin proyectos</span>
+  return (
+    <div className="entity-state-badges">
+      {Object.entries(counts).map(([status, count]) => {
+        const cfg = getStateConfig ? getStateConfig(status) : { color: '#64748B', bg_color: '#F1F5F9' }
+        return (
+          <span key={status} className="entity-state-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>
+            {count} {status}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
 // Celda de una columna de la grilla de Entidades — despacha por key igual
 // que renderCell en Negotiations.jsx: primero los casos especiales (no son
 // un campo custom simple: nombre con bandera, tipo resuelto vía el join,
 // los 2 calculados de ENTITY_STATIC_COLUMNS) y default a `entityFieldDefs`.
-function renderEntityCell(key, entity, entityFieldDefs, members) {
+function renderEntityCell(key, entity, entityFieldDefs, members, getStateConfig) {
   switch (key) {
     case 'name':
       return (
@@ -560,7 +581,7 @@ function renderEntityCell(key, entity, entityFieldDefs, members) {
     case 'contacts_count':
       return <td key={key}>{entity.contacts?.length || 0}</td>
     case 'projects_total':
-      return <td key={key}>{entity.negotiation_entities?.length || 0}</td>
+      return <td key={key}>{renderProjectsTotalCell(entity.negotiation_entities, getStateConfig)}</td>
     default: {
       const def = entityFieldDefs?.find(d => d.key === key)
       if (!def) return <td key={key}>—</td>
@@ -574,7 +595,7 @@ function renderEntityCell(key, entity, entityFieldDefs, members) {
 // la vieja `EntitiesTable` de filas fijas. Reusa las clases `neg-table-*`
 // de Negotiations.css: son estilos de tabla genéricos, ya bundleados en la
 // misma hoja de estilos global de la app.
-function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, members, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
+function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, members, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
   function getColumnFilter(key) {
     const fieldDef = entityFieldDefs.find(d => d.key === key)
     if (!fieldDef || !isFieldFilterable(fieldDef)) return null
@@ -592,7 +613,7 @@ function EntitiesGridTable({ entities, entityFieldDefs, cols, allColumns, member
       rowKey={entity => entity.id}
       cols={cols}
       allColumns={allColumns}
-      renderCell={(key, entity) => renderEntityCell(key, entity, entityFieldDefs, members)}
+      renderCell={(key, entity) => renderEntityCell(key, entity, entityFieldDefs, members, getStateConfig)}
       getColumnFilter={getColumnFilter}
       sortKey={sortKey}
       sortDir={sortDir}

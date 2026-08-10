@@ -307,7 +307,8 @@ Pedido explícito de limpieza de código y armonía visual — las tres páginas
 ##### Follow-up inmediato (9): ajustes tras probar la unificación — vista por defecto, Contactos, tipo de entidad en Mosaico/Kanban
 - [x] Tabla pasa a ser la vista por defecto en las 3 páginas (en escritorio; Mosaico sigue siendo el default en pantallas angostas, mismo criterio que ya tenía Proyectos) — Entidades/Productos abrían en Mosaico, ahora las tres abren igual
 - [x] Bug real en Entidades: "Contactos" (sub-formulario repetible, no una celda) podía aparecer como columna en Tabla/Mosaico si el navegador tenía una preferencia de columnas guardada de antes de que existiera la exclusión ya aplicada a `allColumns`/Configuración — esa exclusión no cubría `visibleCols` dentro de la grilla en sí. Se agrega un filtro defensivo (`safeCols`) en el único lugar que hacía falta, para que ese campo nunca pueda mostrarse sin importar qué haya quedado guardado de antes
-- [x] Proyectos: cuando hay más de una entidad vinculada de distinto tipo, Mosaico y Kanban ahora muestran el tipo como prefijo del nombre ("Cliente: Acme S.A."), igual que ya distinguía la Tabla con una columna por tipo
+- [x] Proyectos: cuando hay más de una entidad vinculada de distinto tipo, Mosaico y Kanban ahora muestran el tipo como prefijo del nombre ("Cliente: Acme S.A.")
+- [x] Tabla de Entidades/Productos: la columna "Proyectos totales" mostraba un número pelado — se reemplaza por los mismos badges por estado que ya tenía el pie de Mosaico (`getStateCounts`/`getStateConfig`), confirmado con el usuario vía pregunta explícita ("mismos badges" vs. una versión más compacta de punto+contador)
 - [ ] Sin SQL — cambio de código nada más
 
 ### Pantalla de bienvenida para workspaces nuevos sin configurar
