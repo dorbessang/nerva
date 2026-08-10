@@ -4,6 +4,15 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-10 (2)
+
+### Refactor: Configuración reorganizada por módulo (Proyectos / Entidades / Productos)
+- Pedido explícito del usuario, con propuesta de estructura propia: hoy "Estados", "Tipos de entidad", "Tipos de producto" y "Campos personalizados" vivían como pestañas separadas (esta última con un selector interno Proyectos/Entidades/Productos) — para terminar de configurar un solo tipo de dato (ej. Entidades) había que saltar entre 2 pestañas distintas
+- Nueva estructura: 3 pestañas padre (Proyectos / Entidades / Productos), cada una con sub-secciones propias reusando el mismo widget de pastillas que ya tenían los selectores viejos: **Proyectos** → Estados + Campos; **Entidades** → Tipos de entidad + Campos; **Productos** → Tipos de producto + Campos
+- `TabCamposPersonalizados` deja de tener su propio selector de objeto — ahora recibe `objectType` como prop fija desde el módulo padre. `TabEstados` deja de tener el suyo (Proyectos/Entidades/Tareas) — se detectó en el camino que las opciones "Entidades" y "Tareas" no estaban conectadas a ningún lugar real de la app (el estado de una tarea es fijo en código, y las entidades no tienen un campo de estado propio con ese sentido), así que Estados queda directamente exclusivo de Proyectos, sin selector — simplificación real, no solo cosmética
+- Contactos (el sub-formulario repetible de Entidades) queda exactamente como estaba, sin sub-sección propia — no hay hoy nada más configurable ahí más allá del label, que ya vive dentro de "Campos"
+- Sin SQL — cambio de código nada más
+
 ## 2026-08-10
 
 ### Feature: badges de estado en la columna "Proyectos totales" de Tabla (Entidades/Productos)

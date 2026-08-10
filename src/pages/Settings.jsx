@@ -19,11 +19,11 @@ export default function Settings() {
   // no tiene sentido invitar gente ni configurar estados/tipos de entidad ahí
   const canInvite = isOwner && !isPersonal
   const showModuleTabs = isAdminOrOwner && !isPersonal
-  const [activeTab, setActiveTab] = useState(canInvite ? 'usuarios' : showModuleTabs ? 'estados' : 'notificaciones')
+  const [activeTab, setActiveTab] = useState(canInvite ? 'usuarios' : showModuleTabs ? 'proyectos' : 'notificaciones')
 
   useEffect(() => {
-    if (activeTab === 'usuarios' && !canInvite) setActiveTab(showModuleTabs ? 'estados' : 'notificaciones')
-    if (['estados', 'entidades', 'productos', 'campos'].includes(activeTab) && !showModuleTabs) setActiveTab(isAdminOrOwner ? 'workspace' : 'notificaciones')
+    if (activeTab === 'usuarios' && !canInvite) setActiveTab(showModuleTabs ? 'proyectos' : 'notificaciones')
+    if (['proyectos', 'entidades', 'productos'].includes(activeTab) && !showModuleTabs) setActiveTab(isAdminOrOwner ? 'workspace' : 'notificaciones')
     if (activeTab === 'workspace' && !isAdminOrOwner) setActiveTab('notificaciones')
   }, [canInvite, showModuleTabs, isAdminOrOwner, activeTab])
 
@@ -35,14 +35,18 @@ export default function Settings() {
 
       {/* Tabs de navegación interna — en un workspace personal (de un solo
           usuario, sin proyectos/entidades) no tiene sentido invitar gente ni
-          configurar estados/tipos de entidad */}
+          configurar estados/tipos de entidad. Cada módulo (Proyectos/
+          Entidades/Productos) agrupa todo lo que le corresponde — antes
+          estaba repartido entre "Estados", "Tipos de X" y "Campos
+          personalizados" (esta última con un selector interno de a qué
+          objeto aplicaba), forzando a saltar de pestaña para terminar de
+          configurar un solo tipo de dato. */}
       <div className="settings-tabs">
         {[
           ...(canInvite ? [{ key: 'usuarios', label: 'Usuarios' }] : []),
-          ...(showModuleTabs ? [{ key: 'estados', label: 'Estados' }] : []),
-          ...(showModuleTabs ? [{ key: 'entidades', label: 'Tipos de entidad' }] : []),
-          ...(showModuleTabs ? [{ key: 'productos', label: 'Tipos de producto' }] : []),
-          ...(showModuleTabs ? [{ key: 'campos', label: 'Campos personalizados' }] : []),
+          ...(showModuleTabs ? [{ key: 'proyectos', label: 'Proyectos' }] : []),
+          ...(showModuleTabs ? [{ key: 'entidades', label: 'Entidades' }] : []),
+          ...(showModuleTabs ? [{ key: 'productos', label: 'Productos' }] : []),
           ...(isAdminOrOwner ? [{ key: 'workspace', label: 'Workspace' }] : []),
           { key: 'notificaciones', label: 'Notificaciones' },
         ].map(tab => (
@@ -59,13 +63,61 @@ export default function Settings() {
       {/* Contenido según tab activo */}
       <div className="settings-content">
         {activeTab === 'usuarios' && canInvite && <TabUsuarios workspaceId={workspaceId} />}
-        {activeTab === 'estados' && showModuleTabs && <TabEstados workspaceId={workspaceId} />}
-        {activeTab === 'entidades' && showModuleTabs && <TabEntidades workspaceId={workspaceId} />}
-        {activeTab === 'productos' && showModuleTabs && <TabProductos workspaceId={workspaceId} />}
-        {activeTab === 'campos' && showModuleTabs && <TabCamposPersonalizados workspaceId={workspaceId} />}
+        {activeTab === 'proyectos' && showModuleTabs && <ModuloProyectos workspaceId={workspaceId} />}
+        {activeTab === 'entidades' && showModuleTabs && <ModuloEntidades workspaceId={workspaceId} />}
+        {activeTab === 'productos' && showModuleTabs && <ModuloProductos workspaceId={workspaceId} />}
         {activeTab === 'workspace' && isAdminOrOwner && <TabWorkspace workspaceId={workspaceId} />}
         {activeTab === 'notificaciones' && <TabNotificaciones workspaceId={workspaceId} />}
       </div>
+    </div>
+  )
+}
+
+// ─── MÓDULOS (Proyectos / Entidades / Productos) ──────────────────────────────
+// Cada módulo agrupa en un solo lugar todo lo que antes vivía repartido:
+// su propia definición de tipos/estados + sus campos personalizados. La
+// sub-navegación reusa el mismo widget de pastillas que ya usaban los
+// selectores internos de objeto (`.settings-type-toggle`), un nivel más
+// adentro.
+
+function ModuloProyectos({ workspaceId }) {
+  const [section, setSection] = useState('estados')
+  return (
+    <div>
+      <div className="settings-type-toggle" style={{ marginBottom: 16 }}>
+        <button className={`settings-toggle-btn ${section === 'estados' ? 'active' : ''}`} onClick={() => setSection('estados')}>Estados</button>
+        <button className={`settings-toggle-btn ${section === 'campos' ? 'active' : ''}`} onClick={() => setSection('campos')}>Campos</button>
+      </div>
+      {section === 'estados' && <TabEstados workspaceId={workspaceId} />}
+      {section === 'campos' && <TabCamposPersonalizados workspaceId={workspaceId} objectType="negotiation" />}
+    </div>
+  )
+}
+
+function ModuloEntidades({ workspaceId }) {
+  const [section, setSection] = useState('tipos')
+  return (
+    <div>
+      <div className="settings-type-toggle" style={{ marginBottom: 16 }}>
+        <button className={`settings-toggle-btn ${section === 'tipos' ? 'active' : ''}`} onClick={() => setSection('tipos')}>Tipos de entidad</button>
+        <button className={`settings-toggle-btn ${section === 'campos' ? 'active' : ''}`} onClick={() => setSection('campos')}>Campos</button>
+      </div>
+      {section === 'tipos' && <TabEntidades workspaceId={workspaceId} />}
+      {section === 'campos' && <TabCamposPersonalizados workspaceId={workspaceId} objectType="entity" />}
+    </div>
+  )
+}
+
+function ModuloProductos({ workspaceId }) {
+  const [section, setSection] = useState('tipos')
+  return (
+    <div>
+      <div className="settings-type-toggle" style={{ marginBottom: 16 }}>
+        <button className={`settings-toggle-btn ${section === 'tipos' ? 'active' : ''}`} onClick={() => setSection('tipos')}>Tipos de producto</button>
+        <button className={`settings-toggle-btn ${section === 'campos' ? 'active' : ''}`} onClick={() => setSection('campos')}>Campos</button>
+      </div>
+      {section === 'tipos' && <TabProductos workspaceId={workspaceId} />}
+      {section === 'campos' && <TabCamposPersonalizados workspaceId={workspaceId} objectType="product" />}
     </div>
   )
 }
@@ -335,6 +387,10 @@ const PRESET_COLORS = [
   { color: '#0B1F3A', bg: '#F0F2F5' }, // marino
 ]
 
+// Estados vive exclusivamente bajo el módulo Proyectos — el pipeline de
+// negociación es lo único que hoy consume `custom_states` en la app.
+const STATES_OBJECT_TYPE = 'negotiation'
+
 function TabEstados({ workspaceId }) {
   const [states, setStates] = useState([])
   const [loading, setLoading] = useState(true)
@@ -344,12 +400,12 @@ function TabEstados({ workspaceId }) {
   const [bgManual, setBgManual] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [objectType, setObjectType] = useState('negotiation')
+  const objectType = STATES_OBJECT_TYPE
   const [editing, setEditing] = useState(null) // { id, name, color, bg_color }
 
   useEffect(() => {
     fetchStates()
-  }, [objectType])
+  }, [])
 
   async function fetchStates() {
     setLoading(true)
@@ -411,22 +467,7 @@ function TabEstados({ workspaceId }) {
     <div className="settings-section">
       <div className="settings-block">
         <div className="settings-block-header">
-          <h2 className="settings-block-title">Estados personalizados</h2>
-          <div className="settings-type-toggle">
-            {[
-              { key: 'negotiation', label: 'Proyectos' },
-              { key: 'entity', label: 'Entidades' },
-              { key: 'task', label: 'Tareas' },
-            ].map(t => (
-              <button
-                key={t.key}
-                className={`settings-toggle-btn ${objectType === t.key ? 'active' : ''}`}
-                onClick={() => setObjectType(t.key)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <h2 className="settings-block-title">Estados de proyecto</h2>
         </div>
 
         {loading ? <div className="settings-loading">Cargando...</div> : (
@@ -1105,8 +1146,7 @@ function ChoicesEditor({ choices, onChange }) {
   )
 }
 
-function TabCamposPersonalizados({ workspaceId }) {
-  const [objectType, setObjectType] = useState('negotiation')
+function TabCamposPersonalizados({ workspaceId, objectType }) {
   const [fields, setFields] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null)
@@ -1378,21 +1418,6 @@ function TabCamposPersonalizados({ workspaceId }) {
       <div className="settings-block">
         <div className="settings-block-header">
           <h2 className="settings-block-title">Campos personalizados</h2>
-          <div className="settings-type-toggle">
-            {[
-              { key: 'negotiation', label: 'Proyectos' },
-              { key: 'entity', label: 'Entidades' },
-              { key: 'product', label: 'Productos' },
-            ].map(t => (
-              <button
-                key={t.key}
-                className={`settings-toggle-btn ${objectType === t.key ? 'active' : ''}`}
-                onClick={() => setObjectType(t.key)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
         </div>
 
         <p className="settings-hint">
