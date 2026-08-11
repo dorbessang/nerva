@@ -182,6 +182,15 @@ export default function Negotiations() {
     setSortKey(dir ? key : null)
   }
   const [search, setSearch] = useState('')
+  const hasActiveFilters = search.trim() !== '' || filterActivity !== 'active'
+    || Object.values(customFilterValues).some(v => Array.isArray(v) ? v.length > 0 : !!v)
+    || Object.values(entityTypeFilters).some(v => Array.isArray(v) ? v.length > 0 : !!v)
+  function clearAllFilters() {
+    setSearch('')
+    setFilterActivity('active')
+    setCustomFilterValues({})
+    setEntityTypeFilters({})
+  }
   const [showModal, setShowModal] = useState(false)
   const [selectedNeg, setSelectedNeg] = useState(null)
   const [editingNeg, setEditingNeg] = useState(null)
@@ -660,6 +669,9 @@ export default function Negotiations() {
           </select>
         </div>
         <FiltersPanelButton groups={filterPanelGroups} />
+        {hasActiveFilters && (
+          <button type="button" className="clear-filters-btn" onClick={clearAllFilters}>✕ Limpiar filtros</button>
+        )}
         <div className="neg-view-toggle">
           <button className={`neg-view-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')} title="Vista tabla"><Table2 size={15} /></button>
           <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Vista cards"><LayoutGrid size={15} /></button>

@@ -4,6 +4,13 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (24)
+
+### Feature: botón "Limpiar filtros" en Proyectos, Entidades, Productos y Tareas
+- Aparece solo cuando hay algún filtro activo (búsqueda, filtros del panel/encabezado de columna, "Para completar", Actividad, tipo de entidad, Proyecto/Proveedor/Responsable en Tareas) — resetea todo de un click
+- No toca las pestañas de vista/navegación (tipo de entidad en Entidades, "Mis tareas/Terceros/..." en Tareas) — solo los filtros propiamente dichos
+- Sin cambios de SQL
+
 ## 2026-08-11 (23)
 
 ### Fix: el detalle de un proyecto se veía distinto según desde dónde se abría

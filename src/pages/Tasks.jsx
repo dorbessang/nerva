@@ -21,6 +21,12 @@ export default function Tasks() {
   const [filterEntity, setFilterEntity] = useState('')
   const [filterNegotiation, setFilterNegotiation] = useState('')
   const [filterAssignee, setFilterAssignee] = useState('')
+  const hasActiveFilters = filterEntity !== '' || filterNegotiation !== '' || filterAssignee !== ''
+  function clearAllFilters() {
+    setFilterEntity('')
+    setFilterNegotiation('')
+    setFilterAssignee('')
+  }
   const [entities, setEntities] = useState([])
   const [negotiations, setNegotiations] = useState([])
   const [members, setMembers] = useState([])
@@ -230,6 +236,10 @@ export default function Tasks() {
             </div>
           )}
         </div>
+
+        {hasActiveFilters && (
+          <button type="button" className="clear-filters-btn" onClick={clearAllFilters}>✕ Limpiar filtros</button>
+        )}
       </div>
 
       {filter !== 'done' && (

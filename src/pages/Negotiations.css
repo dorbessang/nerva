@@ -1874,6 +1874,22 @@
 }
 .entity-combobox-clear:hover { color: #DC2626; }
 
+/* Botón "Limpiar filtros" — reusado en Proyectos/Entidades/Productos/Tareas,
+   solo se renderiza cuando hay al menos un filtro activo. */
+.clear-filters-btn {
+  background: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #DC2626;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+}
+.clear-filters-btn:hover { background: #FEF2F2; border-color: #FCA5A5; }
+
 .entity-dropdown {
   position: absolute;
   top: calc(100% + 4px);

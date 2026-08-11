@@ -99,6 +99,13 @@ export default function Products() {
   const [onlyNeedsReview, setOnlyNeedsReview] = useState(false)
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState(null)
+  const hasActiveFilters = search.trim() !== '' || onlyNeedsReview
+    || Object.values(customFilterValues).some(v => Array.isArray(v) ? v.length > 0 : !!v)
+  function clearAllFilters() {
+    setSearch('')
+    setOnlyNeedsReview(false)
+    setCustomFilterValues({})
+  }
 
   function handleSort(key) {
     const dir = nextSortDir(key, sortKey, sortDir)
@@ -353,6 +360,9 @@ export default function Products() {
           />
         </div>
         <FiltersPanelButton groups={filterPanelGroups} />
+        {hasActiveFilters && (
+          <button type="button" className="clear-filters-btn" onClick={clearAllFilters}>✕ Limpiar filtros</button>
+        )}
         <div className="neg-view-toggle">
           <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Mosaico"><LayoutGrid size={15} /></button>
           <button className={`neg-view-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')} title="Tabla"><Table2 size={15} /></button>
