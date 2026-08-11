@@ -607,6 +607,8 @@ El WS personal existía desde Etapa 1 solo como fila en la base (trigger `handle
 - [ ] Subentidades / Líneas de negocio dentro de entidades
 - [ ] Vista calendario para tareas y proyectos
 - [ ] Notificaciones por email con Resend
+- [ ] Buscador global (`GlobalSearch.jsx`) hoy solo busca en Proyectos, Entidades, Tareas y Notas — falta sumar Productos, Contactos y Documentos. Regla a seguir de acá en más: **cada vez que se agregue una sección/tabla nueva de contenido buscable a la app, sumarla también acá** — para que no se desactualice de nuevo como pasó con Productos
+- [ ] Invitaciones por email — hoy `invite-user` genera el link (`generateLink`) pero no manda el mail automático (se sacó en una instancia de prueba para no pegarle al rate limit del mailer default de Supabase, nunca se volvió a arreglar) — el owner/staff tiene que copiar el link a mano y mandarlo por fuera. Aplica tanto a "Invitar usuario" (Configuración) como a "Dar de alta un cliente nuevo" (Perfil, panel de staff) — mismo mecanismo (`addOrInviteUser`) para las dos. Pendiente definir con el usuario si se configura SMTP propio (Resend) en Supabase Auth o se llama a la API de Resend directo desde la Edge Function
 
 ---
 
