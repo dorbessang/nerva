@@ -41,6 +41,7 @@ export default function TaskModal({ onClose, onCreated }) {
       .from('workspace_members')
       .select(`user_id, profile:user_id ( full_name, email )`)
       .eq('workspace_id', workspaceId)
+      .eq('status', 'active')
     if (data) setMembers(data)
   }
 

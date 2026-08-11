@@ -19,13 +19,6 @@
   margin: 0;
 }
 
-.settings-unauthorized {
-  color: #9ca3af;
-  font-size: 14px;
-  padding: 64px 0;
-  text-align: center;
-}
-
 /* Tabs de navegación */
 .settings-tabs {
   display: flex;

@@ -170,6 +170,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     supabase.from('workspace_members')
       .select('user_id, profile:user_id ( full_name )')
       .eq('workspace_id', workspaceId)
+      .eq('status', 'active')
       .then(({ data }) => setMembers(data || []))
   }, [workspaceId])
 
@@ -759,6 +760,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
     const { data } = await supabase.from('workspace_members')
       .select('user_id, profile:user_id ( full_name, email )')
       .eq('workspace_id', workspaceId)
+      .eq('status', 'active')
     if (data) setMembers(data)
   }
 

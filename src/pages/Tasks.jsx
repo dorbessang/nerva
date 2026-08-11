@@ -59,6 +59,7 @@ export default function Tasks() {
       .from('workspace_members')
       .select(`user_id, profile:user_id ( full_name )`)
       .eq('workspace_id', workspaceId)
+      .eq('status', 'active')
     if (data) setMembers(data)
   }
 

@@ -152,6 +152,7 @@ export default function Products() {
     supabase.from('workspace_members')
       .select('user_id, profile:user_id ( full_name )')
       .eq('workspace_id', workspaceId)
+      .eq('status', 'active')
       .then(({ data }) => setMembers(data || []))
   }, [workspaceId])
 
@@ -612,6 +613,7 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
     const { data } = await supabase.from('workspace_members')
       .select('user_id, profile:user_id ( full_name, email )')
       .eq('workspace_id', workspaceId)
+      .eq('status', 'active')
     if (data) setMembers(data)
   }
 

@@ -245,7 +245,7 @@ export default function Negotiations() {
       supabase.from('entities').select('id, name, country_code, entity_type_id, secondary_entity_type_id').eq('workspace_id', workspaceId).order('name'),
       supabase.from('entity_types').select('id, name, plural').eq('workspace_id', workspaceId).order('sort_order'),
       supabase.from('products').select('id, name').eq('workspace_id', workspaceId).order('name'),
-      supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`).eq('workspace_id', workspaceId),
+      supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`).eq('workspace_id', workspaceId).eq('status', 'active'),
       supabase.from('custom_states').select('*').eq('workspace_id', workspaceId).eq('object_type', 'negotiation').order('sort_order'),
       supabase.from('deal_milestones').select('negotiation_id, amount').eq('workspace_id', workspaceId),
       supabase.from('custom_field_definitions').select('*').eq('workspace_id', workspaceId).eq('object_type', 'negotiation').order('sort_order'),
@@ -1226,7 +1226,8 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
     row.custom_fields = mergeCustomFieldValues(initial?.custom_fields, jsonbValues)
     let negId = initial?.id
     if (initial?.id) {
-      await supabase.from('negotiations').update(row).eq('id', initial.id)
+      const { error: saveError } = await supabase.from('negotiations').update(row).eq('id', initial.id)
+      if (saveError) { console.error('update negotiation error:', saveError.message); setError('No se pudo guardar el proyecto'); setSaving(false); return }
       if (initial.status !== form.status) {
         const { data: existingTasks } = await supabase.from('tasks').select('assigned_to').eq('negotiation_id', initial.id)
         await notifyNegotiationStatusChanged(supabase, {
@@ -1243,7 +1244,8 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
         })
       }
     } else {
-      const { data } = await supabase.from('negotiations').insert(row).select().single()
+      const { data, error: saveError } = await supabase.from('negotiations').insert(row).select().single()
+      if (saveError) { console.error('insert negotiation error:', saveError.message); setError('No se pudo crear el proyecto'); setSaving(false); return }
       negId = data?.id
       if (negId) {
         await logActivity(supabase, {
@@ -2127,6 +2129,7 @@ function TaskModalInline({ negotiationId, existingTasks, onClose, onCreated }) {
     supabase.from('workspace_members')
       .select(`user_id, profile:user_id ( full_name, email )`)
       .eq('workspace_id', workspaceId)
+      .eq('status', 'active')
       .then(({ data }) => { if (data) setMembers(data) })
   }, [workspaceId])
 

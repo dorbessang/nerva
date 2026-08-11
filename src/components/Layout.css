@@ -129,26 +129,6 @@ body {
   margin: 0 10px;
 }
 
-/* OPCIÓN B: en la sidebar */
-.ws-switcher--sidebar {
-  flex: 1;
-  min-width: 0;
-}
-
-.ws-switcher-btn--sidebar {
-  width: 100%;
-  justify-content: space-between;
-  background: rgba(255,255,255,0.06) !important;
-  border-color: rgba(255,255,255,0.1) !important;
-}
-
-.ws-dropdown--sidebar {
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  min-width: unset;
-}
-
 .ws-switcher-btn {
   display: flex;
   align-items: center;

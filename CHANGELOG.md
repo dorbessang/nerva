@@ -4,6 +4,15 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (19)
+
+### Fix: 3 hallazgos de la auditoría de arquitectura + limpieza de CSS muerto
+- **`NegotiationModal` tragaba errores de guardado**: a diferencia de `EntityModal`/`ProductModal` (que sí chequean el error de Supabase), si el `update`/`insert` de un proyecto fallaba, el modal se cerraba igual mostrando éxito falso — la data del usuario se perdía en silencio. Ahora chequea el error y lo muestra sin cerrar el modal
+- **Un usuario desactivado seguía siendo asignable** en la mayoría de los selectores de responsable/participante (Tasks, TaskModal, TaskDrawer, Negotiations, Products, Entities) — solo @menciones y el campo custom de usuario ya filtraban por activo. Unificado: todos los fetches de `workspace_members` que pueblan un selector ahora filtran `status = 'active'`
+- **CSS muerto** de layouts superados (pre-unificación de tablas, banner de inactividad duplicado, opción de selector de workspace nunca usada) — borrado en `Entities.css`, `Dashboard.css`, `Settings.css`, `Layout.css`, `CountrySelector.css`. Confirmado cero referencias antes de borrar, cero cambio visual
+- `PENDIENTES.md` gana una regla fija: antes de correr cualquier SQL marcado como pendiente ahí, confirmar primero con el usuario que no esté ya hecho — y una sección nueva con el estado real de la auditoría (RLS de `negotiation_price_history` y backfill de roles, ambos confirmados corridos por el usuario)
+- Sin cambios de SQL
+
 ## 2026-08-11 (18)
 
 ### Feature: post-its se pegan directo en la pestaña, ya no se crean desde Editar

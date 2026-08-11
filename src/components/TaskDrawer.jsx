@@ -35,6 +35,7 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
         )
       `)
       .eq('workspace_id', workspaceId)
+      .eq('status', 'active')
     if (data) setMembers(data)
   }
 

@@ -2,6 +2,25 @@
 
 ---
 
+## ⚠️ REGLA FIJA — leer antes de tocar cualquier SQL de este archivo
+
+**Antes de correr CUALQUIER cosa marcada como pendiente acá (`[ ]`), confirmar primero con el usuario que ese paso no esté ya hecho.** El avance real de la app no siempre queda reflejado en este archivo al mismo ritmo — algo puede haberse resuelto de otra forma, en otro momento, o directamente ya no ser necesario. Nunca asumir que un `[ ]` sigue representando el estado real solo porque nadie lo tildó. Si hace falta optimizar o reordenar algo más adelante, se ve en su momento — pero **nunca re-ejecutar/reescribir "porque sí"** sin chequear antes. (Instrucción explícita del usuario, 2026-08-11.)
+
+## Auditoría de arquitectura (2026-08-11) — estado confirmado
+
+Se hizo una auditoría completa de cruft/inconsistencias en el código (agente en background) más una ronda de confirmaciones directas del usuario sobre SQL que este archivo tenía como pendiente/sin verificar:
+
+- **[x] Confirmado por el usuario — políticas RLS de `negotiation_price_history`**: corridas, funcionando bien. (Antes en CHANGELOG como "no corrido desde acá, sin credenciales de Supabase" — dato desactualizado, dejar de considerarlo pendiente.)
+- **[x] Confirmado por el usuario — backfill de `entities.secondary_entity_type_id` + `negotiation_entities.role`**: corrido, roles funcionando bien en Proyectos.
+- **[x] Corregido en código (sin SQL)**: `NegotiationModal.handleSave` ignoraba errores de guardado de Supabase (a diferencia de `EntityModal`/`ProductModal`, que sí los chequean) — si fallaba el `update`/`insert`, el modal se cerraba igual mostrando éxito falso. Ahora chequea `error` en ambos casos y muestra el mensaje al usuario sin cerrar el modal.
+- **[x] Corregido en código (sin SQL)**: un usuario desactivado (`workspace_members.status`) seguía apareciendo como asignable en varios selectores que no filtraban por `status = 'active'` (crear tarea, reasignar tarea, elegir participante en Proyecto, etc. — en `Tasks.jsx`, `TaskModal.jsx`, `TaskDrawer.jsx`, `Negotiations.jsx`, `Products.jsx`, `Entities.jsx`). Unificado: todos los fetches de `workspace_members` para poblar un selector ahora filtran `status = 'active'` (la única excepción intencional es la tabla de administración de usuarios en Configuración, que sí necesita ver a los inactivos).
+- **[x] Corregido en código (sin SQL)**: CSS muerto de layouts viejos (pre-unificación de tablas, banner de inactividad duplicado, selector de workspace "opción B" nunca usada, etc.) — borrado en `Entities.css`, `Dashboard.css`, `Settings.css`, `Layout.css`, `CountrySelector.css`. Cero cambio visual, confirmado con build.
+- **[ ] Sigue sin confirmar / necesita la base de datos real para reconciliar**: el bloque grande de SQL pendiente de "todo campo pasa a ser campo custom real" (`storage_column`/`is_structural` en `custom_field_definitions`, drop de `negotiations.territories`/`negotiations.nda`, seed de 14 presets — ver sección más abajo) sigue marcado `[ ]` sin que el usuario lo haya confirmado explícitamente. Dado que la app funciona con normalidad usando ese modelo, probablemente ya corrió — **pero no asumirlo, confirmar con el usuario antes de tocar nada ahí**.
+- **[ ] Producto, no bug**: las notas "fijadas" a una página (Financiero/Tareas/Documentos) del proyecto aparecen mezcladas con las notas de Bitácora dentro de la columna genérica "Notas" de la tabla/tarjetas y en el PDF export (`exportPdf.js`) — no se tocó, a confirmar si es el comportamiento deseado o si hay que separarlas ahí también.
+- **`custom_field_definitions.filterable`**: confirmado que ya no se usa para nada (el filtrado es 100% por `field_type` ahora vía `isFieldFilterable()`), pero se sigue grabando en cada workspace nuevo (`seedWorkspaceDefaults.js`). Queda anotado, no se tocó todavía.
+
+---
+
 ## VISIÓN DE PRODUCTO Y ARQUITECTURA (largo plazo)
 
 Sesión de repensada estratégica (2026-07-06). Contexto para retomar sin perder el razonamiento.
