@@ -1582,6 +1582,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   const [inlineStatus, setInlineStatus] = useState(neg.status || '')
   const [inlineObs, setInlineObs] = useState(neg.observations || '')
   const [inlineCurrency, setInlineCurrency] = useState(neg.currency || 'USD')
+  const [inlineUnit, setInlineUnit] = useState(neg.unit_of_measure || '')
   const [activeTab, setActiveTab] = useState('bitacora')
   const [financialConfig, setFinancialConfig] = useState(resolveFinancialConfig(null))
   const [milestonesTotal, setMilestonesTotal] = useState(null)
@@ -1860,26 +1861,41 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                 <NotesPostIts negotiationId={neg.id} workspaceId={neg.workspace_id || workspaceId} page="financiero" canEdit={canNote} hideComposer
                   onChanged={() => { setActivityRefresh(v => v + 1); onNotesChanged?.() }} contextLabel={neg.product || neg.title} />
 
-                <div className="neg-tasks-header">
-                  <div className="detail-section-title">Moneda</div>
-                  {canEditInline ? (
-                    <select
-                      className="neg-inline-select neg-inline-select--small"
-                      value={inlineCurrency}
-                      onChange={e => { setInlineCurrency(e.target.value); saveInlineField('currency', e.target.value) }}
-                    >
-                      {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  ) : (
-                    <span className="neg-detail-value">{inlineCurrency}</span>
+                <div className="neg-financiero-fields">
+                  <div className="neg-financiero-field">
+                    <div className="detail-section-title">Moneda</div>
+                    {canEditInline ? (
+                      <select
+                        className="neg-inline-select neg-inline-select--small"
+                        value={inlineCurrency}
+                        onChange={e => { setInlineCurrency(e.target.value); saveInlineField('currency', e.target.value) }}
+                      >
+                        {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    ) : (
+                      <span className="neg-detail-value">{inlineCurrency}</span>
+                    )}
+                  </div>
+                  {financialConfig.historial_precio && financialConfig.volumen && (
+                    <div className="neg-financiero-field">
+                      <div className="detail-section-title">Unidad</div>
+                      {canEditInline ? (
+                        <select
+                          className="neg-inline-select neg-inline-select--small"
+                          value={inlineUnit}
+                          onChange={e => { setInlineUnit(e.target.value); saveInlineField('unit_of_measure', e.target.value) }}
+                        >
+                          <option value="">Sin especificar</option>
+                          {UNIT_OPTIONS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                        </select>
+                      ) : (
+                        <span className="neg-detail-value">{UNIT_OPTIONS.find(u => u.value === inlineUnit)?.label || 'Sin especificar'}</span>
+                      )}
+                    </div>
                   )}
                 </div>
-                {(neg.payment_terms || neg.unit_of_measure) && (
-                  <p className="neg-financiero-meta">
-                    {neg.unit_of_measure && `Unidad: ${neg.unit_of_measure}`}
-                    {neg.unit_of_measure && neg.payment_terms && ' · '}
-                    {neg.payment_terms}
-                  </p>
+                {neg.payment_terms && (
+                  <p className="neg-financiero-meta">Condiciones de pago: {neg.payment_terms}</p>
                 )}
                 {financialConfig.valor_estimado && neg.estimated_value && (
                   <p className="neg-financiero-meta">Valor estimado: {formatAmount(neg.estimated_value)} {inlineCurrency}</p>
@@ -1888,11 +1904,14 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                 {financialConfig.historial_precio && (
                   <>
                     <div className="detail-section-title" style={{ marginTop: 18 }}>Historial de precio</div>
+                    {financialConfig.volumen && !inlineUnit && (
+                      <p className="neg-financiero-meta">⚠ Elegí una unidad arriba antes de cargar cantidades — si no, la cantidad queda sin saber a qué se refiere.</p>
+                    )}
                     <PriceHistory
                       negotiationId={neg.id}
                       workspaceId={neg.workspace_id || workspaceId}
                       currency={inlineCurrency}
-                      unit={neg.unit_of_measure}
+                      unit={inlineUnit}
                       showQuantity={financialConfig.volumen}
                       canEdit={canNote}
                       onChanged={() => setActivityRefresh(v => v + 1)}

@@ -4,6 +4,19 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-10 (12)
+
+### Fix: 4 ajustes reportados probando el rediseño del modal de Proyecto
+- **Tabs se iban con el scroll**: `.neg-detail-rightpane`/`.neg-tab-panel`/`.neg-detail-sidebar`/`.neg-detail-body--split` (grid/flex items con `overflow`) les faltaba `min-height: 0` — sin eso, un hijo con contenido largo crece más allá del alto disponible en vez de scrollear internamente, empujando toda la tarjeta y obligando a scrollear la página entera para ver el tab activo. Clásico gotcha de flex/grid + overflow
+- **Nombre de entidad cortado en la barra lateral**: `.neg-detail-hero` estaba pensado para el ancho completo del modal (~1000px) — en los 280px de la barra lateral, nombre + selector de estado lado a lado no entraban. Pasa a apilarse en columna
+- **Unidad de medida invisible al cargar una cotización**: "Cantidad" en el historial de precio no aclaraba en qué unidad — la Unidad solo se podía fijar desde Editar, nunca se veía en la Vista. Ahora Unidad es editable inline en el tab Financiero, al lado de Moneda (mismo criterio), con aviso si falta elegirla antes de cargar cantidades
+- **403 en `negotiation_price_history`**: la tabla nueva se quedó sin políticas de RLS (nadie sabía cómo copiarlas) — bloqueaba cualquier insert. Se resuelve con SQL aparte (no corrido desde acá, sin credenciales de Supabase)
+- **Hitos no respetaban la fecha asignada**: se listaban por orden de carga siempre. Ahora ordenan por `estimated_date` cuando la tienen (los sin fecha quedan al final, en orden de carga) — de paso, editar la fecha de un hito ahora refresca la lista en vez de parchear en memoria sin reordenar
+- Bitácora confirmada funcionando bien tal cual (ya ordenaba por fecha sin importar el orden de carga)
+- Sin SQL nuevo — cambio de código nada más (la política de RLS es aparte, en Supabase)
+
+## 2026-08-10 (11)
+
 ## 2026-08-10 (11)
 
 ### Feature: rediseño del modal de Proyecto — Vista con barra fija + tabs, Financiero siempre presente, Bitácora, notas fijadas por página

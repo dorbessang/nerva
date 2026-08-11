@@ -36,9 +36,13 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
 
   useEffect(() => { fetchMilestones() }, [negotiationId])
 
+  // Los que tienen fecha estimada van en orden cronológico; los que no,
+  // detrás de esos, en el orden en que se cargaron (confirmado con el
+  // usuario probando el feature).
   async function fetchMilestones() {
     const { data, error } = await supabase.from('deal_milestones').select('*')
       .eq('negotiation_id', negotiationId)
+      .order('estimated_date', { ascending: true, nullsFirst: false })
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true })
     if (error) console.error('fetchMilestones error:', error.message)
@@ -99,9 +103,9 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
       timing_note: editForm.timing_note.trim() || null,
     }
     await supabase.from('deal_milestones').update(patch).eq('id', id)
-    setMilestones(prev => prev.map(m => m.id === id ? { ...m, ...patch } : m))
     setEditingId(null)
     setEditForm(null)
+    fetchMilestones() // re-fetch en vez de patchear en memoria: puede haber cambiado la fecha, y con eso el orden
     onChanged?.()
   }
 
