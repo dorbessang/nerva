@@ -155,11 +155,6 @@ const styles = {
     color: "#6b7280",
     fontSize: "14px",
   },
-  placeholder: {
-    padding: "48px",
-    fontSize: "18px",
-    color: "#0B1F3A",
-  },
 };
 
 export default App;
