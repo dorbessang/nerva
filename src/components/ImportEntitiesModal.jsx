@@ -155,7 +155,7 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
 
   useEffect(() => {
     if (!entityTypeId) return
-    supabase.from('entities').select('id, name').eq('entity_type_id', entityTypeId).then(({ data }) => setExistingEntities(data || []))
+    supabase.from('entities').select('id, name').eq('workspace_id', workspaceId).eq('entity_type_id', entityTypeId).then(({ data }) => setExistingEntities(data || []))
   }, [entityTypeId])
 
   const importFields = importFieldsOf(entityFieldDefs)

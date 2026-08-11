@@ -231,7 +231,7 @@ export default function Negotiations() {
     }
   }, [location.search, negotiations])
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => { if (workspaceId) fetchAll() }, [workspaceId])
 
   useEffect(() => {
     supabase.from('workspaces').select('field_order').eq('id', workspaceId).single()
@@ -241,12 +241,12 @@ export default function Negotiations() {
   async function fetchAll() {
     setLoading(true)
     const [negsRes, entitiesRes, entityTypesRes, productsRes, membersRes, statesRes, milestonesRes, customFieldsRes] = await Promise.all([
-      supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code), primary_product:primary_product_id(id, name)').order('created_at', { ascending: false }),
-      supabase.from('entities').select('id, name, country_code, entity_type_id, secondary_entity_type_id').order('name'),
-      supabase.from('entity_types').select('id, name, plural').order('sort_order'),
-      supabase.from('products').select('id, name').order('name'),
+      supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code), primary_product:primary_product_id(id, name)').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
+      supabase.from('entities').select('id, name, country_code, entity_type_id, secondary_entity_type_id').eq('workspace_id', workspaceId).order('name'),
+      supabase.from('entity_types').select('id, name, plural').eq('workspace_id', workspaceId).order('sort_order'),
+      supabase.from('products').select('id, name').eq('workspace_id', workspaceId).order('name'),
       supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`).eq('workspace_id', workspaceId),
-      supabase.from('custom_states').select('*').eq('object_type', 'negotiation').order('sort_order'),
+      supabase.from('custom_states').select('*').eq('workspace_id', workspaceId).eq('object_type', 'negotiation').order('sort_order'),
       supabase.from('deal_milestones').select('negotiation_id, amount').eq('workspace_id', workspaceId),
       supabase.from('custom_field_definitions').select('*').eq('workspace_id', workspaceId).eq('object_type', 'negotiation').order('sort_order'),
     ])

@@ -150,16 +150,18 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   }
 
   useEffect(() => {
+    if (!workspaceId) return
     fetchEntities()
     fetchNegotiationStates()
     fetchCustomFieldDefs()
     setSelectedIds(new Set())
-  }, [entityTypeId])
+  }, [entityTypeId, workspaceId])
 
   useEffect(() => {
-    supabase.from('entities').select('id, name, country_code, entity_type_id, secondary_entity_type_id').order('name')
+    if (!workspaceId) return
+    supabase.from('entities').select('id, name, country_code, entity_type_id, secondary_entity_type_id').eq('workspace_id', workspaceId).order('name')
       .then(({ data }) => setAllEntities(naturalSortByName(data || [])))
-    supabase.from('entity_types').select('id, name, plural').order('sort_order')
+    supabase.from('entity_types').select('id, name, plural').eq('workspace_id', workspaceId).order('sort_order')
       .then(({ data }) => setAllEntityTypes(data || []))
   }, [workspaceId])
 
@@ -202,6 +204,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     let query = supabase
       .from('entities')
       .select(`*, entity_type:entity_type_id ( name, color ), secondary_entity_type:secondary_entity_type_id ( name, color ), contacts ( id, name, role, email, phone, whatsapp, notes, is_primary )`)
+      .eq('workspace_id', workspaceId)
       .order('name')
     // Una entidad con tipo secundario tiene que aparecer en las dos solapas
     // (ver "Tipo secundario" en EntityModal.jsx) — no solo en la de su tipo primario.
@@ -242,6 +245,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     const { data } = await supabase
       .from('custom_states')
       .select('name, color, bg_color')
+      .eq('workspace_id', workspaceId)
       .eq('object_type', 'negotiation')
       .order('sort_order')
     if (data) setNegotiationStates(data)
@@ -736,7 +740,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
   }
 
   async function fetchProducts() {
-    const { data } = await supabase.from('products').select('id, name').order('name')
+    const { data } = await supabase.from('products').select('id, name').eq('workspace_id', workspaceId).order('name')
     if (data) setProducts(naturalSortByName(data))
   }
 

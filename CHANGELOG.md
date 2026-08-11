@@ -4,6 +4,19 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (14)
+
+### Fix crítico: datos mezclados entre workspaces al pertenecer a más de uno
+- **Causa raíz**: las políticas RLS de Supabase usan `my_workspace_ids()`, que devuelve TODOS los workspaces de los que el usuario es miembro — no solo el que está seleccionado en la app. RLS por sí sola nunca restringió a "solo el workspace activo"; eso lo tiene que hacer cada query agregando `.eq('workspace_id', workspaceId)`. Mientras el usuario pertenecía a un solo workspace, el bug era invisible — al agregar una segunda membresía (para soporte/debug), empezaron a aparecer registros de ambos mezclados en listas y dropdowns
+- Encontrado con una auditoría completa de los ~235 `.from(...)` del código contra las tablas por-workspace (`entities`, `entity_types`, `products`, `product_types`, `negotiations`, `tasks`, `custom_states`, `workspace_members`); se agregó el filtro faltante en cada punto confirmado:
+  - `Tasks.jsx`: la query principal de tareas y los 3 fetches de sus dropdowns (entidades, proyectos, responsables) — el que más directamente explica el síntoma reportado
+  - `Negotiations.jsx`: `fetchAll` (proyectos, entidades, tipos de entidad, productos, estados)
+  - `Entities.jsx`: listado principal, cross-referencias, tipos de entidad, estados, productos del modal de detalle
+  - `Products.jsx`: listado principal, tipos de producto, estados, entidades/tipos/productos del modal de detalle
+  - Modales de alta (`EntityModal`, `ProductModal`, `TaskModal`, `TaskDrawer`) y de importación (`ImportProductsModal`, `ImportEntitiesModal`) — todos los que poblaban un dropdown sin filtrar
+- No era un caso aislado: era el patrón por defecto en toda la carga inicial de cada pantalla (confiar solo en RLS). Cada punto corregido ahora filtra explícitamente por el workspace activo, además de lo que ya garantiza RLS
+- Sin cambios de SQL — todo el fix es de código
+
 ## 2026-08-11 (13)
 
 ### Fix: Unidad de medida como campo libre + orden de Hitos

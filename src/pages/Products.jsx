@@ -135,14 +135,15 @@ export default function Products() {
   }
 
   useEffect(() => {
+    if (!workspaceId) return
     fetchProducts()
     fetchProductTypes()
     fetchNegotiationStates()
     fetchCustomFieldDefs()
-  }, [])
+  }, [workspaceId])
 
   async function fetchProductTypes() {
-    const { data } = await supabase.from('product_types').select('id, name, plural').order('sort_order')
+    const { data } = await supabase.from('product_types').select('id, name, plural').eq('workspace_id', workspaceId).order('sort_order')
     if (data) setProductTypes(data)
   }
 
@@ -173,6 +174,7 @@ export default function Products() {
     const { data: productsData, error } = await supabase
       .from('products')
       .select(`*, entity:entity_id ( id, name, country_code ), product_type:product_type_id ( name )`)
+      .eq('workspace_id', workspaceId)
       .order('name')
 
     if (error) { setLoading(false); return }
@@ -209,6 +211,7 @@ export default function Products() {
     const { data } = await supabase
       .from('custom_states')
       .select('name, color, bg_color')
+      .eq('workspace_id', workspaceId)
       .eq('object_type', 'negotiation')
       .order('sort_order')
     if (data) setNegotiationStates(data)
@@ -611,17 +614,17 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
   }
 
   async function fetchEntities() {
-    const { data } = await supabase.from('entities').select('id, name, country_code, entity_type_id').order('name')
+    const { data } = await supabase.from('entities').select('id, name, country_code, entity_type_id').eq('workspace_id', workspaceId).order('name')
     if (data) setEntities(naturalSortByName(data))
   }
 
   async function fetchEntityTypes() {
-    const { data } = await supabase.from('entity_types').select('id, name, plural').order('sort_order')
+    const { data } = await supabase.from('entity_types').select('id, name, plural').eq('workspace_id', workspaceId).order('sort_order')
     if (data) setEntityTypes(data)
   }
 
   async function fetchAllProducts() {
-    const { data } = await supabase.from('products').select('id, name').order('name')
+    const { data } = await supabase.from('products').select('id, name').eq('workspace_id', workspaceId).order('name')
     if (data) setAllProducts(naturalSortByName(data))
   }
 

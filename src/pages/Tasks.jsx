@@ -29,17 +29,19 @@ export default function Tasks() {
   const [selectedTask, setSelectedTask] = useState(null)
 
   useEffect(() => {
+    if (!workspaceId) return
     fetchEntities()
     fetchNegotiations()
     fetchMembers()
-  }, [])
+  }, [workspaceId])
 
   useEffect(() => {
+    if (!workspaceId) return
     fetchTasks()
-  }, [filter, filterEntity, filterNegotiation, filterAssignee, effectiveRole])
+  }, [workspaceId, filter, filterEntity, filterNegotiation, filterAssignee, effectiveRole])
 
   async function fetchEntities() {
-    const { data } = await supabase.from('entities').select('id, name').order('name')
+    const { data } = await supabase.from('entities').select('id, name').eq('workspace_id', workspaceId).order('name')
     if (data) setEntities(naturalSortByName(data))
   }
 
@@ -47,6 +49,7 @@ export default function Tasks() {
     const { data } = await supabase
       .from('negotiations')
       .select('id, title, product')
+      .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false })
     if (data) setNegotiations(data)
   }
@@ -55,6 +58,7 @@ export default function Tasks() {
     const { data } = await supabase
       .from('workspace_members')
       .select(`user_id, profile:user_id ( full_name )`)
+      .eq('workspace_id', workspaceId)
     if (data) setMembers(data)
   }
 
@@ -68,6 +72,7 @@ export default function Tasks() {
         negotiation:negotiation_id ( id, title, product ),
         predecessor:predecessor_task_id ( id, title, status, profile:assigned_to ( full_name ) )
       `)
+      .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false })
 
     // Viewer solo ve sus propias tareas

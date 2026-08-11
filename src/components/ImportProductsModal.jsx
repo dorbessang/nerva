@@ -159,8 +159,8 @@ export default function ImportProductsModal({ workspaceId, productFieldDefs = []
   const [dupResolutions, setDupResolutions] = useState({})
 
   useEffect(() => {
-    supabase.from('product_types').select('id, name').order('sort_order').then(({ data }) => setProductTypes(data || []))
-    supabase.from('entities').select('id, name').order('name').then(({ data }) => setEntities(data || []))
+    supabase.from('product_types').select('id, name').eq('workspace_id', workspaceId).order('sort_order').then(({ data }) => setProductTypes(data || []))
+    supabase.from('entities').select('id, name').eq('workspace_id', workspaceId).order('name').then(({ data }) => setEntities(data || []))
   }, [])
 
   const importFields = productFieldDefs

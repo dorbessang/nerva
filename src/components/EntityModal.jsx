@@ -49,6 +49,7 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
     const { data } = await supabase
       .from('entity_types')
       .select('id, name')
+      .eq('workspace_id', workspaceId)
       .order('sort_order')
     if (data) {
       setEntityTypes(data)

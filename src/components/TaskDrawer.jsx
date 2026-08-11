@@ -5,7 +5,7 @@ import { wouldCreateCycle, isTaskBlocked, notifyTaskAssigned } from '../lib/task
 import './TaskDrawer.css'
 
 export default function TaskDrawer({ task, onClose, onUpdated }) {
-  const { user } = useAuth()
+  const { user, workspaceId } = useAuth()
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description || '')
   const [status, setStatus] = useState(task.status)
@@ -32,6 +32,7 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
           full_name
         )
       `)
+      .eq('workspace_id', workspaceId)
     if (data) setMembers(data)
   }
 

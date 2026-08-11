@@ -32,7 +32,7 @@ export default function ProductModal({ onClose, onCreated, initial = null, produ
   }, [])
 
   async function fetchProductTypes() {
-    const { data } = await supabase.from('product_types').select('id, name').order('sort_order')
+    const { data } = await supabase.from('product_types').select('id, name').eq('workspace_id', workspaceId).order('sort_order')
     if (data) {
       setProductTypes(data)
       const typeDef = customFieldDefs.find(d => d.field_type === 'product_type')
@@ -43,7 +43,7 @@ export default function ProductModal({ onClose, onCreated, initial = null, produ
   }
 
   async function fetchEntities() {
-    const { data } = await supabase.from('entities').select('id, name').order('name')
+    const { data } = await supabase.from('entities').select('id, name').eq('workspace_id', workspaceId).order('name')
     if (data) setEntities(naturalSortByName(data))
   }
 

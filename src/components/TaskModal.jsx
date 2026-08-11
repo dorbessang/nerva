@@ -38,6 +38,7 @@ export default function TaskModal({ onClose, onCreated }) {
     const { data } = await supabase
       .from('workspace_members')
       .select(`user_id, profile:user_id ( full_name, email )`)
+      .eq('workspace_id', workspaceId)
     if (data) setMembers(data)
   }
 
@@ -45,6 +46,7 @@ export default function TaskModal({ onClose, onCreated }) {
     const { data } = await supabase
       .from('negotiations')
       .select('id, title, product')
+      .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false })
     if (data) setNegotiations(data)
   }
