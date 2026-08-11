@@ -20,6 +20,8 @@ const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://nerva-drab.vercel.app'
 
+const VALID_ROLES = ['owner', 'admin', 'editor', 'viewer']
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -212,6 +214,7 @@ Deno.serve(async (req) => {
 
   // action === 'invite'
   if (!email || !role) return json({ error: 'Faltan datos' }, 400)
+  if (!VALID_ROLES.includes(role)) return json({ error: 'Rol inválido' }, 400)
 
   const result = await addOrInviteUser(admin, email, role, workspaceId)
   if (result.error) return json({ error: result.error }, 400)

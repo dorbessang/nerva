@@ -207,12 +207,35 @@ export function CustomFieldInput({ def, value, onChange }) {
 }
 
 // Render de solo lectura de un campo custom (detalle de proyecto/entidad) —
+// Valida que un valor de campo tipo "link" sea un http(s) real antes de
+// usarlo como href — si no trae esquema (ej. "gmail.com", lo más común al
+// tipear a mano) se le agrega https:// solo; si trae un esquema explícito
+// que no sea http/https (ej. "javascript:...") se descarta, se muestra como
+// texto plano. Sin esto, cualquiera con permiso de edición podía cargar un
+// link trampa que se ejecutara al clickearlo.
+function safeLinkHref(raw) {
+  if (!raw) return null
+  const trimmed = String(raw).trim()
+  const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(trimmed)
+  const candidate = hasScheme ? trimmed : `https://${trimmed}`
+  try {
+    const url = new URL(candidate)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    return url.href
+  } catch {
+    return null
+  }
+}
+
 // mismo texto que renderCustomFieldDisplay, pero link/email/teléfono salen
 // clickeables (mismo patrón que ya usan los Contactos de una entidad).
 export function CustomFieldReadOnly({ def, value: rawValue, members }) {
   const text = renderCustomFieldDisplay(def, rawValue, members)
   if (text === '—') return <>{text}</>
-  if (def.field_type === 'link') return <a href={rawValue} target="_blank" rel="noreferrer">{rawValue}</a>
+  if (def.field_type === 'link') {
+    const href = safeLinkHref(rawValue)
+    return href ? <a href={href} target="_blank" rel="noreferrer">{rawValue}</a> : <>{text}</>
+  }
   if (def.field_type === 'email') return <a href={`mailto:${rawValue}`}>{rawValue}</a>
   if (def.field_type === 'phone') return <a href={`tel:${rawValue}`}>{rawValue}</a>
   return <>{text}</>

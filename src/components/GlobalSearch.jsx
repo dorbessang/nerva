@@ -54,9 +54,19 @@ export default function GlobalSearch() {
     if (mobileOpen) inputRef.current?.focus()
   }, [mobileOpen])
 
+  // El valor de un .or() de PostgREST es una lista separada por comas, así
+  // que una coma o paréntesis sueltos en lo que el usuario tipeó romperían
+  // el filtro (o lo estirarían a condiciones no intencionadas). Envolver el
+  // valor entre comillas dobles (con \ y " propias escapadas) neutraliza
+  // esos caracteres — es la forma que PostgREST espera para un valor literal.
+  function orValue(v) {
+    return `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+  }
+
   async function runSearch(q) {
     setLoading(true)
     const like = `%${q}%`
+    const safeLike = orValue(like)
 
     if (isPersonal) {
       const [tasksRes, notesRes] = await Promise.all([
@@ -80,7 +90,7 @@ export default function GlobalSearch() {
       supabase.from('negotiations')
         .select('id, product, title, primary_entity:primary_entity_id(name), negotiation_entities(entity:entity_id(name))')
         .eq('workspace_id', workspaceId)
-        .or(`product.ilike.${like},title.ilike.${like}`).limit(LIMIT),
+        .or(`product.ilike.${safeLike},title.ilike.${safeLike}`).limit(LIMIT),
       supabase.from('entities').select('id, name, entity_type_id')
         .eq('workspace_id', workspaceId)
         .ilike('name', like).limit(LIMIT),
