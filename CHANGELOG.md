@@ -4,6 +4,12 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (21)
+
+### Fix: modal de detalle de Producto quedaba chico
+- `ProductDetailModal` usaba `.entity-detail-card` sola, sin el modificador `--wide` que sí tiene `EntityDetailModal` — quedaba en el tamaño chico (680px) en vez del tamaño unificado de los modales grandes (`90vw / max-width 1100px / height 85vh`), violando la regla ya acordada de "todos los modales del mismo tamaño"
+- Sin cambios de SQL
+
 ## 2026-08-11 (20)
 
 ### Feature: modal de Producto — Panorama comercial + Bitácora

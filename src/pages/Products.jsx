@@ -728,7 +728,7 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="entity-detail-card" onClick={e => e.stopPropagation()}>
+      <div className="entity-detail-card entity-detail-card--wide" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
             <div className="entity-avatar" style={{ width: 38, height: 38, fontSize: 13, backgroundColor: bgColor, color: textColor, flexShrink: 0 }}>
