@@ -31,6 +31,19 @@ Rediseño del modal de Producto: pestaña "Panorama comercial" (agrupa el histor
 - [ ] `alter table public.negotiation_notes add column if not exists product_id uuid references public.products(id) on delete cascade;` (no hace falta tocar ningún constraint — `negotiation_notes` ya admite filas sin `negotiation_id` ni `entity_id`, ver más arriba en este archivo)
 - [ ] Sin cambios de RLS — ambas tablas ya filtran por `workspace_id`, agregar una columna nullable no cambia ninguna política existente
 
+## Crear entidades/productos al vuelo desde el proyecto + detección de similares (2026-08-11)
+
+Buscador de Entidades (por tipo) y de Productos, dentro del modal de proyecto, suma "+ Crear" cuando no hay match — antes de crear corre el mismo matcher de los imports (`src/lib/entityMatching.js`, reusado sin cambios) y si encuentra algo parecido ofrece usar lo existente en vez de duplicar. Para entidades, si el match tiene otro tipo, se puede usar la existente sumándole el tipo nuevo como secundario. Motivado por el caso real: crear un proyecto completo (cliente + producto pedido) aunque todavía no exista el producto en catálogo ni tenga proveedor asignado.
+
+- Componente nuevo `EntityTypeCombobox` en `Negotiations.jsx` (reemplaza el `<select>` plano que tenía cada tipo de entidad en el alta de proyecto)
+- Producto creado al vuelo se cuelga de un tipo `"Sin categorizar"` (se crea una sola vez por workspace, vía `ensureUncategorizedProductType()`, se reusa después)
+- Marcador `needs_review` en ambas tablas — cualquier entidad/producto creado por este atajo (o vía "crear de todos modos" del resolver de similares) queda tageado; Productos y Entidades suman un chip clickeable "Para completar (n)" que filtra por eso
+
+##### SQL pendiente de aplicar
+- [ ] `alter table public.entities add column if not exists needs_review boolean not null default false;`
+- [ ] `alter table public.products add column if not exists needs_review boolean not null default false;`
+- [ ] Sin cambios de RLS — ambas tablas ya filtran por `workspace_id`
+
 ---
 
 ## VISIÓN DE PRODUCTO Y ARQUITECTURA (largo plazo)

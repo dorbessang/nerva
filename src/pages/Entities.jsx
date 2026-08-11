@@ -76,6 +76,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [members, setMembers] = useState([])
   const [fieldOrder, setFieldOrder] = useState(null)
   const [customFilterValues, setCustomFilterValues] = useState({})
+  const [onlyNeedsReview, setOnlyNeedsReview] = useState(false)
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState(null)
   // Solo aplica en modo unificado (sin entityTypeId) — solapa activa entre
@@ -279,6 +280,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   // estilo Excel), en vez de mostrar un catálogo entero sin usar.
   function matchesAllEntityFilters(e, { excludeDefKey } = {}) {
     if (!e.name.toLowerCase().includes(search.toLowerCase())) return false
+    if (onlyNeedsReview && !e.needs_review) return false
     return matchesAllFieldFilters(filterableEntityDefs, e, customFilterValues, excludeDefKey)
   }
   function entityFacetRows(excludeDefKey) {
@@ -374,6 +376,17 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
 
       <div className="neg-stats">
         <TotalStatCard label={`Total ${totalPlural}`} plural={totalPlural} total={typeScopedEntities.length} filteredCount={filtered.length} filterParts={totalFilterParts} />
+        {typeScopedEntities.some(e => e.needs_review) && (
+          <div
+            className={`neg-stat-card ${onlyNeedsReview ? 'active' : ''}`}
+            onClick={() => setOnlyNeedsReview(v => !v)}
+            style={{ cursor: 'pointer' }}
+            title="Creadas al vuelo desde un proyecto — faltan datos por completar"
+          >
+            <div className="neg-stat-label">Para completar</div>
+            <div className="neg-stat-count">{typeScopedEntities.filter(e => e.needs_review).length}</div>
+          </div>
+        )}
         {cardFilterDef && cardFilterCounts.map(c => {
           const selected = Array.isArray(customFilterValues[cardFilterDef.key]) ? customFilterValues[cardFilterDef.key] : []
           const pct = typeScopedEntities.length ? Math.round((c.count / typeScopedEntities.length) * 100) : 0

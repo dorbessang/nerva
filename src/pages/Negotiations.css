@@ -1861,6 +1861,19 @@
 
 .entity-search-input:focus { border-color: #0B1F3A; }
 
+.entity-combobox-clear {
+  display: block;
+  margin-top: 4px;
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+.entity-combobox-clear:hover { color: #DC2626; }
+
 .entity-dropdown {
   position: absolute;
   top: calc(100% + 4px);
@@ -1894,6 +1907,56 @@
   font-weight: 600;
   color: #1D4ED8;
   border-bottom: 1px solid #f0f2f5;
+}
+
+.entity-dropdown-option--create {
+  font-weight: 600;
+  color: #059669;
+  border-top: 1px solid #f0f2f5;
+}
+
+.quick-create-resolver {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quick-create-resolver-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #92400E;
+  margin: 0 0 2px;
+}
+
+.quick-create-resolver-option {
+  text-align: left;
+  background: #fff;
+  border: 1px solid #FDE68A;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  color: #111827;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.quick-create-resolver-option:hover { background: #FEF3C7; }
+.quick-create-resolver-option:disabled { opacity: 0.6; cursor: default; }
+
+.quick-create-resolver-cancel {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: #92400E;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  text-decoration: underline;
 }
 
 /* Chips de opciones seleccionadas (participantes, empresas, territorios) */

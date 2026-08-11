@@ -4,6 +4,15 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (22)
+
+### Feature: crear entidades/productos al vuelo desde el proyecto, con detección de similares
+- **Buscador con "+ Crear"**: tanto el selector de Entidades (por tipo — Cliente/Proveedor/Distribuidor...) como el de Productos, dentro del alta/edición de un proyecto, ahora dejan crear un registro nuevo directo desde ahí si no existe todavía — sin salir del modal. Cubre el caso real: un cliente pide un producto que todavía no tenés en catálogo ni con proveedor asignado, pero igual querés dejar el proyecto armado
+- **Detección de similares antes de crear**: reusa el mismo matcher de los imports CSV (`entityMatching.js`) — si el nombre que se está creando se parece a algo que ya existe, no crea directo: ofrece usar el existente, o crearlo de todos modos. Para entidades, si el match existente tiene OTRO tipo (ej. "FQM" ya está como Distribuidor y ahora hace falta como Proveedor), la opción es "usar la existente + agregarle este tipo como secundario" — reusa el sistema de tipo secundario ya armado, en vez de forzar una entidad duplicada
+- **Producto creado al vuelo**: sin tipo todavía (obligatorio en el alta normal) — se cuelga de un tipo `"Sin categorizar"` que se crea una sola vez por workspace y se reusa
+- **Marcador "para completar"**: cualquier entidad/producto creado por este atajo (directo o vía "crear de todos modos") queda tageado (`needs_review`) — Productos y Entidades suman un chip "Para completar (n)" que filtra por eso con un click, para volver después y terminar de cargarlo
+- **Requiere correr SQL a mano** (ver PENDIENTES.md — `entities.needs_review`, `products.needs_review`) — Supabase MCP no disponible en esta sesión
+
 ## 2026-08-11 (21)
 
 ### Fix: modal de detalle de Producto quedaba chico

@@ -95,6 +95,7 @@ export default function Products() {
   const [members, setMembers] = useState([])
   const [fieldOrder, setFieldOrder] = useState(null)
   const [customFilterValues, setCustomFilterValues] = useState({})
+  const [onlyNeedsReview, setOnlyNeedsReview] = useState(false)
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState(null)
 
@@ -253,6 +254,7 @@ export default function Products() {
   // estilo Excel), en vez de mostrar un catálogo entero sin usar.
   function matchesAllProductFilters(p, { excludeDefKey } = {}) {
     if (!p.name.toLowerCase().includes(search.toLowerCase())) return false
+    if (onlyNeedsReview && !p.needs_review) return false
     return matchesAllFieldFilters(filterableProductDefs, p, customFilterValues, excludeDefKey)
   }
   function productFacetRows(excludeDefKey) {
@@ -307,6 +309,17 @@ export default function Products() {
 
       <div className="neg-stats">
         <TotalStatCard label="Total productos" plural="productos" total={products.length} filteredCount={filtered.length} filterParts={totalFilterParts} />
+        {products.some(p => p.needs_review) && (
+          <div
+            className={`neg-stat-card ${onlyNeedsReview ? 'active' : ''}`}
+            onClick={() => setOnlyNeedsReview(v => !v)}
+            style={{ cursor: 'pointer' }}
+            title="Creados al vuelo desde un proyecto — faltan datos por completar"
+          >
+            <div className="neg-stat-label">Para completar</div>
+            <div className="neg-stat-count">{products.filter(p => p.needs_review).length}</div>
+          </div>
+        )}
         {productTypeCounts.map(pt => {
           const selected = Array.isArray(customFilterValues[productTypeDef?.key]) ? customFilterValues[productTypeDef.key] : []
           const pct = products.length ? Math.round((pt.count / products.length) * 100) : 0

@@ -25,6 +25,7 @@ import { CardGrid, CardTile } from '../components/CardGrid'
 import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
 import { entityHasType } from '../lib/entityTypes'
 import { resolveFinancialConfig } from '../lib/financialConfig'
+import { matchEntity } from '../lib/entityMatching'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
@@ -1117,6 +1118,110 @@ function KanbanView({ negotiations, customStates, getStateConfig, getEntityName,
 // explícito, ver PENDIENTES.md), este es el patrón a reusar — buscar en
 // el historial de git este archivo si hace falta el código exacto.
 
+// Buscador + "crear al vuelo" para un tipo de entidad puntual (Cliente/
+// Proveedor/Distribuidor...) dentro de un proyecto. Antes de crear una
+// entidad nueva, matchea el nombre contra TODAS las entidades del workspace
+// (no solo las de este tipo) — si aparece algo parecido con otro tipo (ej.
+// "FQM" ya existe como Distribuidor y ahora hace falta como Proveedor), deja
+// elegir entre usar la existente sumándole este tipo como secundario, usarla
+// tal cual, o crear una entidad nueva de todos modos.
+function EntityTypeCombobox({ entityType, allEntities, workspaceId, value, onSelect, onEntityUpserted }) {
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+  const [resolving, setResolving] = useState(null) // { name, exact, fuzzy }
+  const [saving, setSaving] = useState(false)
+
+  const selected = allEntities.find(e => e.id === value)
+  const optionsOfType = allEntities.filter(e => entityHasType(e, entityType.id) && e.id !== value)
+  const matching = optionsOfType.filter(e => e.name.toLowerCase().includes(search.toLowerCase()))
+  const hasExactMatch = optionsOfType.some(e => e.name.toLowerCase() === search.trim().toLowerCase())
+
+  async function createNew(name) {
+    setSaving(true)
+    const { data, error } = await supabase.from('entities')
+      .insert({ workspace_id: workspaceId, name: name.trim(), entity_type_id: entityType.id, status: 'active', needs_review: true })
+      .select('*').single()
+    setSaving(false)
+    if (error) { console.error('createEntityQuick error:', error.message); return }
+    onEntityUpserted(data)
+    onSelect(data.id)
+    setSearch('')
+    setOpen(false)
+    setResolving(null)
+  }
+
+  async function selectExistingEntity(entity, addAsSecondary) {
+    if (addAsSecondary && !entity.secondary_entity_type_id && entity.entity_type_id !== entityType.id) {
+      const { error } = await supabase.from('entities').update({ secondary_entity_type_id: entityType.id }).eq('id', entity.id)
+      if (!error) onEntityUpserted({ ...entity, secondary_entity_type_id: entityType.id })
+    }
+    onSelect(entity.id)
+    setSearch('')
+    setOpen(false)
+    setResolving(null)
+  }
+
+  function startCreate(name) {
+    const { exact, fuzzy } = matchEntity(name, allEntities, e => e.name)
+    if (exact || fuzzy.length > 0) { setResolving({ name, exact, fuzzy }); return }
+    createNew(name)
+  }
+
+  return (
+    <div className="entity-combobox">
+      <input
+        type="text"
+        className="entity-search-input"
+        placeholder={selected ? selected.name : 'Buscar o crear...'}
+        value={search}
+        autoComplete="off"
+        onChange={e => setSearch(e.target.value)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {selected && !search && (
+        <button type="button" className="entity-combobox-clear" onMouseDown={() => onSelect('')} title="Quitar">✕ {selected.name}</button>
+      )}
+      {open && (
+        <div className="entity-dropdown">
+          <div className="entity-dropdown-option" onMouseDown={() => { onSelect(''); setSearch(''); setOpen(false) }}>Sin asignar</div>
+          {matching.slice(0, 6).map(e => (
+            <div key={e.id} className="entity-dropdown-option" onMouseDown={() => { onSelect(e.id); setSearch(''); setOpen(false) }}>
+              {e.name}
+            </div>
+          ))}
+          {matching.length === 0 && !search && (
+            <div className="entity-dropdown-empty">Sin más opciones de este tipo</div>
+          )}
+          {search.trim() && !hasExactMatch && (
+            <div className="entity-dropdown-option entity-dropdown-option--create" onMouseDown={() => startCreate(search.trim())}>
+              + Crear "{search.trim()}"
+            </div>
+          )}
+        </div>
+      )}
+      {resolving && (
+        <div className="quick-create-resolver">
+          <p className="quick-create-resolver-title">
+            {resolving.exact ? `Ya existe "${resolving.exact.name}"` : 'Encontramos algo parecido:'}
+          </p>
+          {[...(resolving.exact ? [resolving.exact] : []), ...resolving.fuzzy.map(f => f.candidate)].map(candidate => (
+            <button key={candidate.id} type="button" className="quick-create-resolver-option" onClick={() => selectExistingEntity(candidate, candidate.entity_type_id !== entityType.id)}>
+              {candidate.entity_type_id === entityType.id
+                ? `Usar "${candidate.name}"`
+                : `Usar "${candidate.name}" + agregarle ${entityType.name} como tipo secundario`}
+            </button>
+          ))}
+          <button type="button" className="quick-create-resolver-option" onClick={() => createNew(resolving.name)} disabled={saving}>
+            Crear "{resolving.name}" de todos modos
+          </button>
+          <button type="button" className="quick-create-resolver-cancel" onClick={() => setResolving(null)}>Cancelar</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function NegotiationModal({ initial, presetEntity, entities, entityTypes = [], products = [], members, customStates, customFieldDefs = [], onClose, onCancel, onSaved, workspaceId, userId }) {
   useEscapeToClose(onCancel || onClose)
   const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
@@ -1155,8 +1260,17 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
     currency: initial.currency || 'USD', milestones: [],
     custom_fields: Object.fromEntries(Object.entries(initial.custom_fields || {}).map(([k, v]) => [k, v?.value])),
   } : empty)
+  // Copias locales de entidades/productos — cuando se crea uno nuevo al vuelo
+  // desde el buscador (o se le agrega un tipo secundario a uno existente),
+  // se refleja acá al toque sin esperar el refetch del padre (que sí pasa
+  // al guardar/cancelar el modal, así que la lista canónica se termina de
+  // sincronizar sola).
+  const [localEntities, setLocalEntities] = useState(entities)
+  const [localProducts, setLocalProducts] = useState(products)
   const [productSearch, setProductSearch] = useState('')
   const [productDropdownOpen, setProductDropdownOpen] = useState(false)
+  const [productResolving, setProductResolving] = useState(null) // { name, exact, fuzzy }
+  const [creatingProduct, setCreatingProduct] = useState(false)
   const productRef = useRef(null)
   const [newTask, setNewTask] = useState('')
   const [newTaskAssignee, setNewTaskAssignee] = useState('')
@@ -1178,6 +1292,46 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
   }, [workspaceId])
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  // Producto "creado al vuelo" desde el buscador — todavía no tiene tipo
+  // asignado (obligatorio en el alta normal), así que se cuelga de un tipo
+  // "Sin categorizar" (se crea una sola vez por workspace, se reusa después).
+  async function ensureUncategorizedProductType() {
+    const { data: existing } = await supabase.from('product_types')
+      .select('id').eq('workspace_id', workspaceId).ilike('name', 'Sin categorizar').maybeSingle()
+    if (existing) return existing.id
+    const { data: created, error } = await supabase.from('product_types')
+      .insert({ workspace_id: workspaceId, name: 'Sin categorizar', sort_order: 999 })
+      .select('id').single()
+    if (error) { console.error('ensureUncategorizedProductType error:', error.message); return null }
+    return created.id
+  }
+
+  async function createProductQuick(name) {
+    setCreatingProduct(true)
+    const productTypeId = await ensureUncategorizedProductType()
+    const { data, error } = await supabase.from('products')
+      .insert({ workspace_id: workspaceId, name: name.trim(), product_type_id: productTypeId, needs_review: true })
+      .select('id, name').single()
+    setCreatingProduct(false)
+    if (error) { console.error('createProductQuick error:', error.message); return }
+    setLocalProducts(prev => [...prev, data])
+    set('product_ids', [...form.product_ids, { id: data.id }])
+    setProductSearch('')
+    setProductResolving(null)
+  }
+
+  function startProductCreate(name) {
+    const { exact, fuzzy } = matchEntity(name, localProducts, p => p.name)
+    if (exact || fuzzy.length > 0) { setProductResolving({ name, exact, fuzzy }); return }
+    createProductQuick(name)
+  }
+
+  function selectExistingProduct(product) {
+    set('product_ids', [...form.product_ids, { id: product.id }])
+    setProductSearch('')
+    setProductResolving(null)
+  }
 
   // Para "obligatorio": un array vacío cuenta como vacío (ver isCustomFieldValueEmpty
   // en customFields.js) — entity_by_type es un objeto {tipoId: entityId}, así que para
@@ -1313,15 +1467,17 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
             {entityTypes.map(et => (
               <div key={et.id} className="form-group">
                 <label>{et.name}</label>
-                <select
+                <EntityTypeCombobox
+                  entityType={et}
+                  allEntities={localEntities}
+                  workspaceId={workspaceId}
                   value={form.entity_by_type[et.id] || ''}
-                  onChange={e => set('entity_by_type', { ...form.entity_by_type, [et.id]: e.target.value })}
-                >
-                  <option value="">Sin asignar</option>
-                  {entities.filter(en => entityHasType(en, et.id)).map(en => (
-                    <option key={en.id} value={en.id}>{en.name}</option>
-                  ))}
-                </select>
+                  onSelect={id => set('entity_by_type', { ...form.entity_by_type, [et.id]: id })}
+                  onEntityUpserted={entity => setLocalEntities(prev => {
+                    const exists = prev.some(e => e.id === entity.id)
+                    return exists ? prev.map(e => e.id === entity.id ? entity : e) : [...prev, entity]
+                  })}
+                />
               </div>
             ))}
           </div>
@@ -1329,6 +1485,11 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
       )
     }
     if (def.field_type === 'products_link') {
+      const matchingProducts = localProducts.filter(p =>
+        !form.product_ids.find(x => x.id === p.id) &&
+        p.name.toLowerCase().includes(productSearch.toLowerCase())
+      )
+      const hasExactMatch = localProducts.some(p => p.name.toLowerCase() === productSearch.trim().toLowerCase())
       return (
         <div key={def.key} className="form-group form-group--wide" ref={productRef}>
           <label>{def.label}{def.required ? ' *' : ''}</label>
@@ -1345,39 +1506,54 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
             />
             {productDropdownOpen && (
               <div className="entity-dropdown">
-                {products
-                  .filter(p =>
-                    !form.product_ids.find(x => x.id === p.id) &&
-                    p.name.toLowerCase().includes(productSearch.toLowerCase())
-                  )
-                  .slice(0, 6)
-                  .map(p => (
-                    <div
-                      key={p.id}
-                      className="entity-dropdown-option"
-                      onMouseDown={() => {
-                        set('product_ids', [...form.product_ids, { id: p.id }])
-                        setProductSearch('')
-                      }}
-                    >
-                      {p.name}
-                    </div>
-                  ))
-                }
-                {products.filter(p =>
-                  !form.product_ids.find(x => x.id === p.id) &&
-                  p.name.toLowerCase().includes(productSearch.toLowerCase())
-                ).length === 0 && (
+                {matchingProducts.slice(0, 6).map(p => (
+                  <div
+                    key={p.id}
+                    className="entity-dropdown-option"
+                    onMouseDown={() => {
+                      set('product_ids', [...form.product_ids, { id: p.id }])
+                      setProductSearch('')
+                    }}
+                  >
+                    {p.name}
+                  </div>
+                ))}
+                {matchingProducts.length === 0 && (
                   <div className="entity-dropdown-empty">Sin resultados</div>
+                )}
+                {productSearch.trim() && !hasExactMatch && (
+                  <div
+                    className="entity-dropdown-option entity-dropdown-option--create"
+                    onMouseDown={() => startProductCreate(productSearch.trim())}
+                  >
+                    + Crear "{productSearch.trim()}"
+                  </div>
                 )}
               </div>
             )}
           </div>
 
+          {productResolving && (
+            <div className="quick-create-resolver">
+              <p className="quick-create-resolver-title">
+                {productResolving.exact ? `Ya existe "${productResolving.exact.name}"` : `¿Puede ser alguno de estos?`}
+              </p>
+              {[...(productResolving.exact ? [{ candidate: productResolving.exact }] : []), ...productResolving.fuzzy].map(({ candidate }) => (
+                <button key={candidate.id} type="button" className="quick-create-resolver-option" onClick={() => selectExistingProduct(candidate)}>
+                  Usar "{candidate.name}"
+                </button>
+              ))}
+              <button type="button" className="quick-create-resolver-option" onClick={() => createProductQuick(productResolving.name)} disabled={creatingProduct}>
+                Crear "{productResolving.name}" de todos modos
+              </button>
+              <button type="button" className="quick-create-resolver-cancel" onClick={() => setProductResolving(null)}>Cancelar</button>
+            </div>
+          )}
+
           {form.product_ids.length > 0 && (
             <div className="entity-selected-list">
               {form.product_ids.map((p, idx) => {
-                const prod = products.find(x => x.id === p.id)
+                const prod = localProducts.find(x => x.id === p.id)
                 const isPrimary = idx === 0
                 return (
                   <div key={p.id} className={`entity-selected-row ${isPrimary ? 'entity-selected-row--primary' : ''}`}>
