@@ -617,6 +617,23 @@ function ProductsGridTable({ products, allRows, getFacetRows, productFieldDefs, 
   )
 }
 
+// Posiciones (%) para la barrita de rango de cada presentación — track con
+// un margen alrededor de min/max (no pegado a los bordes), fill cubriendo
+// el rango observado, y un punto marcando dónde cayó el último precio.
+function computeRangeBar(min, max, last) {
+  const range = max - min
+  const pad = range > 0 ? range * 0.2 : Math.max(Math.abs(max) * 0.1, 1)
+  const scaleMin = min - pad
+  const scaleMax = max + pad
+  const scaleRange = scaleMax - scaleMin || 1
+  const pct = v => Math.max(0, Math.min(100, ((v - scaleMin) / scaleRange) * 100))
+  return {
+    fillLeft: pct(min),
+    fillWidth: Math.max(pct(max) - pct(min), 3),
+    dotLeft: pct(last),
+  }
+}
+
 // Agrupa el historial de precio de un producto por presentación (vacío =
 // "sin presentación", el caso normal cuando el producto no tiene variantes
 // concurrentes) y por moneda — nunca se mezclan monedas distintas en un
@@ -815,16 +832,23 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
                 <p className="detail-empty">Sin historial de precio todavía — se carga desde cada proyecto vinculado.</p>
               ) : (
                 <div className="prod-panorama-list">
-                  {priceGroups.map(g => (
-                    <div key={`${g.presentation || ''}__${g.currency}`} className="prod-panorama-card">
-                      <div className="prod-panorama-name">{g.presentation || product.name}</div>
-                      <div className="prod-panorama-range">
-                        <span className="prod-panorama-last">{formatAmount(g.last)} {g.currency}{g.unit ? `/${g.unit}` : ''}</span>
-                        <span className="prod-panorama-minmax">rango: {formatAmount(g.min)} – {formatAmount(g.max)} {g.currency}</span>
-                        <span className="prod-panorama-date">últ. {new Date(g.lastDate + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+                  {priceGroups.map(g => {
+                    const bar = computeRangeBar(g.min, g.max, g.last)
+                    return (
+                      <div key={`${g.presentation || ''}__${g.currency}`} className="prod-panorama-card">
+                        <div className="prod-panorama-name">{g.presentation || product.name}</div>
+                        <div className="prod-panorama-range">
+                          <span className="prod-panorama-last">{formatAmount(g.last)} {g.currency}{g.unit ? `/${g.unit}` : ''}</span>
+                          <div className="prod-panorama-track">
+                            <div className="prod-panorama-fill" style={{ left: `${bar.fillLeft}%`, width: `${bar.fillWidth}%` }} />
+                            <div className="prod-panorama-dot" style={{ left: `${bar.dotLeft}%` }} />
+                          </div>
+                          <span className="prod-panorama-minmax">{formatAmount(g.min)} – {formatAmount(g.max)} {g.currency}</span>
+                        </div>
+                        <div className="prod-panorama-date">últ. {new Date(g.lastDate + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )
             )}

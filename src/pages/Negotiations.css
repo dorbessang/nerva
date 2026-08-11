@@ -1731,6 +1731,57 @@
 .price-history-delta--down { color: #DC2626; }
 .price-history-delta--up { color: #059669; }
 
+.price-history-cotizacion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.price-history-staged-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #F9FAFB;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.price-history-staged-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.price-history-staged-presentation {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.price-history-staged-value {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.price-history-add-line-btn {
+  background: #F9FAFB;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.price-history-add-line-btn:hover { background: #F3F4F6; }
+.price-history-add-line-btn:disabled { opacity: 0.5; cursor: default; }
+
 .detail-section-title {
   font-size: 11px;
   font-weight: 700;

@@ -4,6 +4,13 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (25)
+
+### Fix + feature: barra de rango en Panorama comercial + múltiples presentaciones en una misma cotización
+- **Panorama comercial**: se había armado el mockup con una barrita visual de rango (mín/máx + punto del último precio), pero la implementación real había quedado solo con texto. Agregada — track con el rango observado y un punto marcando dónde cayó el último precio, normalizado por presentación (nunca mezclando escalas de precios distintas)
+- **Historial de precio, varias presentaciones en una cotización**: antes cada presentación había que cargarla como una entrada separada de punta a punta (fecha, producto, motivo repetidos cada vez). Ahora fecha/producto/motivo son compartidos ("la cotización"), y se van apilando líneas de precio/volumen/presentación con "+ Otra presentación" antes de guardar todo junto — igual criterio que ya se usa para apilar Hitos en la creación de un proyecto
+- Sin cambios de SQL
+
 ## 2026-08-11 (24)
 
 ### Feature: botón "Limpiar filtros" en Proyectos, Entidades, Productos y Tareas

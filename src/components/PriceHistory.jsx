@@ -23,12 +23,16 @@ function formatAmount(n) {
 export default function PriceHistory({ negotiationId, workspaceId, currency, unit, showQuantity, products = [], canEdit, onChanged }) {
   const { user } = useAuth()
   const [entries, setEntries] = useState([])
+  // Fecha/producto/motivo son compartidos por toda la cotización — una
+  // misma cotización puede traer varias presentaciones (líneas) del mismo
+  // producto, cada una con su propio precio/volumen/presentación.
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0])
-  const [newValue, setNewValue] = useState('')
-  const [newQuantity, setNewQuantity] = useState('')
-  const [newNote, setNewNote] = useState('')
   const [newProductId, setNewProductId] = useState('')
-  const [newPresentation, setNewPresentation] = useState('')
+  const [newNote, setNewNote] = useState('')
+  const [lineValue, setLineValue] = useState('')
+  const [lineQuantity, setLineQuantity] = useState('')
+  const [linePresentation, setLinePresentation] = useState('')
+  const [stagedLines, setStagedLines] = useState([]) // [{ value, quantity, presentation }]
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState(null)
@@ -46,33 +50,64 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
     if (data) setEntries(data)
   }
 
-  async function handleAdd() {
-    const value = parseFloat(newValue)
-    if (!newDate || Number.isNaN(value)) return
+  function addLine() {
+    const value = parseFloat(lineValue)
+    if (Number.isNaN(value)) return
+    setStagedLines(prev => [...prev, {
+      value,
+      quantity: showQuantity && lineQuantity ? parseFloat(lineQuantity) : null,
+      presentation: linePresentation.trim() || null,
+    }])
+    setLineValue('')
+    setLineQuantity('')
+    setLinePresentation('')
+  }
+
+  function removeLine(idx) {
+    setStagedLines(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  function clearCotizacion() {
+    setStagedLines([])
+    setLineValue('')
+    setLineQuantity('')
+    setLinePresentation('')
+    setNewNote('')
+    setNewProductId('')
+  }
+
+  async function handleSave() {
+    // La línea que quedó escrita pero sin "+ Agregar" todavía cuenta —
+    // así el caso de una sola presentación sigue siendo "completar y
+    // guardar" sin el paso extra de apilarla primero.
+    const lines = [...stagedLines]
+    const pendingValue = parseFloat(lineValue)
+    if (!Number.isNaN(pendingValue)) {
+      lines.push({
+        value: pendingValue,
+        quantity: showQuantity && lineQuantity ? parseFloat(lineQuantity) : null,
+        presentation: linePresentation.trim() || null,
+      })
+    }
+    if (!newDate || lines.length === 0) return
     if (needsProductPicker && !newProductId) return
-    const quantity = showQuantity && newQuantity ? parseFloat(newQuantity) : null
     setSaving(true)
-    const { error } = await supabase.from('negotiation_price_history').insert({
+    const { error } = await supabase.from('negotiation_price_history').insert(lines.map(l => ({
       workspace_id: workspaceId,
       negotiation_id: negotiationId,
       entry_date: newDate,
-      value,
-      quantity,
+      value: l.value,
+      quantity: l.quantity,
       note: newNote.trim() || null,
       product_id: newProductId || null,
-      presentation: newPresentation.trim() || null,
-    })
+      presentation: l.presentation,
+    })))
     if (error) { console.error('addPriceHistory error:', error.message); setSaving(false); return }
-    await logActivity(supabase, {
-      workspaceId, negotiationId, type: 'price_updated',
-      title: `Precio actualizado: ${formatAmount(value)}${currency ? ` ${currency}` : ''}${unit ? `/${unit}` : ''}`,
-      actorId: user?.id,
-    })
-    setNewValue('')
-    setNewQuantity('')
-    setNewNote('')
-    setNewProductId('')
-    setNewPresentation('')
+    const title = lines.length === 1
+      ? `Precio actualizado: ${formatAmount(lines[0].value)}${currency ? ` ${currency}` : ''}${unit ? `/${unit}` : ''}`
+      : `Cotización actualizada: ${lines.length} presentaciones`
+    await logActivity(supabase, { workspaceId, negotiationId, type: 'price_updated', title, actorId: user?.id })
+    clearCotizacion()
     setSaving(false)
     fetchEntries()
     onChanged?.()
@@ -101,19 +136,19 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
     setEditForm(null)
   }
 
-  function clearAddForm() {
-    setNewValue('')
-    setNewQuantity('')
-    setNewNote('')
-    setNewProductId('')
-    setNewPresentation('')
+  function clearLine() {
+    setLineValue('')
+    setLineQuantity('')
+    setLinePresentation('')
   }
 
-  // Enter guarda, Esc cancela sin guardar — stopPropagation para que el Esc
-  // no se propague y cierre de paso el modal grande que contiene esto.
-  function handleAddKeyDown(e) {
-    if (e.key === 'Enter') { e.preventDefault(); handleAdd() }
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); clearAddForm() }
+  // Enter apila la línea actual (para seguir cargando otra presentación de
+  // la misma cotización); Esc descarta solo la línea en curso, no las que
+  // ya se apilaron — stopPropagation para que no se propague y cierre de
+  // paso el modal grande que contiene esto.
+  function handleLineKeyDown(e) {
+    if (e.key === 'Enter') { e.preventDefault(); addLine() }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); clearLine() }
   }
 
   function handleEditKeyDown(e, id) {
@@ -263,71 +298,96 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
 
       {canEdit && showQuantity && (
         <p className="neg-financiero-meta">
-          El precio es por unidad ({unit || 'unidad de medida'}); el volumen mínimo es a partir de cuánto aplica ese precio — cargá una fila por cada quiebre de precio (ej: 1 {unit || 'kg'} → 500 {unit || 'kg'} → 1.000 {unit || 'kg'}).
+          El precio es por unidad ({unit || 'unidad de medida'}); el volumen mínimo es a partir de cuánto aplica ese precio. Si en la misma cotización hay más de una presentación (ej: x20 comp, x10 comp...), agregalas todas antes de guardar — quedan con la misma fecha y motivo.
         </p>
       )}
       {canEdit && (
-        <div className="neg-milestone-add">
-          <input
-            type="date"
-            className="neg-note-date-input neg-milestone-date-input"
-            value={newDate}
-            onChange={e => setNewDate(e.target.value)}
-            onKeyDown={handleAddKeyDown}
-          />
-          {needsProductPicker && (
-            <select
-              className="neg-note-date-input"
-              value={newProductId}
-              onChange={e => setNewProductId(e.target.value)}
-            >
-              <option value="">Producto...</option>
-              {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+        <div className="price-history-cotizacion">
+          <div className="neg-milestone-add">
+            <input
+              type="date"
+              className="neg-note-date-input neg-milestone-date-input"
+              value={newDate}
+              onChange={e => setNewDate(e.target.value)}
+            />
+            {needsProductPicker && (
+              <select
+                className="neg-note-date-input"
+                value={newProductId}
+                onChange={e => setNewProductId(e.target.value)}
+              >
+                <option value="">Producto...</option>
+                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            )}
+            <input
+              type="text"
+              className="neg-note-input neg-milestone-timing-input"
+              placeholder="Motivo del cambio (aplica a toda la cotización)..."
+              value={newNote}
+              onChange={e => setNewNote(e.target.value)}
+            />
+          </div>
+
+          {stagedLines.length > 0 && (
+            <div className="price-history-staged-list">
+              {stagedLines.map((l, idx) => (
+                <div key={idx} className="price-history-staged-row">
+                  <span className="price-history-staged-presentation">{l.presentation || 'Sin presentación'}</span>
+                  <span className="price-history-staged-value">
+                    {formatAmount(l.value)}{currency ? ` ${currency}` : ''}{unit ? `/${unit}` : ''}
+                    {showQuantity && l.quantity ? ` · desde ${formatAmount(l.quantity)} ${unit || ''}` : ''}
+                  </span>
+                  <button type="button" className="neg-milestone-delete" onClick={() => removeLine(idx)} title="Quitar">✕</button>
+                </div>
+              ))}
+            </div>
           )}
-          <input
-            type="number"
-            className="neg-note-date-input neg-milestone-amount-input"
-            placeholder={`Precio${unit ? ` por ${unit}` : ' por unidad'}`}
-            value={newValue}
-            onChange={e => setNewValue(e.target.value)}
-            onKeyDown={handleAddKeyDown}
-            step="0.01"
-          />
-          {showQuantity && (
+
+          <div className="neg-milestone-add">
             <input
               type="number"
               className="neg-note-date-input neg-milestone-amount-input"
-              placeholder={`Volumen mínimo (${unit || 'unidad de medida'})`}
-              value={newQuantity}
-              onChange={e => setNewQuantity(e.target.value)}
-              onKeyDown={handleAddKeyDown}
+              placeholder={`Precio${unit ? ` por ${unit}` : ' por unidad'}`}
+              value={lineValue}
+              onChange={e => setLineValue(e.target.value)}
+              onKeyDown={handleLineKeyDown}
               step="0.01"
             />
-          )}
-          <input
-            type="text"
-            className="neg-note-input neg-milestone-timing-input"
-            placeholder="Presentación (opcional)"
-            list="price-history-presentations"
-            value={newPresentation}
-            onChange={e => setNewPresentation(e.target.value)}
-            onKeyDown={handleAddKeyDown}
-          />
-          <datalist id="price-history-presentations">
-            {presentationSuggestions.map(p => <option key={p} value={p} />)}
-          </datalist>
-          <input
-            type="text"
-            className="neg-note-input neg-milestone-timing-input"
-            placeholder="Motivo del cambio..."
-            value={newNote}
-            onChange={e => setNewNote(e.target.value)}
-            onKeyDown={handleAddKeyDown}
-          />
-          <button className="neg-add-task-btn" onClick={handleAdd} disabled={saving || !newDate || !newValue || (needsProductPicker && !newProductId)}>
-            + Agregar
-          </button>
+            {showQuantity && (
+              <input
+                type="number"
+                className="neg-note-date-input neg-milestone-amount-input"
+                placeholder={`Volumen mínimo (${unit || 'unidad de medida'})`}
+                value={lineQuantity}
+                onChange={e => setLineQuantity(e.target.value)}
+                onKeyDown={handleLineKeyDown}
+                step="0.01"
+              />
+            )}
+            <input
+              type="text"
+              className="neg-note-input neg-milestone-timing-input"
+              placeholder="Presentación (opcional)"
+              list="price-history-presentations"
+              value={linePresentation}
+              onChange={e => setLinePresentation(e.target.value)}
+              onKeyDown={handleLineKeyDown}
+            />
+            <datalist id="price-history-presentations">
+              {presentationSuggestions.map(p => <option key={p} value={p} />)}
+            </datalist>
+            <button type="button" className="price-history-add-line-btn" onClick={addLine} disabled={!lineValue} title="Agregar otra presentación a esta cotización">
+              + Otra presentación
+            </button>
+            <button
+              className="neg-add-task-btn"
+              onClick={handleSave}
+              disabled={saving || !newDate || (stagedLines.length === 0 && !lineValue) || (needsProductPicker && !newProductId)}
+            >
+              Guardar
+            </button>
+          </div>
         </div>
       )}
     </div>
