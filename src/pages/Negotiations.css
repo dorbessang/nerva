@@ -1016,6 +1016,19 @@
 
 .neg-financiero-meta { font-size: 12px; color: #6b7280; margin: 4px 0 0; }
 
+.neg-quote-summary {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.neg-quote-value { font-size: 16px; font-weight: 700; color: #111827; line-height: 1.2; }
+.neg-quote-date { font-size: 10.5px; color: #9ca3af; }
+.neg-quote-detail { font-size: 11px; color: #6b7280; }
+
 .neg-financiero-fields { display: flex; gap: 28px; flex-wrap: wrap; }
 .neg-financiero-field { display: flex; flex-direction: column; gap: 4px; }
 .neg-financiero-field .neg-inline-select { margin-top: 2px; }
@@ -1183,21 +1196,43 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border-radius: 3px;
-  padding: 10px 12px 10px 14px;
+  border-radius: 1px 6px 4px 3px;
+  padding: 20px 12px 12px 14px;
   width: 160px;
   min-width: 140px;
   max-width: 200px;
   flex-shrink: 0;
-  box-shadow: 2px 3px 8px rgba(0,0,0,0.12);
+  box-shadow: 0 1px 1px rgba(0,0,0,0.06), 3px 5px 10px rgba(0,0,0,0.16);
   position: relative;
   transition: transform 0.15s, box-shadow 0.15s;
   cursor: default;
 }
 
+/* Cinta washi pegando la nota — cada una la agarra en un ángulo levemente
+   distinto (impar/par) para que el collage se sienta armado a mano, no
+   generado en grilla. */
+.neg-note-item::before {
+  content: '';
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  width: 44px;
+  height: 18px;
+  background:
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.75) 0, rgba(255,255,255,0.75) 3px, rgba(255,255,255,0.5) 3px, rgba(255,255,255,0.5) 6px);
+  border: 1px solid rgba(255,255,255,0.5);
+  box-shadow: 0 2px 3px rgba(0,0,0,0.15);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.neg-note-item:nth-child(odd)::before { left: 30%; transform: translateX(-50%) rotate(-7deg); }
+.neg-note-item:nth-child(even)::before { left: 68%; transform: translateX(-50%) rotate(6deg); }
+.neg-note-item:nth-child(3n)::before { left: 50%; transform: translateX(-50%) rotate(2deg); }
+
 .neg-note-item:hover {
-  transform: scale(1.04) rotate(0deg) !important;
-  box-shadow: 4px 6px 16px rgba(0,0,0,0.18);
+  transform: scale(1.05) rotate(0deg) !important;
+  box-shadow: 0 2px 3px rgba(0,0,0,0.1), 6px 10px 20px rgba(0,0,0,0.24);
   z-index: 10 !important;
 }
 
@@ -1216,7 +1251,7 @@
 
 .neg-note-delete {
   position: absolute;
-  top: 5px;
+  top: 16px;
   right: 6px;
   background: none;
   border: none;
@@ -1578,6 +1613,23 @@
 }
 
 .doc-download:hover { color: #1D4ED8; }
+
+.doc-dropzone { position: relative; border-radius: 10px; transition: background 0.15s; }
+.doc-dropzone--over { background: #eff6ff; outline: 2px dashed #3B82F6; outline-offset: -2px; }
+.doc-dropzone-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1D4ED8;
+  background: rgba(239, 246, 255, 0.85);
+  border-radius: 10px;
+  pointer-events: none;
+  z-index: 5;
+}
 
 .neg-task-status {
   font-size: 11px;

@@ -15,6 +15,7 @@ import { CardGrid, CardTile, CardTileNew } from '../components/CardGrid'
 import TotalStatCard from '../components/StatCards'
 import { getInitials, getAvatarColor } from '../lib/avatarColors'
 import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
+import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './Entities.css'
 
 // Columnas que no son un campo custom configurable — calculada a partir de
@@ -591,6 +592,7 @@ function ProductsGridTable({ products, allRows, getFacetRows, productFieldDefs, 
 
 export function ProductDetailModal({ product, negotiationStates, onClose, onUpdated, productTypeSingular, getStateConfig, productFieldDefs = [], negotiationFieldDefs = [] }) {
   const { effectiveRole, workspaceId, user } = useAuth()
+  useEscapeToClose(onClose)
   const canDelete = effectiveRole === 'owner'
   const [showEditModal, setShowEditModal] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)

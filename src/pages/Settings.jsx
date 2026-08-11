@@ -540,6 +540,10 @@ function TabEstados({ workspaceId }) {
                           style={{ maxWidth: 180 }}
                           value={editing.name}
                           onChange={e => setEditing(ed => ({ ...ed, name: e.target.value }))}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); handleSaveEdit() }
+                            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditing(null) }
+                          }}
                           autoFocus
                         />
                         <div className="state-color-palette">
@@ -606,6 +610,10 @@ function TabEstados({ workspaceId }) {
             type="text"
             value={newName}
             onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); handleAdd() }
+              if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setNewName('') }
+            }}
             placeholder="Nombre del estado..."
             className="state-name-input"
           />
@@ -800,6 +808,10 @@ function TabEntidades({ workspaceId }) {
                         style={{ maxWidth: 160 }}
                         value={editing.name}
                         onChange={e => setEditing(ed => ({ ...ed, name: e.target.value }))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { e.preventDefault(); handleSaveEdit() }
+                          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditing(null) }
+                        }}
                         placeholder="Singular"
                         autoFocus
                       />
@@ -808,6 +820,10 @@ function TabEntidades({ workspaceId }) {
                         style={{ maxWidth: 160 }}
                         value={editing.plural || ''}
                         onChange={e => setEditing(ed => ({ ...ed, plural: e.target.value }))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { e.preventDefault(); handleSaveEdit() }
+                          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditing(null) }
+                        }}
                         placeholder="Plural (opcional)"
                       />
                     </div>
@@ -880,7 +896,10 @@ function TabEntidades({ workspaceId }) {
             onChange={e => setNewName(e.target.value)}
             placeholder="Singular (ej: Forwarder)"
             className="state-name-input"
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleAdd()
+              if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setNewName(''); setNewPlural('') }
+            }}
           />
           <input
             type="text"
@@ -889,7 +908,10 @@ function TabEntidades({ workspaceId }) {
             placeholder="Plural (ej: Forwarders)"
             className="state-name-input"
             style={{ maxWidth: 180 }}
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleAdd()
+              if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setNewName(''); setNewPlural('') }
+            }}
           />
           <button className="settings-btn-primary" onClick={handleAdd} disabled={saving}>
             + Agregar
@@ -1022,6 +1044,10 @@ function TabProductos({ workspaceId }) {
                         style={{ maxWidth: 160 }}
                         value={editing.name}
                         onChange={e => setEditing(ed => ({ ...ed, name: e.target.value }))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { e.preventDefault(); handleSaveEdit() }
+                          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditing(null) }
+                        }}
                         placeholder="Singular"
                         autoFocus
                       />
@@ -1030,6 +1056,10 @@ function TabProductos({ workspaceId }) {
                         style={{ maxWidth: 160 }}
                         value={editing.plural || ''}
                         onChange={e => setEditing(ed => ({ ...ed, plural: e.target.value }))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { e.preventDefault(); handleSaveEdit() }
+                          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditing(null) }
+                        }}
                         placeholder="Plural (opcional)"
                       />
                     </div>
@@ -1101,7 +1131,10 @@ function TabProductos({ workspaceId }) {
             onChange={e => setNewName(e.target.value)}
             placeholder="Singular (ej: API)"
             className="state-name-input"
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleAdd()
+              if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setNewName(''); setNewPlural('') }
+            }}
           />
           <input
             type="text"
@@ -1110,7 +1143,10 @@ function TabProductos({ workspaceId }) {
             placeholder="Plural (ej: APIs)"
             className="state-name-input"
             style={{ maxWidth: 180 }}
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleAdd()
+              if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setNewName(''); setNewPlural('') }
+            }}
           />
           <button className="settings-btn-primary" onClick={handleAdd} disabled={saving}>
             + Agregar
@@ -1363,6 +1399,10 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
                 className="state-name-input"
                 value={editing.label}
                 onChange={e => setEditing(ed => ({ ...ed, label: e.target.value }))}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); handleSaveEdit() }
+                  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditing(null) }
+                }}
                 autoFocus
               />
               {hasChoices && (
@@ -1498,6 +1538,10 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
               type="text"
               value={newLabel}
               onChange={e => setNewLabel(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); handleAdd() }
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); resetForm() }
+              }}
               placeholder="Nombre del campo..."
               className="state-name-input"
             />

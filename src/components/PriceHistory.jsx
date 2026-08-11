@@ -78,6 +78,29 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
     })
   }
 
+  function cancelEdit() {
+    setEditingId(null)
+    setEditForm(null)
+  }
+
+  function clearAddForm() {
+    setNewValue('')
+    setNewQuantity('')
+    setNewNote('')
+  }
+
+  // Enter guarda, Esc cancela sin guardar — stopPropagation para que el Esc
+  // no se propague y cierre de paso el modal grande que contiene esto.
+  function handleAddKeyDown(e) {
+    if (e.key === 'Enter') { e.preventDefault(); handleAdd() }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); clearAddForm() }
+  }
+
+  function handleEditKeyDown(e, id) {
+    if (e.key === 'Enter') { e.preventDefault(); handleSaveEdit(id) }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelEdit() }
+  }
+
   async function handleSaveEdit(id) {
     const value = parseFloat(editForm.value)
     if (!editForm.entry_date || Number.isNaN(value)) return
@@ -110,7 +133,7 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
             </span>
             {showQuantity && latest.quantity && (
               <span className="price-history-total">
-                {formatAmount(latest.quantity)}{unit ? ` ${unit}` : ''} → {formatAmount(latest.value * latest.quantity)}{currency ? ` ${currency}` : ''} de este cierre
+                A partir de {formatAmount(latest.quantity)}{unit ? ` ${unit}` : ''} — mínimo de compra: {formatAmount(latest.value * latest.quantity)}{currency ? ` ${currency}` : ''}
               </span>
             )}
           </div>
@@ -136,21 +159,26 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
                     className="neg-note-date-input neg-milestone-date-input"
                     value={editForm.entry_date}
                     onChange={ev => setEditForm(f => ({ ...f, entry_date: ev.target.value }))}
+                    onKeyDown={ev => handleEditKeyDown(ev, e.id)}
+                    autoFocus
                   />
                   <input
                     type="number"
                     className="neg-note-date-input neg-milestone-amount-input"
+                    placeholder={`Precio${unit ? ` por ${unit}` : ''}`}
                     value={editForm.value}
                     onChange={ev => setEditForm(f => ({ ...f, value: ev.target.value }))}
+                    onKeyDown={ev => handleEditKeyDown(ev, e.id)}
                     step="0.01"
                   />
                   {showQuantity && (
                     <input
                       type="number"
                       className="neg-note-date-input neg-milestone-amount-input"
-                      placeholder={`Cantidad (${unit || ''})`}
+                      placeholder={`Volumen mínimo${unit ? ` (${unit})` : ''}`}
                       value={editForm.quantity}
                       onChange={ev => setEditForm(f => ({ ...f, quantity: ev.target.value }))}
+                      onKeyDown={ev => handleEditKeyDown(ev, e.id)}
                       step="0.01"
                     />
                   )}
@@ -160,9 +188,10 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
                     placeholder="Motivo del cambio..."
                     value={editForm.note}
                     onChange={ev => setEditForm(f => ({ ...f, note: ev.target.value }))}
+                    onKeyDown={ev => handleEditKeyDown(ev, e.id)}
                   />
                   <button className="neg-add-task-btn" onClick={() => handleSaveEdit(e.id)}>Guardar</button>
-                  <button className="neg-milestone-delete" onClick={() => { setEditingId(null); setEditForm(null) }} title="Cancelar">✕</button>
+                  <button className="neg-milestone-delete" onClick={cancelEdit} title="Cancelar">✕</button>
                 </div>
               )
             }
@@ -174,7 +203,7 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
                 </span>
                 <div className="neg-task-body">
                   <span className="neg-task-title">
-                    {showQuantity && e.quantity ? `${formatAmount(e.quantity)} ${unit || ''} — ` : ''}{e.note || '—'}
+                    {showQuantity && e.quantity ? `A partir de ${formatAmount(e.quantity)} ${unit || ''} — ` : ''}{e.note || '—'}
                   </span>
                 </div>
                 {canEdit && (
@@ -189,6 +218,11 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
         </div>
       )}
 
+      {canEdit && showQuantity && (
+        <p className="neg-financiero-meta">
+          El precio es por unidad ({unit || 'unidad de medida'}); el volumen mínimo es a partir de cuánto aplica ese precio — cargá una fila por cada quiebre de precio (ej: 1 {unit || 'kg'} → 500 {unit || 'kg'} → 1.000 {unit || 'kg'}).
+        </p>
+      )}
       {canEdit && (
         <div className="neg-milestone-add">
           <input
@@ -196,22 +230,25 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
             className="neg-note-date-input neg-milestone-date-input"
             value={newDate}
             onChange={e => setNewDate(e.target.value)}
+            onKeyDown={handleAddKeyDown}
           />
           <input
             type="number"
             className="neg-note-date-input neg-milestone-amount-input"
-            placeholder="Valor"
+            placeholder={`Precio${unit ? ` por ${unit}` : ' por unidad'}`}
             value={newValue}
             onChange={e => setNewValue(e.target.value)}
+            onKeyDown={handleAddKeyDown}
             step="0.01"
           />
           {showQuantity && (
             <input
               type="number"
               className="neg-note-date-input neg-milestone-amount-input"
-              placeholder={`Cantidad (${unit || 'unidad de medida'})`}
+              placeholder={`Volumen mínimo (${unit || 'unidad de medida'})`}
               value={newQuantity}
               onChange={e => setNewQuantity(e.target.value)}
+              onKeyDown={handleAddKeyDown}
               step="0.01"
             />
           )}
@@ -221,6 +258,7 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
             placeholder="Motivo del cambio..."
             value={newNote}
             onChange={e => setNewNote(e.target.value)}
+            onKeyDown={handleAddKeyDown}
           />
           <button className="neg-add-task-btn" onClick={handleAdd} disabled={saving || !newDate || !newValue}>
             + Agregar

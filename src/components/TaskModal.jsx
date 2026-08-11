@@ -3,10 +3,12 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { notifyTaskAssigned } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
+import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './TaskModal.css'
 
 export default function TaskModal({ onClose, onCreated }) {
   const { user, workspaceId } = useAuth()
+  useEscapeToClose(onClose)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('medium')

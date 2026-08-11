@@ -4,6 +4,7 @@ import { parseSpreadsheet, getCell, getCellRaw, downloadTemplate } from '../lib/
 import { getCountryCode } from './CountrySelector'
 import { renderCustomFieldDisplay } from '../lib/customFields'
 import { matchEntity } from '../lib/entityMatching'
+import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './ImportModal.css'
 
 function parseDate(v) {
@@ -144,6 +145,7 @@ function buildRows(raw, importFields, hasContacts, existingEntities) {
 }
 
 export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, entityTypeName, workspaceId, entityFieldDefs = [], onClose, onImported }) {
+  useEscapeToClose(onClose)
   const [step, setStep] = useState('upload') // upload | preview
   const [rows, setRows] = useState([])
   const [fileError, setFileError] = useState('')

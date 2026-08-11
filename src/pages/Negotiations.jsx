@@ -4,6 +4,7 @@ import { Table2, LayoutGrid, Kanban } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { useCloseOnOutsideOrEscape } from '../lib/useCloseOnOutsideOrEscape'
+import { useEscapeToClose } from '../lib/useEscapeToClose'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import ImportNegotiationsModal from '../components/ImportNegotiationsModal'
 import NotesPostIts from '../components/NotesPostIts'
@@ -1118,6 +1119,7 @@ function KanbanView({ negotiations, customStates, getStateConfig, getEntityName,
 // el historial de git este archivo si hace falta el código exacto.
 
 export function NegotiationModal({ initial, presetEntity, entities, entityTypes = [], products = [], members, customStates, customFieldDefs = [], onClose, onCancel, onSaved, workspaceId, userId }) {
+  useEscapeToClose(onCancel || onClose)
   const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
 
   const empty = {
@@ -1557,6 +1559,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
 
 export function NegotiationDetail({ neg, entities, entityTypes = [], customStates, customFieldDefs = [], members = [], getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
   const { effectiveRole, role, user, isStaff, workspaceId } = useAuth()
+  useEscapeToClose(onClose)
   const canDelete = effectiveRole === 'owner'
   const canPause = effectiveRole === 'owner' || effectiveRole === 'admin'
   const canEdit = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
@@ -1586,6 +1589,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   const [activeTab, setActiveTab] = useState('bitacora')
   const [financialConfig, setFinancialConfig] = useState(resolveFinancialConfig(null))
   const [milestonesTotal, setMilestonesTotal] = useState(null)
+  const [latestPrice, setLatestPrice] = useState(null)
   const [customFieldValues, setCustomFieldValues] = useState(neg.custom_fields || {})
   const [columnValues, setColumnValues] = useState(() => {
     const init = {}
@@ -1618,10 +1622,20 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   }, [neg.workspace_id, workspaceId])
 
   useEffect(() => { fetchMilestonesTotal() }, [neg.id, activityRefresh])
+  useEffect(() => { fetchLatestPrice() }, [neg.id, activityRefresh])
 
   async function fetchMilestonesTotal() {
     const { data } = await supabase.from('deal_milestones').select('amount').eq('negotiation_id', neg.id)
     if (data) setMilestonesTotal(data.reduce((sum, m) => sum + Number(m.amount), 0))
+  }
+
+  async function fetchLatestPrice() {
+    const { data } = await supabase.from('negotiation_price_history').select('*')
+      .eq('negotiation_id', neg.id)
+      .order('entry_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+    setLatestPrice(data?.[0] || null)
   }
 
   async function fetchTasks() {
@@ -1773,6 +1787,24 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                 )}
               </div>
             </div>
+
+            {financialConfig.historial_precio && latestPrice && (
+              <div className="neg-sidebar-section">
+                <p className="neg-sidebar-label">Última cotización</p>
+                <div className="neg-quote-summary">
+                  <span className="neg-quote-value">
+                    {formatAmount(latestPrice.value)}{inlineCurrency ? ` ${inlineCurrency}` : ''}{inlineUnit ? `/${inlineUnit}` : ''}
+                  </span>
+                  <span className="neg-quote-date">
+                    {new Date(latestPrice.entry_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </span>
+                  {financialConfig.volumen && latestPrice.quantity && (
+                    <span className="neg-quote-detail">A partir de {formatAmount(latestPrice.quantity)} {inlineUnit || ''}</span>
+                  )}
+                  {latestPrice.note && <span className="neg-quote-detail">{latestPrice.note}</span>}
+                </div>
+              </div>
+            )}
 
             {entitiesLinkDef && entityTypes.some(et => getEntitiesOfType(neg, et.id).length > 0) && (
               <div className="neg-sidebar-section">
@@ -2079,6 +2111,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
 
 function TaskModalInline({ negotiationId, existingTasks, onClose, onCreated }) {
   const { workspaceId, user } = useAuth()
+  useEscapeToClose(onClose)
   const [title, setTitle] = useState('')
   const [priority, setPriority] = useState('medium')
   const [dueDate, setDueDate] = useState('')

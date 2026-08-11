@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { logActivity } from '../lib/activity'
 import { mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isWideCustomField } from '../lib/customFields'
+import { useEscapeToClose } from '../lib/useEscapeToClose'
 import { CustomFieldInput } from './CustomFieldInput'
 import './EntityModal.css'
 
@@ -19,6 +20,7 @@ const emptyContact = () => ({
 
 export default function EntityModal({ onClose, onCreated, initial = null, entityTypeSingular = 'proveedor', customFieldDefs = [] }) {
   const { workspaceId, user } = useAuth()
+  useEscapeToClose(onClose)
 
   const gridDefs = customFieldDefs.filter(d => d.field_type !== 'contacts')
   const contactsDef = customFieldDefs.find(d => d.field_type === 'contacts')

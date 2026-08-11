@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { parseSpreadsheet, getCell, getCellRaw, downloadTemplate } from '../lib/importXlsx'
 import { renderCustomFieldDisplay } from '../lib/customFields'
 import { matchEntity } from '../lib/entityMatching'
+import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './ImportModal.css'
 
 function parseDate(v) {
@@ -116,6 +117,7 @@ function buildRows(raw, importFields, entities, customStates) {
 }
 
 export default function ImportNegotiationsModal({ workspaceId, entities, entityTypes = [], customStates, negotiationFieldDefs = [], onClose, onImported }) {
+  useEscapeToClose(onClose)
   const [step, setStep] = useState('upload')
   const [rows, setRows] = useState([])
   const [fileError, setFileError] = useState('')

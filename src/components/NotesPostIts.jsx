@@ -200,11 +200,11 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
           onBlur={() => { if (!mention) handleSaveNoteEdit(n.id) }}
           onKeyDown={e => {
             if (mention?.field === 'edit') {
-              if (e.key === 'Escape') { e.preventDefault(); setMention(null) }
+              if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setMention(null) }
               return
             }
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveNoteEdit(n.id) }
-            if (e.key === 'Escape') setEditingNoteId(null)
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditingNoteId(null) }
           }}
           style={{ background: 'transparent', border: 'none', outline: 'none', width: '100%', font: 'inherit', fontSize: 13, resize: 'none', lineHeight: 1.5, padding: 0, color: '#374151' }}
           rows={3}
@@ -301,10 +301,11 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
               onChange={e => handleFieldChange('new', e.target.value, e.target.selectionStart)}
               onKeyDown={e => {
                 if (mention?.field === 'new') {
-                  if (e.key === 'Escape') { e.preventDefault(); setMention(null) }
+                  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setMention(null) }
                   return
                 }
                 if (e.key === 'Enter') handleAddNote()
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setNewNote(''); setNewNoteDate(new Date().toISOString().split('T')[0]) }
               }}
             />
             {mention?.field === 'new' && (

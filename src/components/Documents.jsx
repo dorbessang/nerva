@@ -30,7 +30,9 @@ export default function Documents({ negotiationId, entityId, workspaceId, canEdi
   const [documents, setDocuments] = useState([])
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState(null)
+  const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef(null)
+  const dragCounter = useRef(0)
 
   useEffect(() => { fetchDocuments() }, [negotiationId, entityId])
 
@@ -42,9 +44,7 @@ export default function Documents({ negotiationId, entityId, workspaceId, canEdi
     if (data) setDocuments(data)
   }
 
-  async function handleFileChange(e) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
+  async function uploadFile(file) {
     if (!file) return
     setError(null)
     if (file.size > MAX_SIZE_BYTES) { setError('El archivo supera el límite de 20MB'); return }
@@ -72,6 +72,42 @@ export default function Documents({ negotiationId, entityId, workspaceId, canEdi
     onChanged?.()
   }
 
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    await uploadFile(file)
+  }
+
+  // Suelta un archivo desde el mail, el Finder/Explorer, o donde sea — convive
+  // con el botón "Examinar" de siempre, no lo reemplaza. Sube de a uno (el
+  // primero soltado) para no complicar el manejo de errores parciales.
+  function handleDragEnter(e) {
+    e.preventDefault()
+    if (!canEdit) return
+    dragCounter.current += 1
+    if (e.dataTransfer.types?.includes('Files')) setDragOver(true)
+  }
+
+  function handleDragLeave(e) {
+    e.preventDefault()
+    if (!canEdit) return
+    dragCounter.current -= 1
+    if (dragCounter.current <= 0) { dragCounter.current = 0; setDragOver(false) }
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault()
+  }
+
+  async function handleDrop(e) {
+    e.preventDefault()
+    dragCounter.current = 0
+    setDragOver(false)
+    if (!canEdit) return
+    const file = e.dataTransfer.files?.[0]
+    await uploadFile(file)
+  }
+
   async function handleDownload(doc) {
     const { data, error } = await supabase.storage.from('documents').createSignedUrl(doc.storage_path, 60)
     if (error) { console.error('signed url error:', error.message); return }
@@ -86,7 +122,14 @@ export default function Documents({ negotiationId, entityId, workspaceId, canEdi
   }
 
   return (
-    <div>
+    <div
+      className={`doc-dropzone ${dragOver ? 'doc-dropzone--over' : ''}`}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {dragOver && <div className="doc-dropzone-overlay">Soltá el archivo para subirlo</div>}
       {documents.length === 0 ? (
         <p className="detail-empty">Sin documentos todavía.</p>
       ) : (
@@ -115,6 +158,7 @@ export default function Documents({ negotiationId, entityId, workspaceId, canEdi
           <button className="neg-add-task-btn" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
             {uploading ? 'Subiendo...' : '+ Subir documento'}
           </button>
+          <span className="doc-meta" style={{ marginLeft: 8 }}>o arrastrá el archivo acá</span>
         </div>
       )}
     </div>

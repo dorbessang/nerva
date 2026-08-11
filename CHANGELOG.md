@@ -4,6 +4,17 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (16)
+
+### Feature: Enter/Esc en composers chicos, drag & drop en Documentos, historial de precio como quiebres por volumen, "Última cotización" automática, post-its con cinta
+- **Enter/Esc en inputs chicos** (no en modales grandes tipo Entidad/Proyecto, ahí solo Esc): Enter confirma, Esc cancela sin guardar — aplicado a Notas/post-its, hitos (`DealMilestones`), historial de precio (`PriceHistory`), y en Configuración a estados, tipos de entidad/producto y campos personalizados (alta y edición inline)
+- **Esc cierra la ventana**: nuevo hook `useEscapeToClose` en todos los modales grandes (Entidad, Producto, Proyecto —Vista y Editar—, Tarea, los 3 modales de importación). Los inputs chicos de adentro (notas, hitos, etc.) usan `stopPropagation()` en su propio Escape para que cancelar una nota no cierre de paso el modal entero
+- **Drag & drop en Documentos**: además del botón "Examinar" de siempre, ahora se puede soltar un archivo directo (desde el mail, el Finder/Explorer, donde sea) sobre la pestaña de Documentos — mismo límite de 20MB y mismo flujo de subida
+- **Historial de precio, aclarado como quiebres por volumen**: "Valor" y "Cantidad" no dejaban claro que el precio es por unidad y la cantidad es el volumen mínimo de compra para ese precio (no una venta puntual) — se renombran los campos y se agrega una aclaración en el formulario. Ej: 1 kg → 1 USD/kg, pero a partir de 500 kg → 1.30 USD/kg, van como filas separadas
+- **"Última cotización" en la barra lateral**: nuevo tile automático (calculado del último historial de precio cargado) al lado de Resumen — muestra precio, fecha y detalle sin cargar nada a mano. El campo de texto libre "Cotización" que hubiera configurado como campo personalizado en algún workspace queda redundante con esto — se puede borrar o renombrar desde Configuración si ya no hace falta
+- **Post-its con estilo "cinta pegada"**: cada nota ahora tiene una tira de cinta washi en la parte de arriba, con ángulo alternado nota por nota (no todas iguales) — más parecido a un corcho real
+- Sin cambios de SQL — todo el cambio es de código
+
 ## 2026-08-11 (15)
 
 ### Fix: pestañas del modal de Proyecto seguían necesitando scroll para ver la solapa activa

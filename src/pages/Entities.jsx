@@ -25,6 +25,7 @@ import TotalStatCard from '../components/StatCards'
 import { getInitials, getAvatarColor } from '../lib/avatarColors'
 import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
 import { entityHasType } from '../lib/entityTypes'
+import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './Entities.css'
 
 // Columnas que no son un campo custom configurable — calculadas a partir de
@@ -682,6 +683,7 @@ function EntitiesGridTable({ entities, allRows, getFacetRows, entityFieldDefs, c
 
 function EntityDetailModal({ entity, negotiationStates, entities, allEntities = [], allEntityTypes = [], onClose, onUpdated, entityTypeName, entityTypeSingular, getStateConfig, entityFieldDefs = [], negotiationFieldDefs = [], productFieldDefs = [] }) {
   const { workspaceId, user, effectiveRole } = useAuth()
+  useEscapeToClose(onClose)
   const canDelete = effectiveRole === 'owner'
   const canCreateProject = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
   const canNote = effectiveRole !== 'viewer'

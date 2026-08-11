@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { wouldCreateCycle, isTaskBlocked, notifyTaskAssigned } from '../lib/tasks'
+import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './TaskDrawer.css'
 
 export default function TaskDrawer({ task, onClose, onUpdated }) {
   const { user, workspaceId } = useAuth()
+  useEscapeToClose(onClose)
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description || '')
   const [status, setStatus] = useState(task.status)

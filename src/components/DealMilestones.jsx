@@ -93,6 +93,30 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
     })
   }
 
+  function cancelEdit() {
+    setEditingId(null)
+    setEditForm(null)
+  }
+
+  function clearAddForm() {
+    setNewName('')
+    setNewAmount('')
+    setNewDate('')
+    setNewTiming('')
+  }
+
+  // Enter guarda, Esc cancela sin guardar — el stopPropagation evita que el
+  // Esc se propague y cierre de paso el modal grande que contiene esto.
+  function handleAddKeyDown(e) {
+    if (e.key === 'Enter') { e.preventDefault(); handleAdd() }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); clearAddForm() }
+  }
+
+  function handleEditKeyDown(e, id) {
+    if (e.key === 'Enter') { e.preventDefault(); handleSaveEdit(id) }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelEdit() }
+  }
+
   async function handleSaveEdit(id) {
     const amount = parseFloat(editForm.amount)
     if (!editForm.name.trim() || Number.isNaN(amount) || amount === 0) return
@@ -127,12 +151,15 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
                     className="neg-note-input neg-milestone-name-input"
                     value={editForm.name}
                     onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                    onKeyDown={e => handleEditKeyDown(e, m.id)}
+                    autoFocus
                   />
                   <input
                     type="number"
                     className="neg-note-date-input neg-milestone-amount-input"
                     value={editForm.amount}
                     onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
+                    onKeyDown={e => handleEditKeyDown(e, m.id)}
                     step="0.01"
                   />
                   <input
@@ -140,6 +167,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
                     className="neg-note-date-input neg-milestone-date-input"
                     value={editForm.estimated_date}
                     onChange={e => setEditForm(f => ({ ...f, estimated_date: e.target.value }))}
+                    onKeyDown={e => handleEditKeyDown(e, m.id)}
                   />
                   <input
                     type="text"
@@ -147,9 +175,10 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
                     placeholder="Momento (si no hay fecha exacta)"
                     value={editForm.timing_note}
                     onChange={e => setEditForm(f => ({ ...f, timing_note: e.target.value }))}
+                    onKeyDown={e => handleEditKeyDown(e, m.id)}
                   />
                   <button className="neg-add-task-btn" onClick={() => handleSaveEdit(m.id)}>Guardar</button>
-                  <button className="neg-milestone-delete" onClick={() => { setEditingId(null); setEditForm(null) }} title="Cancelar">✕</button>
+                  <button className="neg-milestone-delete" onClick={cancelEdit} title="Cancelar">✕</button>
                 </div>
               )
             }
@@ -187,6 +216,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
             placeholder="Nombre del hito (ej: Upfront, Milestone Fase 2...)"
             value={newName}
             onChange={e => setNewName(e.target.value)}
+            onKeyDown={handleAddKeyDown}
           />
           <input
             type="number"
@@ -194,6 +224,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
             placeholder="Monto (negativo = pago a hacer)"
             value={newAmount}
             onChange={e => setNewAmount(e.target.value)}
+            onKeyDown={handleAddKeyDown}
             step="0.01"
           />
           <input
@@ -201,6 +232,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
             className="neg-note-date-input neg-milestone-date-input"
             value={newDate}
             onChange={e => setNewDate(e.target.value)}
+            onKeyDown={handleAddKeyDown}
           />
           <input
             type="text"
@@ -208,6 +240,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
             placeholder="Momento (si no hay fecha exacta, ej: al lanzamiento)"
             value={newTiming}
             onChange={e => setNewTiming(e.target.value)}
+            onKeyDown={handleAddKeyDown}
           />
           <button className="neg-add-task-btn" onClick={handleAdd} disabled={saving || !newName.trim() || !newAmount}>
             + Agregar

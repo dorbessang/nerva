@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isWideCustomField } from '../lib/customFields'
 import { naturalSortByName } from '../lib/tableSort'
+import { useEscapeToClose } from '../lib/useEscapeToClose'
 import { CustomFieldInput } from './CustomFieldInput'
 import './EntityModal.css'
 
@@ -11,6 +12,7 @@ import './EntityModal.css'
 // de contactos (eso vive en la entidad dueña, no en el producto).
 export default function ProductModal({ onClose, onCreated, initial = null, productTypeSingular = 'producto', customFieldDefs = [] }) {
   const { workspaceId } = useAuth()
+  useEscapeToClose(onClose)
 
   const [values, setValues] = useState(() => {
     const init = {}

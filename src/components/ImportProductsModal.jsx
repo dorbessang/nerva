@@ -4,6 +4,7 @@ import { parseSpreadsheet, getCell, getCellRaw, downloadTemplate } from '../lib/
 import { getCountryCode } from './CountrySelector'
 import { renderCustomFieldDisplay } from '../lib/customFields'
 import { matchEntity, normalizeName } from '../lib/entityMatching'
+import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './ImportModal.css'
 
 function parseDate(v) {
@@ -147,6 +148,7 @@ function defaultResolution(def) {
 }
 
 export default function ImportProductsModal({ workspaceId, productFieldDefs = [], onClose, onImported }) {
+  useEscapeToClose(onClose)
   const [step, setStep] = useState('upload') // upload | preview
   const [rows, setRows] = useState([])
   const [fileError, setFileError] = useState('')
