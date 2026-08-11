@@ -150,30 +150,40 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
     })
   }
 
-  async function handleAddNote() {
-    if (!newNote.trim()) return
+  async function insertNote(content, date) {
     setSavingNote(true)
-    const content = newNote.trim()
-    const { data, error } = await supabase.from('negotiation_notes').insert({
+    const { error } = await supabase.from('negotiation_notes').insert({
       negotiation_id: negotiationId || null,
       entity_id: entityId || null,
       workspace_id: workspaceId,
       content,
-      note_date: newNoteDate,
+      note_date: date,
       page: negotiationId && page && page !== '__log__' ? page : null,
-    }).select('id').single()
-    if (error) { console.error('addNote error:', error.message); setSavingNote(false); return }
+    })
+    if (error) { console.error('addNote error:', error.message); setSavingNote(false); return false }
     await logActivity(supabase, {
       workspaceId, negotiationId, entityId,
       type: 'note_added', title: 'Nota agregada', actorId: user?.id,
     })
     await notifyNoteMentions(content, null)
-    setNewNote('')
-    setNewNoteDate(new Date().toISOString().split('T')[0])
-    setMention(null)
     setSavingNote(false)
     fetchNotes()
     onChanged?.()
+    return true
+  }
+
+  async function handleAddNote() {
+    if (!newNote.trim()) return
+    const ok = await insertNote(newNote.trim(), newNoteDate)
+    if (ok) { setNewNote(''); setNewNoteDate(new Date().toISOString().split('T')[0]); setMention(null) }
+  }
+
+  // El botón "+ Agregar post-it" pega un papelito en blanco, ya en modo
+  // edición, con la fecha de hoy — se escribe directo ahí (Enter/blur
+  // guarda, Escape descarta) en vez de un formulario aparte.
+  function startDraft() {
+    setEditingNoteId('__draft__')
+    setEditingNoteText('')
   }
 
   async function handleDeleteNote(noteId) {
@@ -184,6 +194,13 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
 
   async function handleSaveNoteEdit(noteId) {
     const text = editingNoteText.trim()
+    if (noteId === '__draft__') {
+      if (text) await insertNote(text, new Date().toISOString().split('T')[0])
+      setEditingNoteId(null)
+      setEditingNoteText('')
+      setMention(null)
+      return
+    }
     if (!text) return
     const previous = notes.find(n => n.id === noteId)?.content || ''
     await supabase.from('negotiation_notes').update({ content: text }).eq('id', noteId)
@@ -257,7 +274,7 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
               </div>
             </div>
           )
-        }) : notes.map((n, idx) => {
+        }) : (editingNoteId === '__draft__' ? [{ id: '__draft__', note_date: new Date().toISOString().split('T')[0], content: '' }, ...notes] : notes).map((n, idx) => {
           const hash = n.id ? n.id.charCodeAt(0) + n.id.charCodeAt(4) : idx
           const col = NOTE_COLORS[hash % NOTE_COLORS.length]
           const rotations = [-3, -1.5, 0, 1.5, 3]
@@ -287,6 +304,11 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
             </div>
           )
         })}
+        {variant === 'postit' && hideComposer && canEdit && editingNoteId !== '__draft__' && (
+          <button type="button" className="neg-note-item neg-note-item--add" onClick={startDraft}>
+            + Agregar<br />post-it
+          </button>
+        )}
       </div>
       {canEdit && !hideComposer && (
         <div className="neg-note-add">

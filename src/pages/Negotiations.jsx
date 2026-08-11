@@ -8,7 +8,6 @@ import { useEscapeToClose } from '../lib/useEscapeToClose'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import ImportNegotiationsModal from '../components/ImportNegotiationsModal'
 import NotesPostIts from '../components/NotesPostIts'
-import NegotiationNotesEditor from '../components/NegotiationNotesEditor'
 import ActivityTimeline from '../components/ActivityTimeline'
 import DealMilestones, { formatAmount } from '../components/DealMilestones'
 import PriceHistory from '../components/PriceHistory'
@@ -1520,13 +1519,6 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
               </>
             )}
           </div>
-
-          {initial && (
-            <div className="form-group form-group--wide">
-              <label>NOTAS</label>
-              <NegotiationNotesEditor negotiationId={initial.id} workspaceId={workspaceId} />
-            </div>
-          )}
 
           <div className="form-group">
             <label>TAREAS INICIALES</label>

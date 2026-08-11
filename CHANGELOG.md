@@ -4,6 +4,14 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (18)
+
+### Feature: post-its se pegan directo en la pestaña, ya no se crean desde Editar
+- Antes, un post-it fijado a una página (Financiero/Bitácora/Tareas/Documentos) solo se podía crear desde el formulario de Editar, eligiendo la página en un dropdown — quedaba lejos de donde en realidad se usa
+- Ahora cada pestaña tiene su propio botón "+ Agregar post-it": pega un papelito en blanco, ya en modo edición, con la fecha de hoy — se escribe directo ahí (Enter o click afuera guarda, Esc descarta) — sin formulario aparte
+- Se eliminó `NegotiationNotesEditor.jsx` (quedó sin uso) y la sección "Notas" del modal de Editar
+- Sin cambios de SQL
+
 ## 2026-08-11 (17)
 
 ### Fix: una notita "fijada en Bitácora" se mezclaba con el registro cronológico
