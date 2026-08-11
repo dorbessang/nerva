@@ -6,6 +6,21 @@
 
 **Antes de correr CUALQUIER cosa marcada como pendiente acá (`[ ]`), confirmar primero con el usuario que ese paso no esté ya hecho.** El avance real de la app no siempre queda reflejado en este archivo al mismo ritmo — algo puede haberse resuelto de otra forma, en otro momento, o directamente ya no ser necesario. Nunca asumir que un `[ ]` sigue representando el estado real solo porque nadie lo tildó. Si hace falta optimizar o reordenar algo más adelante, se ve en su momento — pero **nunca re-ejecutar/reescribir "porque sí"** sin chequear antes. (Instrucción explícita del usuario, 2026-08-11.)
 
+## 📍 Para la próxima sesión — empezar por acá (cierre de la sesión larga del 2026-08-11)
+
+Sesión larga de rediseño de Proyectos/Productos/Entidades. Todo el código quedó commiteado y pusheado a `claude/session-status-check-4r6t8e` (no mergeado a `main` — el último merge+deploy a producción fue a mitad de esta sesión, commit `f4176cb`; hay commits nuevos arriba de eso sin mergear todavía, esperar a que el usuario pida el próximo merge). Ver `CHANGELOG.md` para el detalle completo, entradas del `(9)` al `(25)` del `2026-08-11`.
+
+**Lo primero que hay que resolver — SQL sin confirmar que haya corrido** (3 tandas, todas con el mismo criterio: preguntarle al usuario si ya las corrió antes de asumir nada):
+1. `negotiation_price_history.product_id` (uuid, FK a `products`) + `.presentation` (text) — necesarias para que el Panorama comercial del Producto y el picker de presentaciones en Financiero funcionen de verdad
+2. `negotiation_notes.product_id` (uuid, FK a `products`) — necesaria para la Bitácora del Producto
+3. `entities.needs_review` (boolean) + `products.needs_review` (boolean) — necesarias para el flujo de "crear al vuelo" desde un proyecto y el filtro "Para completar"
+
+El SQL exacto de cada una está en la sección "Modal de Producto — Panorama comercial + Bitácora" y "Crear entidades/productos al vuelo..." más abajo en este archivo.
+
+**Conexión a Supabase**: en esta sesión apareció una integración de Supabase (herramientas `mcp__Supabase__*`) pero se desconectó repetidas veces y nunca quedó estable — todo el SQL de esta sesión se le pasó al usuario para correr a mano en el editor de Supabase, no se corrió nada directo. Si en la sesión nueva la conexión está disponible y estable, usarla; si no, seguir con el flujo de siempre (pasar el SQL en el chat).
+
+**Decisión de producto sin cerrar — Comisión**: charlada en profundidad (ver sección "Modal de Producto" más abajo) pero nunca implementada. Recomendación ya acordada con el usuario si se retoma: un solo campo, expresado como % del precio ya cargado en cada entrada del historial, sin distinguir si contractualmente la absorbe el proveedor o el comprador (para el registro da igual, siempre es "cuánto te llevás vos"). Falta la confirmación final del usuario antes de tocar código.
+
 ## Auditoría de arquitectura (2026-08-11) — estado confirmado
 
 Se hizo una auditoría completa de cruft/inconsistencias en el código (agente en background) más una ronda de confirmaciones directas del usuario sobre SQL que este archivo tenía como pendiente/sin verificar:

@@ -4,6 +4,22 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (26) — Cierre de sesión, resumen
+
+Sesión larga (entradas `(9)` a `(25)` más abajo, todas del mismo día). Resumen para retomar rápido en una sesión nueva — el detalle completo de cada punto está en su propia entrada:
+
+**Rediseño de Proyectos** — modal de detalle con sidebar+tabs (Financiero/Bitácora/Actividad/Tareas/Documentos), Financiero como módulo fijo con switches por workspace, Unidad de medida como texto libre, Hitos con fecha al lado del nombre y monto en columna, post-its rediseñados con estética de cinta washi y creación directa desde cada pestaña (ya no desde Editar).
+
+**Fix crítico de seguridad** — ~20 queries en Tasks/Negotiations/Entities/Products y varios modales confiaban solo en RLS y no filtraban por `workspace_id`, mezclando datos entre workspaces para cualquier usuario con más de una membresía. Corregido en todos los puntos encontrados.
+
+**Modal de Producto** — reconstruido con sidebar+tabs (antes quedaba chico y con una sola pestaña): Panorama comercial (historial de precio agrupado por presentación/moneda, con barra de rango visual), Proyectos vinculados, Bitácora. Historial de precio ahora soporta varias presentaciones por cotización (Ibupirac x20/x10 comp, etc.) sin repetir fecha/producto/motivo por cada una.
+
+**Crear al vuelo + detección de duplicados** — buscador de Entidades/Productos dentro de un proyecto ahora deja crear el registro si no existe, corriendo primero el mismo matcher de los imports CSV para evitar duplicar algo parecido que ya existe (con opción de sumar tipo secundario a una entidad existente). Marcador `needs_review` + filtro "Para completar" en ambas páginas.
+
+**Otros fixes**: detalle de proyecto que se veía distinto según desde dónde se abría (fetch duplicado en 3 archivos, unificado en `src/lib/negotiations.js`), botón "Limpiar filtros" en las 4 páginas con filtros, varios hallazgos de una auditoría de arquitectura (errores de guardado silenciosos, usuario desactivado igual asignable, CSS muerto).
+
+**Queda pendiente — ver el bloque "📍 Para la próxima sesión" al principio de `PENDIENTES.md`**: 3 tandas de SQL sin confirmar que hayan corrido, y la decisión de Comisión sin cerrar.
+
 ## 2026-08-11 (25)
 
 ### Fix + feature: barra de rango en Panorama comercial + múltiples presentaciones en una misma cotización
