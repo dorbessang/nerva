@@ -18,6 +18,7 @@ import TotalStatCard from '../components/StatCards'
 import { getInitials, getAvatarColor } from '../lib/avatarColors'
 import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
+import { fetchFullNegotiation } from '../lib/negotiations'
 import './Entities.css'
 
 // Columnas que no son un campo custom configurable — calculada a partir de
@@ -714,23 +715,13 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
     .sort((a, b) => new Date(b.last_activity_at || 0) - new Date(a.last_activity_at || 0))
   const priceGroups = groupPriceEntries(priceEntries)
 
-  async function fetchFullNeg(neg) {
-    const [{ data: full }, { data: ents }, { data: notesList }] = await Promise.all([
-      supabase.from('negotiations').select('*').eq('id', neg.id).single(),
-      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code, entity_type_id)').eq('negotiation_id', neg.id),
-      supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', neg.id).order('note_date'),
-    ])
-    if (!full) return null
-    return { ...full, negotiation_entities: ents || [], notes_list: notesList || [] }
-  }
-
   async function handleSelectNeg(neg) {
-    const full = await fetchFullNeg(neg)
+    const full = await fetchFullNegotiation(supabase, neg.id)
     if (full) setSelectedNeg(full)
   }
 
   async function refetchNeg(id) {
-    return fetchFullNeg({ id })
+    return fetchFullNegotiation(supabase, id)
   }
 
   async function handleDelete() {

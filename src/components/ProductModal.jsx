@@ -79,7 +79,10 @@ export default function ProductModal({ onClose, onCreated, initial = null, produ
     if (initial?.id) {
       const { error: productError } = await supabase
         .from('products')
-        .update({ ...columnValues, custom_fields: customFields })
+        // Si venía marcado "para completar" (creado al vuelo desde un
+        // proyecto), guardar acá — con los obligatorios ya validados
+        // arriba — es la señal de que se terminó de cargar.
+        .update({ ...columnValues, custom_fields: customFields, needs_review: false })
         .eq('id', initial.id)
 
       if (productError) {

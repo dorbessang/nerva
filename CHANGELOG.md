@@ -4,6 +4,14 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (23)
+
+### Fix: el detalle de un proyecto se veía distinto según desde dónde se abría
+- Causa: el fetch completo de un proyecto (`negotiation_entities` con `role`, `negotiation_products`, `primary_entity`/`primary_product`) estaba duplicado en 3 archivos (`Negotiations.jsx`, `Entities.jsx`, `Products.jsx`) — cada uno con su propia copia, y con el tiempo se desincronizaron entre sí. La de `Products.jsx` era la más vieja: ni siquiera traía `negotiation_products`, así que abrir un proyecto desde Producto → Proyectos vinculados nunca mostraba el producto vinculado (ni en Vista ni en Editar)
+- Se extrae a una sola función compartida (`src/lib/negotiations.js` → `fetchFullNegotiation`), usada ahora por los tres — un solo fetch, no tres copias que se puedan desalinear de nuevo
+- **Fix: el filtro "Para completar" no se sacaba solo al terminar de cargar un registro** — guardar una entidad/producto desde su modal de Editar (con los campos obligatorios ya validados) ahora limpia `needs_review` — antes quedaba marcado para siempre una vez creado al vuelo
+- Sin cambios de SQL
+
 ## 2026-08-11 (22)
 
 ### Feature: crear entidades/productos al vuelo desde el proyecto, con detección de similares

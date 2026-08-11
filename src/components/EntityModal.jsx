@@ -129,7 +129,10 @@ export default function EntityModal({ onClose, onCreated, initial = null, entity
       if (initial?.id) {
         const { error: entityError } = await supabase
           .from('entities')
-          .update({ ...columnValues, custom_fields: customFields })
+          // Si venía marcada "para completar" (creada al vuelo desde un
+          // proyecto), guardar acá — con los obligatorios ya validados
+          // arriba — es la señal de que se terminó de cargar.
+          .update({ ...columnValues, custom_fields: customFields, needs_review: false })
           .eq('id', initial.id)
 
         if (entityError) {

@@ -25,6 +25,7 @@ import TotalStatCard from '../components/StatCards'
 import { getInitials, getAvatarColor } from '../lib/avatarColors'
 import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
 import { entityHasType } from '../lib/entityTypes'
+import { fetchFullNegotiation } from '../lib/negotiations'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './Entities.css'
 
@@ -831,19 +832,8 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
   const counts = {}
   negs.forEach(n => { counts[n.status] = (counts[n.status] || 0) + 1 })
 
-  async function fetchFullNeg(neg) {
-    const [{ data: full }, { data: ents }, { data: prods }, { data: notesList }] = await Promise.all([
-      supabase.from('negotiations').select('*').eq('id', neg.id).single(),
-      supabase.from('negotiation_entities').select('negotiation_id, entity_id, entity:entity_id(id, name, country_code, entity_type_id)').eq('negotiation_id', neg.id),
-      supabase.from('negotiation_products').select('negotiation_id, product_id, product:product_id(id, name)').eq('negotiation_id', neg.id),
-      supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', neg.id).order('note_date'),
-    ])
-    if (!full) return null
-    return { ...full, negotiation_entities: ents || [], negotiation_products: prods || [], notes_list: notesList || [] }
-  }
-
   async function handleSelectNeg(neg) {
-    const full = await fetchFullNeg(neg)
+    const full = await fetchFullNegotiation(supabase, neg.id)
     if (full) setSelectedNeg(full)
   }
 
@@ -860,14 +850,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
   }
 
   async function refetchNeg(id) {
-    const [{ data: full }, { data: ents }, { data: prods }, { data: notesList }] = await Promise.all([
-      supabase.from('negotiations').select('*').eq('id', id).single(),
-      supabase.from('negotiation_entities').select('negotiation_id, entity_id, role, entity:entity_id(id, name, country_code, entity_type_id)').eq('negotiation_id', id),
-      supabase.from('negotiation_products').select('negotiation_id, product_id, product:product_id(id, name)').eq('negotiation_id', id),
-      supabase.from('negotiation_notes').select('id, negotiation_id, content, note_date').eq('negotiation_id', id).order('note_date'),
-    ])
-    if (!full) return null
-    return { ...full, negotiation_entities: ents || [], negotiation_products: prods || [], notes_list: notesList || [] }
+    return fetchFullNegotiation(supabase, id)
   }
 
   const customStates = negotiationStates
