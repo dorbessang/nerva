@@ -19,6 +19,18 @@ Se hizo una auditoría completa de cruft/inconsistencias en el código (agente e
 - **[ ] Producto, no bug**: las notas "fijadas" a una página (Financiero/Tareas/Documentos) del proyecto aparecen mezcladas con las notas de Bitácora dentro de la columna genérica "Notas" de la tabla/tarjetas y en el PDF export (`exportPdf.js`) — no se tocó, a confirmar si es el comportamiento deseado o si hay que separarlas ahí también.
 - **`custom_field_definitions.filterable`**: confirmado que ya no se usa para nada (el filtrado es 100% por `field_type` ahora vía `isFieldFilterable()`), pero se sigue grabando en cada workspace nuevo (`seedWorkspaceDefaults.js`). Queda anotado, no se tocó todavía.
 
+## Modal de Producto — Panorama comercial + Bitácora (2026-08-11)
+
+Rediseño del modal de Producto: pestaña "Panorama comercial" (agrupa el historial de precio de todos los proyectos vinculados por presentación/moneda — mín/máx/último), pestaña "Bitácora" (mismo registro cronológico que Proyectos/Entidades, sin post-its por ahora), Resumen nuevo en la sidebar. Motivado por un caso real de farma: un mismo producto puede tener presentaciones distintas (ej. Ibupirac x20 comp vs x10 comp) con precios concurrentes dentro de la misma negociación — no son cotizaciones separadas en el tiempo, son SKUs distintos del mismo cierre. Se evaluó modelarlo como catálogo de SKU + jerarquías de familia (lo "correcto" a largo plazo, según el usuario) pero se decidió ir primero por la versión liviana (campo `presentation` de texto libre) porque migra limpio a SKUs reales el día que haga falta: por cada combinación (producto, presentación) ya cargada se puede crear el SKU nuevo, colgarlo de una familia, y re-vincular las filas existentes sin perder histórico.
+
+**Comisión**: charlado pero no implementado — quedó sin cerrar cuál de las dos partes (proveedor/comprador) la absorbe contractualmente, aunque la recomendación acordada es que no importa para el registro (siempre es "cuánto te llevás vos", ya sea descontado al proveedor o sumado al comprador) — un solo campo, % sobre el precio ya cargado, sin distinguir el lado. Falta confirmación final antes de sumarlo.
+
+##### SQL pendiente de aplicar
+- [ ] `alter table public.negotiation_price_history add column if not exists product_id uuid references public.products(id) on delete set null;`
+- [ ] `alter table public.negotiation_price_history add column if not exists presentation text;`
+- [ ] `alter table public.negotiation_notes add column if not exists product_id uuid references public.products(id) on delete cascade;` (no hace falta tocar ningún constraint — `negotiation_notes` ya admite filas sin `negotiation_id` ni `entity_id`, ver más arriba en este archivo)
+- [ ] Sin cambios de RLS — ambas tablas ya filtran por `workspace_id`, agregar una columna nullable no cambia ninguna política existente
+
 ---
 
 ## VISIÓN DE PRODUCTO Y ARQUITECTURA (largo plazo)

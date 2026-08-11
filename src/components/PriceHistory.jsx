@@ -13,16 +13,27 @@ function formatAmount(n) {
 // usa "Volumen") + motivo del cambio — separado de los Hitos (que son pagos
 // parciales) porque esto es la evolución del precio/cantidad acordados, no
 // el cronograma de cobro.
-export default function PriceHistory({ negotiationId, workspaceId, currency, unit, showQuantity, canEdit, onChanged }) {
+//
+// `products` (opcional) es la lista de productos vinculados a esta
+// negociación — si hay más de uno, cada entrada tiene que aclarar a cuál
+// corresponde (si no, quedaría ambiguo para el panorama comercial del
+// producto). `presentation` es texto libre siempre disponible — variantes/
+// SKUs concurrentes del mismo producto en el mismo cierre (ej. "x20 comp"
+// vs "x10 comp" de Ibupirac), no una fecha distinta.
+export default function PriceHistory({ negotiationId, workspaceId, currency, unit, showQuantity, products = [], canEdit, onChanged }) {
   const { user } = useAuth()
   const [entries, setEntries] = useState([])
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0])
   const [newValue, setNewValue] = useState('')
   const [newQuantity, setNewQuantity] = useState('')
   const [newNote, setNewNote] = useState('')
+  const [newProductId, setNewProductId] = useState('')
+  const [newPresentation, setNewPresentation] = useState('')
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState(null)
+  const needsProductPicker = products.length > 1
+  const presentationSuggestions = [...new Set(entries.map(e => e.presentation).filter(Boolean))]
 
   useEffect(() => { fetchEntries() }, [negotiationId])
 
@@ -38,6 +49,7 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
   async function handleAdd() {
     const value = parseFloat(newValue)
     if (!newDate || Number.isNaN(value)) return
+    if (needsProductPicker && !newProductId) return
     const quantity = showQuantity && newQuantity ? parseFloat(newQuantity) : null
     setSaving(true)
     const { error } = await supabase.from('negotiation_price_history').insert({
@@ -47,6 +59,8 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
       value,
       quantity,
       note: newNote.trim() || null,
+      product_id: newProductId || null,
+      presentation: newPresentation.trim() || null,
     })
     if (error) { console.error('addPriceHistory error:', error.message); setSaving(false); return }
     await logActivity(supabase, {
@@ -57,6 +71,8 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
     setNewValue('')
     setNewQuantity('')
     setNewNote('')
+    setNewProductId('')
+    setNewPresentation('')
     setSaving(false)
     fetchEntries()
     onChanged?.()
@@ -75,6 +91,8 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
       value: String(e.value),
       quantity: e.quantity !== null ? String(e.quantity) : '',
       note: e.note || '',
+      product_id: e.product_id || '',
+      presentation: e.presentation || '',
     })
   }
 
@@ -87,6 +105,8 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
     setNewValue('')
     setNewQuantity('')
     setNewNote('')
+    setNewProductId('')
+    setNewPresentation('')
   }
 
   // Enter guarda, Esc cancela sin guardar — stopPropagation para que el Esc
@@ -104,11 +124,14 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
   async function handleSaveEdit(id) {
     const value = parseFloat(editForm.value)
     if (!editForm.entry_date || Number.isNaN(value)) return
+    if (needsProductPicker && !editForm.product_id) return
     const patch = {
       entry_date: editForm.entry_date,
       value,
       quantity: showQuantity && editForm.quantity ? parseFloat(editForm.quantity) : null,
       note: editForm.note.trim() || null,
+      product_id: editForm.product_id || null,
+      presentation: editForm.presentation.trim() || null,
     }
     await supabase.from('negotiation_price_history').update(patch).eq('id', id)
     setEntries(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e).sort((a, b) => b.entry_date.localeCompare(a.entry_date)))
@@ -162,6 +185,16 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
                     onKeyDown={ev => handleEditKeyDown(ev, e.id)}
                     autoFocus
                   />
+                  {needsProductPicker && (
+                    <select
+                      className="neg-note-date-input"
+                      value={editForm.product_id}
+                      onChange={ev => setEditForm(f => ({ ...f, product_id: ev.target.value }))}
+                    >
+                      <option value="">Producto...</option>
+                      {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  )}
                   <input
                     type="number"
                     className="neg-note-date-input neg-milestone-amount-input"
@@ -185,6 +218,15 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
                   <input
                     type="text"
                     className="neg-note-input neg-milestone-timing-input"
+                    placeholder="Presentación (opcional)"
+                    list="price-history-presentations"
+                    value={editForm.presentation}
+                    onChange={ev => setEditForm(f => ({ ...f, presentation: ev.target.value }))}
+                    onKeyDown={ev => handleEditKeyDown(ev, e.id)}
+                  />
+                  <input
+                    type="text"
+                    className="neg-note-input neg-milestone-timing-input"
                     placeholder="Motivo del cambio..."
                     value={editForm.note}
                     onChange={ev => setEditForm(f => ({ ...f, note: ev.target.value }))}
@@ -203,6 +245,7 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
                 </span>
                 <div className="neg-task-body">
                   <span className="neg-task-title">
+                    {e.presentation ? `${e.presentation} — ` : ''}
                     {showQuantity && e.quantity ? `A partir de ${formatAmount(e.quantity)} ${unit || ''} — ` : ''}{e.note || '—'}
                   </span>
                 </div>
@@ -232,6 +275,16 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
             onChange={e => setNewDate(e.target.value)}
             onKeyDown={handleAddKeyDown}
           />
+          {needsProductPicker && (
+            <select
+              className="neg-note-date-input"
+              value={newProductId}
+              onChange={e => setNewProductId(e.target.value)}
+            >
+              <option value="">Producto...</option>
+              {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          )}
           <input
             type="number"
             className="neg-note-date-input neg-milestone-amount-input"
@@ -255,12 +308,24 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
           <input
             type="text"
             className="neg-note-input neg-milestone-timing-input"
+            placeholder="Presentación (opcional)"
+            list="price-history-presentations"
+            value={newPresentation}
+            onChange={e => setNewPresentation(e.target.value)}
+            onKeyDown={handleAddKeyDown}
+          />
+          <datalist id="price-history-presentations">
+            {presentationSuggestions.map(p => <option key={p} value={p} />)}
+          </datalist>
+          <input
+            type="text"
+            className="neg-note-input neg-milestone-timing-input"
             placeholder="Motivo del cambio..."
             value={newNote}
             onChange={e => setNewNote(e.target.value)}
             onKeyDown={handleAddKeyDown}
           />
-          <button className="neg-add-task-btn" onClick={handleAdd} disabled={saving || !newDate || !newValue}>
+          <button className="neg-add-task-btn" onClick={handleAdd} disabled={saving || !newDate || !newValue || (needsProductPicker && !newProductId)}>
             + Agregar
           </button>
         </div>

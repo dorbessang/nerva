@@ -4,6 +4,16 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (20)
+
+### Feature: modal de Producto — Panorama comercial + Bitácora
+- **Panorama comercial** (pestaña nueva, la que abre por default): junta el historial de precio de todos los proyectos vinculados a un producto y lo agrupa por presentación (variantes concurrentes del mismo producto, ej. "Ibupirac x20 comp" vs "x10 comp") y por moneda (nunca se mezclan monedas en un mismo rango). Por cada grupo muestra: último precio, rango histórico (mín–máx) y fecha del último cierre
+- **Historial de precio** (`PriceHistory.jsx`, usado desde el proyecto) suma dos campos opcionales: `Presentación` (texto libre, con autocompletado de las que ya se usaron para ese producto) y, si el proyecto tiene más de un producto vinculado, un selector obligatorio de a cuál corresponde cada entrada — así el panorama del producto puede atribuir cada fila correctamente
+- **Bitácora** (pestaña nueva): mismo patrón de registro cronológico que ya tienen Proyectos y Entidades — sin post-its fijados por ahora, solo el log
+- Resumen nuevo en la barra lateral: proyectos vinculados + presentaciones con precio
+- **Comisión**: no se sumó todavía, a la espera de que se confirme el diseño (charlado pero no cerrado)
+- **Requiere correr SQL a mano** (ver PENDIENTES.md — `negotiation_price_history.product_id`/`.presentation`, `negotiation_notes.product_id`)
+
 ## 2026-08-11 (19)
 
 ### Fix: 3 hallazgos de la auditoría de arquitectura + limpieza de CSS muerto

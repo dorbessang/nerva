@@ -1939,6 +1939,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                       currency={inlineCurrency}
                       unit={inlineUnit}
                       showQuantity={financialConfig.volumen}
+                      products={(neg.negotiation_products || []).map(np => np.product).filter(Boolean)}
                       canEdit={canNote}
                       onChanged={() => setActivityRefresh(v => v + 1)}
                     />

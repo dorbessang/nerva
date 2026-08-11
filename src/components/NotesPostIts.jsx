@@ -52,12 +52,12 @@ function extractMentionedUserIds(text, members) {
   return [...ids]
 }
 
-// Notas tipo post-it, reusadas en el detalle de proyecto, el de entidad, y
-// como notepad suelto del workspace personal — se filtran/insertan por
-// negotiationId, por entityId, o si no se pasa ninguno de los dos, quedan
-// sueltas (solo scoped por workspaceId). `contextLabel` es el nombre del
-// proyecto/entidad (si aplica), solo para el texto de la notificación de
-// @mención.
+// Notas tipo post-it, reusadas en el detalle de proyecto, entidad y producto,
+// y como notepad suelto del workspace personal — se filtran/insertan por
+// negotiationId, por entityId, por productId, o si no se pasa ninguno de los
+// tres, quedan sueltas (solo scoped por workspaceId). `contextLabel` es el
+// nombre del proyecto/entidad/producto (si aplica), solo para el texto de la
+// notificación de @mención.
 //
 // `page` (solo tiene sentido junto con negotiationId) filtra/asigna en qué
 // "página" del proyecto vive cada nota. '__log__' es un valor especial que
@@ -67,13 +67,14 @@ function extractMentionedUserIds(text, members) {
 // FIJADO a esa página (page = ese valor literal en la base) — un recordatorio
 // que se ve aparte, no un renglón más del log. Antes 'bitacora' colapsaba a
 // NULL y se mezclaba con el log; ahora queda su propio valor para poder
-// separarlos en el render. `variant` cambia el renderizado: 'postit'
-// (default, el collage de siempre) o 'timeline' (lista cronológica prolija,
-// usada por la Bitácora — mismo dato, sin la estética de post-it).
-// `hideComposer` oculta el input de alta (las notas con página se crean
-// desde el modal de Editar del proyecto, no inline en cada tab — salvo el
-// log de Bitácora, '__log__', que sí se carga inline ahí mismo).
-export default function NotesPostIts({ negotiationId, entityId, workspaceId, canEdit, onChanged, contextLabel, page, variant = 'postit', hideComposer = false }) {
+// separarlos en el render. En Productos, `page` siempre es '__log__' (solo
+// hay Bitácora ahí por ahora, sin post-its fijados). `variant` cambia el
+// renderizado: 'postit' (default, el collage de siempre) o 'timeline' (lista
+// cronológica prolija, usada por la Bitácora — mismo dato, sin la estética
+// de post-it). `hideComposer` oculta el input de alta (las notas con página
+// se crean desde el modal de Editar del proyecto, no inline en cada tab —
+// salvo el log de Bitácora, '__log__', que sí se carga inline ahí mismo).
+export default function NotesPostIts({ negotiationId, entityId, productId, workspaceId, canEdit, onChanged, contextLabel, page, variant = 'postit', hideComposer = false }) {
   const { user, profile } = useAuth()
   const [notes, setNotes] = useState([])
   const [newNote, setNewNote] = useState('')
@@ -87,7 +88,7 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
   const newNoteInputRef = useRef(null)
   const editTextareaRef = useRef(null)
 
-  useEffect(() => { fetchNotes() }, [negotiationId, entityId, page])
+  useEffect(() => { fetchNotes() }, [negotiationId, entityId, productId, page])
   useEffect(() => { fetchMembers() }, [workspaceId])
 
   async function fetchNotes() {
@@ -97,6 +98,8 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
       if (page) query = page === '__log__' ? query.is('page', null) : query.eq('page', page)
     } else if (entityId) {
       query = query.eq('entity_id', entityId)
+    } else if (productId) {
+      query = query.eq('product_id', productId)
     } else {
       query = query.is('negotiation_id', null).is('entity_id', null).eq('workspace_id', workspaceId)
     }
@@ -155,16 +158,21 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
     const { error } = await supabase.from('negotiation_notes').insert({
       negotiation_id: negotiationId || null,
       entity_id: entityId || null,
+      product_id: productId || null,
       workspace_id: workspaceId,
       content,
       note_date: date,
       page: negotiationId && page && page !== '__log__' ? page : null,
     })
     if (error) { console.error('addNote error:', error.message); setSavingNote(false); return false }
-    await logActivity(supabase, {
-      workspaceId, negotiationId, entityId,
-      type: 'note_added', title: 'Nota agregada', actorId: user?.id,
-    })
+    // Sin timeline de actividad para productos todavía (fuera de alcance) —
+    // no tiene sentido loguear un evento que nada va a mostrar.
+    if (negotiationId || entityId) {
+      await logActivity(supabase, {
+        workspaceId, negotiationId, entityId,
+        type: 'note_added', title: 'Nota agregada', actorId: user?.id,
+      })
+    }
     await notifyNoteMentions(content, null)
     setSavingNote(false)
     fetchNotes()

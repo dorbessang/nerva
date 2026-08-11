@@ -6,6 +6,8 @@ import ProductModal from '../components/ProductModal'
 import ImportProductsModal from '../components/ImportProductsModal'
 import { NegotiationDetail, NegotiationModal } from './Negotiations'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import NotesPostIts from '../components/NotesPostIts'
+import { formatAmount } from '../components/DealMilestones'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
 import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesAllFieldFilters, filterChoicesFor, describeFieldFilters } from '../lib/customFields'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
@@ -591,10 +593,42 @@ function ProductsGridTable({ products, allRows, getFacetRows, productFieldDefs, 
   )
 }
 
+// Agrupa el historial de precio de un producto por presentación (vacío =
+// "sin presentación", el caso normal cuando el producto no tiene variantes
+// concurrentes) y por moneda — nunca se mezclan monedas distintas en un
+// mismo mín/máx, sería un número que miente.
+function groupPriceEntries(entries) {
+  const groups = new Map()
+  for (const e of entries) {
+    const key = `${e.presentation || ''}__${e.negotiation?.currency || ''}`
+    if (!groups.has(key)) {
+      groups.set(key, {
+        presentation: e.presentation || null,
+        currency: e.negotiation?.currency || '',
+        unit: e.negotiation?.unit_of_measure || '',
+        entries: [],
+      })
+    }
+    groups.get(key).entries.push(e)
+  }
+  return [...groups.values()].map(g => {
+    const sorted = [...g.entries].sort((a, b) => new Date(b.entry_date) - new Date(a.entry_date))
+    const values = g.entries.map(e => Number(e.value))
+    return {
+      ...g,
+      min: Math.min(...values),
+      max: Math.max(...values),
+      last: Number(sorted[0].value),
+      lastDate: sorted[0].entry_date,
+    }
+  }).sort((a, b) => (a.presentation || '').localeCompare(b.presentation || ''))
+}
+
 export function ProductDetailModal({ product, negotiationStates, onClose, onUpdated, productTypeSingular, getStateConfig, productFieldDefs = [], negotiationFieldDefs = [] }) {
   const { effectiveRole, workspaceId, user } = useAuth()
   useEscapeToClose(onClose)
   const canDelete = effectiveRole === 'owner'
+  const canNote = effectiveRole !== 'viewer'
   const [showEditModal, setShowEditModal] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [selectedNeg, setSelectedNeg] = useState(null)
@@ -605,9 +639,33 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
   const [entityTypes, setEntityTypes] = useState([])
   const [allProducts, setAllProducts] = useState([])
   const [fieldOrder, setFieldOrder] = useState(null)
+  const [activeTab, setActiveTab] = useState('panorama')
+  const [priceEntries, setPriceEntries] = useState([])
   const [bgColor, textColor] = getAvatarColor(product.name)
 
-  useEffect(() => { fetchMembers(); fetchEntities(); fetchEntityTypes(); fetchAllProducts(); fetchFieldOrder() }, [product.id])
+  useEffect(() => { fetchMembers(); fetchEntities(); fetchEntityTypes(); fetchAllProducts(); fetchFieldOrder(); fetchPriceEntries() }, [product.id])
+
+  // Panorama comercial: junta el historial de precio de todos los proyectos
+  // vinculados a este producto. Una fila pertenece a este producto si dice
+  // product_id explícito (proyecto con más de un producto), o si no tiene
+  // product_id pero el proyecto solo tiene este producto vinculado (dato
+  // cargado antes de que existiera esta columna, o proyecto de un solo
+  // producto donde no hace falta aclarar).
+  async function fetchPriceEntries() {
+    const negIds = (product.negotiation_products || []).map(np => np.negotiation_id).filter(Boolean)
+    if (negIds.length === 0) { setPriceEntries([]); return }
+    const [{ data: entries }, { data: allLinks }] = await Promise.all([
+      supabase.from('negotiation_price_history').select('*, negotiation:negotiation_id(id, currency, unit_of_measure)').in('negotiation_id', negIds),
+      supabase.from('negotiation_products').select('negotiation_id, product_id').in('negotiation_id', negIds),
+    ])
+    const singleProductNegIds = new Set(
+      negIds.filter(id => (allLinks || []).filter(l => l.negotiation_id === id).length === 1)
+    )
+    const mine = (entries || []).filter(e =>
+      e.product_id === product.id || (!e.product_id && singleProductNegIds.has(e.negotiation_id))
+    )
+    setPriceEntries(mine)
+  }
 
   async function fetchMembers() {
     const { data } = await supabase.from('workspace_members')
@@ -641,6 +699,7 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
     .map(n => n.negotiation)
     .filter(Boolean)
     .sort((a, b) => new Date(b.last_activity_at || 0) - new Date(a.last_activity_at || 0))
+  const priceGroups = groupPriceEntries(priceEntries)
 
   async function fetchFullNeg(neg) {
     const [{ data: full }, { data: ents }, { data: notesList }] = await Promise.all([
@@ -692,6 +751,20 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
         <div className="entity-detail-body entity-detail-body--cols">
           <div className="entity-detail-col entity-detail-col--left">
             <div className="detail-section">
+              <div className="detail-section-title">Resumen</div>
+              <div className="neg-resumen-grid">
+                <div className="neg-resumen-tile">
+                  <div className="neg-resumen-num">{negs.length}</div>
+                  <div className="neg-resumen-label">proyecto{negs.length !== 1 ? 's' : ''} vinculado{negs.length !== 1 ? 's' : ''}</div>
+                </div>
+                <div className="neg-resumen-tile">
+                  <div className="neg-resumen-num">{priceGroups.length}</div>
+                  <div className="neg-resumen-label">presentaci{priceGroups.length !== 1 ? 'ones' : 'ón'} con precio</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="detail-section">
               <div className="detail-section-title">Información</div>
               {(fieldOrder === null ? productFieldDefs.map(d => d.key) : computeFieldOrder('product', fieldOrder, productFieldDefs)).map(key => {
                 const def = productFieldDefs.find(d => d.key === key)
@@ -718,33 +791,67 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
 
           <div className="entity-detail-col entity-detail-col--right">
             <div className="entity-tabs">
-              <button className="entity-tab active">Proyectos vinculados ({negs.length})</button>
+              <button className={`entity-tab ${activeTab === 'panorama' ? 'active' : ''}`} onClick={() => setActiveTab('panorama')}>Panorama comercial</button>
+              <button className={`entity-tab ${activeTab === 'proyectos' ? 'active' : ''}`} onClick={() => setActiveTab('proyectos')}>Proyectos vinculados ({negs.length})</button>
+              <button className={`entity-tab ${activeTab === 'bitacora' ? 'active' : ''}`} onClick={() => setActiveTab('bitacora')}>Bitácora</button>
             </div>
 
-            {negs.length === 0 ? (
-              <p className="detail-empty">Sin proyectos vinculados todavía.</p>
-            ) : (
-              <div className="entity-negs-list">
-                {negs.map(neg => {
-                  const cfg = getStateConfig(neg.status)
-                  return (
-                    <div key={neg.id} className="entity-neg-row" onClick={() => handleSelectNeg(neg)}>
-                      <div className="entity-neg-main">
-                        <div className="entity-neg-product">{neg.product || neg.title}</div>
-                        {neg.target_date && (
-                          <div className="entity-neg-date">
-                            {new Date(neg.target_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                          </div>
-                        )}
-                      </div>
-                      <div className="entity-neg-right">
-                        <span className="entity-neg-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>
-                        <span className="entity-neg-arrow">›</span>
+            {activeTab === 'panorama' && (
+              priceGroups.length === 0 ? (
+                <p className="detail-empty">Sin historial de precio todavía — se carga desde cada proyecto vinculado.</p>
+              ) : (
+                <div className="prod-panorama-list">
+                  {priceGroups.map(g => (
+                    <div key={`${g.presentation || ''}__${g.currency}`} className="prod-panorama-card">
+                      <div className="prod-panorama-name">{g.presentation || product.name}</div>
+                      <div className="prod-panorama-range">
+                        <span className="prod-panorama-last">{formatAmount(g.last)} {g.currency}{g.unit ? `/${g.unit}` : ''}</span>
+                        <span className="prod-panorama-minmax">rango: {formatAmount(g.min)} – {formatAmount(g.max)} {g.currency}</span>
+                        <span className="prod-panorama-date">últ. {new Date(g.lastDate + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
                       </div>
                     </div>
-                  )
-                })}
-              </div>
+                  ))}
+                </div>
+              )
+            )}
+
+            {activeTab === 'proyectos' && (
+              negs.length === 0 ? (
+                <p className="detail-empty">Sin proyectos vinculados todavía.</p>
+              ) : (
+                <div className="entity-negs-list">
+                  {negs.map(neg => {
+                    const cfg = getStateConfig(neg.status)
+                    return (
+                      <div key={neg.id} className="entity-neg-row" onClick={() => handleSelectNeg(neg)}>
+                        <div className="entity-neg-main">
+                          <div className="entity-neg-product">{neg.product || neg.title}</div>
+                          {neg.target_date && (
+                            <div className="entity-neg-date">
+                              {new Date(neg.target_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                            </div>
+                          )}
+                        </div>
+                        <div className="entity-neg-right">
+                          <span className="entity-neg-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>
+                          <span className="entity-neg-arrow">›</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            )}
+
+            {activeTab === 'bitacora' && (
+              <NotesPostIts
+                productId={product.id}
+                workspaceId={workspaceId}
+                page="__log__"
+                variant="timeline"
+                canEdit={canNote}
+                contextLabel={product.name}
+              />
             )}
           </div>
         </div>
