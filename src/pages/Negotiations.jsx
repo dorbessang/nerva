@@ -27,6 +27,9 @@ import { entityHasType } from '../lib/entityTypes'
 import { resolveFinancialConfig } from '../lib/financialConfig'
 import { matchEntity } from '../lib/entityMatching'
 import { fetchFullNegotiation } from '../lib/negotiations'
+import { resolveStateConfig } from '../lib/customStates'
+import { sumMilestonesByCurrency } from '../lib/pipeline'
+import { isOwner, canEditContent, isPrivileged as isPrivilegedRole } from '../lib/roles'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
@@ -153,8 +156,8 @@ async function exportNegotiationsXlsx(negotiations, cols, getEntityName, customF
 
 export default function Negotiations() {
   const { user, workspaceId, effectiveRole, activeWorkspace } = useAuth()
-  const canCreateProject = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
-  const canBulkDelete = effectiveRole === 'owner'
+  const canCreateProject = canEditContent(effectiveRole)
+  const canBulkDelete = isOwner(effectiveRole)
   const location = useLocation()
   const navigate = useNavigate()
   const [showExportMenu, setShowExportMenu] = useState(false)
@@ -304,8 +307,7 @@ export default function Negotiations() {
   }
 
   function getStateConfig(status) {
-    const found = customStates.find(s => s.name === status)
-    return found || { color: '#64748B', bg_color: '#F1F5F9' }
+    return resolveStateConfig(customStates, status)
   }
 
   // Muestra solo la entidad principal en tabla/mosaico. Si el proyecto es viejo
@@ -436,13 +438,7 @@ export default function Negotiations() {
   function pipelineByCurrency(negIds) {
     const idSet = new Set(negIds)
     const currencyByNegId = Object.fromEntries(negotiations.map(n => [n.id, n.currency || 'USD']))
-    const totals = {}
-    for (const m of milestones) {
-      if (!idSet.has(m.negotiation_id)) continue
-      const cur = currencyByNegId[m.negotiation_id] || 'USD'
-      totals[cur] = (totals[cur] || 0) + Number(m.amount)
-    }
-    return Object.entries(totals).map(([currency, total]) => ({ currency, total })).sort((a, b) => b.total - a.total)
+    return sumMilestonesByCurrency(milestones.filter(m => idSet.has(m.negotiation_id)), currencyByNegId)
   }
 
   const totalPipeline = pipelineByCurrency(filtered.map(n => n.id))
@@ -1736,13 +1732,13 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
 export function NegotiationDetail({ neg, entities, entityTypes = [], customStates, customFieldDefs = [], members = [], getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
   const { effectiveRole, role, user, isStaff, workspaceId } = useAuth()
   useEscapeToClose(onClose)
-  const canDelete = effectiveRole === 'owner'
-  const canPause = effectiveRole === 'owner' || effectiveRole === 'admin'
-  const canEdit = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
-  const canEditInline = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
-  const canNote = effectiveRole !== 'viewer'
-  const canTask = effectiveRole !== 'viewer'
-  const isPrivileged = effectiveRole === 'owner' || effectiveRole === 'admin'
+  const canDelete = isOwner(effectiveRole)
+  const canPause = isPrivilegedRole(effectiveRole)
+  const canEdit = canEditContent(effectiveRole)
+  const canEditInline = canEditContent(effectiveRole)
+  const canNote = canEditContent(effectiveRole)
+  const canTask = canEditContent(effectiveRole)
+  const isPrivileged = isPrivilegedRole(effectiveRole)
   // Al impersonar un rol inferior, simulamos ser un usuario sin ID conocido
   const myUserId = user?.id
 
@@ -1750,8 +1746,8 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
     if (task.status === 'done') return false
     if (isTaskBlocked(task)) return false
     if (isPrivileged) return true
-    if (!task.assigned_to) return effectiveRole !== 'viewer'
-    return task.assigned_to === myUserId && effectiveRole !== 'viewer'
+    if (!task.assigned_to) return canEditContent(effectiveRole)
+    return task.assigned_to === myUserId && canEditContent(effectiveRole)
   }
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [tasks, setTasks] = useState([])

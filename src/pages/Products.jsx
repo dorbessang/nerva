@@ -19,6 +19,8 @@ import { getInitials, getAvatarColor } from '../lib/avatarColors'
 import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import { fetchFullNegotiation } from '../lib/negotiations'
+import { resolveStateConfig } from '../lib/customStates'
+import { isOwner, canEditContent } from '../lib/roles'
 import './Entities.css'
 
 // Columnas que no son un campo custom configurable — calculada a partir de
@@ -76,8 +78,8 @@ async function exportProductsXlsx(products, cols, allColumns, productFieldDefs, 
 
 export default function Products() {
   const { user, workspaceId, effectiveRole } = useAuth()
-  const canBulkDelete = effectiveRole === 'owner'
-  const canImport = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
+  const canBulkDelete = isOwner(effectiveRole)
+  const canImport = canEditContent(effectiveRole)
   const [products, setProducts] = useState([])
   const [productTypes, setProductTypes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -231,8 +233,7 @@ export default function Products() {
   }
 
   function getStateConfig(stateName) {
-    const found = negotiationStates.find(s => s.name === stateName)
-    return found || { color: '#64748B', bg_color: '#F1F5F9' }
+    return resolveStateConfig(negotiationStates, stateName)
   }
 
   const filterableProductDefs = productFieldDefs.filter(isFieldFilterable)
@@ -668,8 +669,8 @@ function groupPriceEntries(entries) {
 export function ProductDetailModal({ product, negotiationStates, onClose, onUpdated, productTypeSingular, getStateConfig, productFieldDefs = [], negotiationFieldDefs = [] }) {
   const { effectiveRole, workspaceId, user } = useAuth()
   useEscapeToClose(onClose)
-  const canDelete = effectiveRole === 'owner'
-  const canNote = effectiveRole !== 'viewer'
+  const canDelete = isOwner(effectiveRole)
+  const canNote = canEditContent(effectiveRole)
   const [showEditModal, setShowEditModal] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [selectedNeg, setSelectedNeg] = useState(null)

@@ -26,6 +26,9 @@ import { getInitials, getAvatarColor } from '../lib/avatarColors'
 import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
 import { entityHasType } from '../lib/entityTypes'
 import { fetchFullNegotiation } from '../lib/negotiations'
+import { resolveStateConfig } from '../lib/customStates'
+import { sumMilestonesByCurrency } from '../lib/pipeline'
+import { isOwner, canEditContent } from '../lib/roles'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './Entities.css'
 
@@ -52,8 +55,8 @@ function getEntitySortValue(key, entity, entityFieldDefs, members) {
 
 export default function Entities({ entityTypeId, entityTypeName, entityTypeSingular }) {
   const { user, workspaceId, activeWorkspace, effectiveRole } = useAuth()
-  const canBulkDelete = effectiveRole === 'owner'
-  const canImport = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
+  const canBulkDelete = isOwner(effectiveRole)
+  const canImport = canEditContent(effectiveRole)
   const location = useLocation()
   const navigate = useNavigate()
   const [entities, setEntities] = useState([])
@@ -263,8 +266,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   }
 
   function getStateConfig(stateName) {
-    const found = negotiationStates.find(s => s.name === stateName)
-    return found || { color: '#64748B', bg_color: '#F1F5F9' }
+    return resolveStateConfig(negotiationStates, stateName)
   }
 
   const filterableEntityDefs = entityFieldDefs.filter(isFieldFilterable)
@@ -709,10 +711,10 @@ function EntitiesGridTable({ entities, allRows, getFacetRows, entityFieldDefs, c
 function EntityDetailModal({ entity, negotiationStates, entities, allEntities = [], allEntityTypes = [], onClose, onUpdated, entityTypeName, entityTypeSingular, getStateConfig, entityFieldDefs = [], negotiationFieldDefs = [], productFieldDefs = [] }) {
   const { workspaceId, user, effectiveRole } = useAuth()
   useEscapeToClose(onClose)
-  const canDelete = effectiveRole === 'owner'
-  const canCreateProject = effectiveRole === 'owner' || effectiveRole === 'admin' || effectiveRole === 'editor'
-  const canNote = effectiveRole !== 'viewer'
-  const canTask = effectiveRole !== 'viewer'
+  const canDelete = isOwner(effectiveRole)
+  const canCreateProject = canEditContent(effectiveRole)
+  const canNote = canEditContent(effectiveRole)
+  const canTask = canEditContent(effectiveRole)
   const [showEditModal, setShowEditModal] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showAllNegs, setShowAllNegs] = useState(false)
@@ -747,12 +749,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
     ]).then(([{ data: negCurrency }, { data: milestones }, { data: projectTasks }]) => {
       const currencyByNeg = {}
       for (const n of negCurrency || []) currencyByNeg[n.id] = n.currency || 'USD'
-      const totals = {}
-      for (const m of milestones || []) {
-        const cur = currencyByNeg[m.negotiation_id] || 'USD'
-        totals[cur] = (totals[cur] || 0) + Number(m.amount)
-      }
-      const pipeline = Object.entries(totals).map(([currency, total]) => ({ currency, total })).sort((a, b) => b.total - a.total)
+      const pipeline = sumMilestonesByCurrency(milestones || [], currencyByNeg)
       const pendingProjectTasks = (projectTasks || []).filter(t => t.status !== 'done').length
       setScorecard({ pipeline, pendingProjectTasks })
     })

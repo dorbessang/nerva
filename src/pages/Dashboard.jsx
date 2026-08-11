@@ -5,6 +5,7 @@ import { BarChart3, PieChart } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { sumMilestonesByCurrency } from "../lib/pipeline";
 import "./Dashboard.css";
 
 export default function Dashboard() {
@@ -160,16 +161,8 @@ function TeamDashboard() {
     // (sin conversión automática — cada moneda se muestra por separado)
     const activeNegIds = new Set(activeNegs.map(n => n.id));
     const currencyByNegId = Object.fromEntries(negotiations.map(n => [n.id, n.currency || 'USD']));
-    const totalsByCurrency = {};
-    for (const m of milestonesRes.data || []) {
-      if (!activeNegIds.has(m.negotiation_id)) continue;
-      const cur = currencyByNegId[m.negotiation_id] || 'USD';
-      totalsByCurrency[cur] = (totalsByCurrency[cur] || 0) + Number(m.amount);
-    }
     setPipelineValue(
-      Object.entries(totalsByCurrency)
-        .map(([currency, total]) => ({ currency, total }))
-        .sort((a, b) => b.total - a.total)
+      sumMilestonesByCurrency((milestonesRes.data || []).filter(m => activeNegIds.has(m.negotiation_id)), currencyByNegId)
     );
     const completedStateData = (statesRes.data || []).find(s => s.name === 'Completado');
     const completedNegCount = negotiations.filter(n => n.status === 'Completado').length;

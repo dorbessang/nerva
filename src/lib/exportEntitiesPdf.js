@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable'
 import { supabase } from './supabase'
 import { getCountryName } from '../components/CountrySelector'
 import { formatAmount } from '../components/DealMilestones'
+import { sumMilestonesByCurrency } from './pipeline'
 import {
   NAVY, ACCENT, GRAY_BG, GRAY_TEXT, BORDER, INK, PAGE_W,
   setText, setFill, stateColorRgb, drawPill,
@@ -25,15 +26,6 @@ async function fetchExtraData(negIds) {
     pendingByNeg[t.negotiation_id] = (pendingByNeg[t.negotiation_id] || 0) + 1
   }
   return { pendingByNeg, milestones: milestones || [] }
-}
-
-function pipelineByCurrency(milestones, currencyByNeg) {
-  const totals = {}
-  for (const m of milestones) {
-    const cur = currencyByNeg[m.negotiation_id] || 'USD'
-    totals[cur] = (totals[cur] || 0) + Number(m.amount)
-  }
-  return Object.entries(totals).map(([currency, total]) => ({ currency, total })).sort((a, b) => b.total - a.total)
 }
 
 function drawSummary(doc, { entities, negotiations, customStates, pipeline, typeBreakdown }) {
@@ -196,7 +188,7 @@ export async function exportAllEntitiesPdf({ workspaceId, customStates, workspac
   for (const n of negsData || []) currencyByNeg[n.id] = n.currency || 'USD'
 
   const { pendingByNeg, milestones } = await fetchExtraData(negIds)
-  const pipeline = pipelineByCurrency(milestones, currencyByNeg)
+  const pipeline = sumMilestonesByCurrency(milestones, currencyByNeg)
   const allNegotiations = Object.values(negIndex)
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })

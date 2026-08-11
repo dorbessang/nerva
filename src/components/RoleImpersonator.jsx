@@ -1,15 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../lib/AuthContext'
+import { ROLES, ROLE_LABELS } from '../lib/roles'
 import './RoleImpersonator.css'
-
-const ROLES = ['owner', 'admin', 'editor', 'viewer']
-
-const ROLE_LABELS = {
-  owner: 'Owner',
-  admin: 'Admin',
-  editor: 'Editor',
-  viewer: 'Viewer',
-}
 
 const ROLE_COLORS = {
   owner: '#0B1F3A',

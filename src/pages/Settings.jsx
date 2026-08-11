@@ -8,14 +8,15 @@ import { notifyRoleChanged } from '../lib/notifications'
 import { computeFieldOrder, isCardFilterable } from '../lib/customFields'
 import { extractFunctionError } from '../lib/edgeFunctionError'
 import { FINANCIAL_FEATURES, resolveFinancialConfig } from '../lib/financialConfig'
+import { isOwner as isOwnerRole, isPrivileged } from '../lib/roles'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 
 export default function Settings() {
   const { workspaceId, effectiveRole, activeWorkspace } = useAuth()
   const isPersonal = activeWorkspace?.type === 'personal'
-  const isOwner = effectiveRole === 'owner'
-  const isAdminOrOwner = effectiveRole === 'owner' || effectiveRole === 'admin'
+  const isOwner = isOwnerRole(effectiveRole)
+  const isAdminOrOwner = isPrivileged(effectiveRole)
   // Un workspace personal es de un solo usuario y no tiene proyectos/entidades —
   // no tiene sentido invitar gente ni configurar estados/tipos de entidad ahí
   const canInvite = isOwner && !isPersonal
@@ -352,7 +353,7 @@ function TabUsuarios({ workspaceId }) {
         <div className="settings-table">
           {members.map(m => {
             const isSelf = m.user_id === currentUser?.id
-            const isOwner = m.role === 'owner'
+            const isOwner = isOwnerRole(m.role)
             return (
               <div key={m.user_id} className={`settings-row ${m.status === 'inactive' ? 'settings-row--inactive' : ''}`}>
                 <div className="settings-row-info">

@@ -8,6 +8,7 @@ import RoleImpersonator from "./RoleImpersonator";
 import NotificationBell from "./NotificationBell";
 import GlobalSearch from "./GlobalSearch";
 import WelcomeSetup from "../pages/WelcomeSetup";
+import { isOwner } from "../lib/roles";
 import "./Layout.css";
 
 function EntityIcon({ name, size = 18 }) {
@@ -44,7 +45,7 @@ export default function Layout({ children }) {
 
   const isPersonalWorkspace = activeWorkspace?.type === 'personal';
   const needsOnboarding = activeWorkspace && activeWorkspace.type !== 'personal' && activeWorkspace.onboarded === false;
-  const showWelcome = needsOnboarding && activeWorkspace.role === 'owner';
+  const showWelcome = needsOnboarding && isOwner(activeWorkspace.role);
 
   useEffect(() => {
     fetchEntityTypes();

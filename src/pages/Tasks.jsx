@@ -7,14 +7,15 @@ import TaskDrawer from '../components/TaskDrawer'
 import { isTaskBlocked, notifySuccessors, dismissNotificationsForTask } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { naturalSortByName } from '../lib/tableSort'
+import { isPrivileged as isPrivilegedRole, canEditContent } from '../lib/roles'
 import './Tasks.css'
 
 export default function Tasks() {
   const { user, role, workspaceId, effectiveRole } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  const isPrivileged = effectiveRole === 'owner' || effectiveRole === 'admin'
-  const canCreateTask = effectiveRole !== 'viewer'
+  const isPrivileged = isPrivilegedRole(effectiveRole)
+  const canCreateTask = canEditContent(effectiveRole)
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('mine')
@@ -187,7 +188,7 @@ export default function Tasks() {
         <div className="tasks-filters">
           {[
             { key: 'mine', label: 'Mis tareas' },
-            ...(effectiveRole !== 'viewer' ? [{ key: 'others', label: 'Terceros' }] : []),
+            ...(canEditContent(effectiveRole) ? [{ key: 'others', label: 'Terceros' }] : []),
             ...(isPrivileged ? [{ key: 'active', label: 'Todas activas' }] : [{ key: 'active', label: 'Activas' }]),
             { key: 'done', label: 'Hechas' },
           ].map(f => (

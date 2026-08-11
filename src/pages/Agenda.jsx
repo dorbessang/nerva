@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import NotesPostIts from '../components/NotesPostIts'
 import { useCloseOnOutsideOrEscape } from '../lib/useCloseOnOutsideOrEscape'
+import { canEditContent } from '../lib/roles'
 import './Agenda.css'
 
 const COLUMNS = [
@@ -23,7 +24,7 @@ const TABS = [
 
 export default function Agenda() {
   const { user, workspaceId, effectiveRole } = useAuth()
-  const canEdit = effectiveRole !== 'viewer'
+  const canEdit = canEditContent(effectiveRole)
   const [tab, setTab] = useState('tablero')
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
