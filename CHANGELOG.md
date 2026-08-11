@@ -4,6 +4,13 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (15)
+
+### Fix: pestañas del modal de Proyecto seguían necesitando scroll para ver la solapa activa
+- El intento anterior (agregar `min-height: 0`) no alcanzaba porque la arquitectura era distinta a la de Entidades: tabs fijas + panel con scroll independiente, separados como hermanos flex — el borde inferior que marca la pestaña activa quedaba pegado al límite del contenedor y se recortaba
+- Se reemplaza por el mismo patrón que ya funciona en el modal de Entidades: una sola columna con scroll (`.neg-detail-rightpane` con `overflow-y: auto`) donde los tabs viven en el flujo normal del documento, no fijos aparte — igual que `.entity-detail-col--right`/`.entity-tabs`
+- Sin cambios de SQL — CSS nada más (`Negotiations.css`)
+
 ## 2026-08-11 (14)
 
 ### Fix crítico: datos mezclados entre workspaces al pertenecer a más de uno
