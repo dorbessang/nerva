@@ -24,7 +24,7 @@ import TotalStatCard from '../components/StatCards'
 import { CardGrid, CardTile } from '../components/CardGrid'
 import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
 import { entityHasType } from '../lib/entityTypes'
-import { resolveFinancialConfig, UNIT_OPTIONS } from '../lib/financialConfig'
+import { resolveFinancialConfig } from '../lib/financialConfig'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
@@ -1458,10 +1458,8 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
               {financialConfig.historial_precio && financialConfig.volumen && (
                 <div className="form-group">
                   <label>UNIDAD</label>
-                  <select value={form.unit_of_measure} onChange={e => set('unit_of_measure', e.target.value)}>
-                    <option value="">Sin especificar</option>
-                    {UNIT_OPTIONS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-                  </select>
+                  <input type="text" value={form.unit_of_measure} onChange={e => set('unit_of_measure', e.target.value)}
+                    placeholder="Ej: kg, tonelada, litro, unidad, servicio..." />
                 </div>
               )}
               {financialConfig.condiciones_pago && (
@@ -1502,13 +1500,15 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
                 </div>
                 {form.milestones.map(m => (
                   <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, border: '1px solid #e5e7eb', marginTop: 6 }}>
-                    <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>{m.name}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: Number(m.amount) < 0 ? '#DC2626' : '#059669' }}>{Number(m.amount).toLocaleString('es-AR')} {form.currency}</span>
-                    {(m.estimated_date || m.timing_note) && (
-                      <span style={{ fontSize: 11, color: '#9ca3af' }}>
-                        {[m.estimated_date ? new Date(m.estimated_date + 'T00:00:00').toLocaleDateString('es-AR') : null, m.timing_note].filter(Boolean).join(' · ')}
-                      </span>
-                    )}
+                    <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>
+                      {m.name}
+                      {(m.estimated_date || m.timing_note) && (
+                        <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 8, fontWeight: 400 }}>
+                          {[m.estimated_date ? new Date(m.estimated_date + 'T00:00:00').toLocaleDateString('es-AR') : null, m.timing_note].filter(Boolean).join(' · ')}
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: Number(m.amount) < 0 ? '#DC2626' : '#059669', textAlign: 'right', minWidth: 90 }}>{Number(m.amount).toLocaleString('es-AR')} {form.currency}</span>
                     <button type="button" onClick={() => set('milestones', form.milestones.filter(x => x.id !== m.id))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 16 }}>×</button>
                   </div>
                 ))}
@@ -1880,16 +1880,16 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                     <div className="neg-financiero-field">
                       <div className="detail-section-title">Unidad</div>
                       {canEditInline ? (
-                        <select
-                          className="neg-inline-select neg-inline-select--small"
+                        <input
+                          type="text"
+                          className="neg-inline-text-input"
                           value={inlineUnit}
-                          onChange={e => { setInlineUnit(e.target.value); saveInlineField('unit_of_measure', e.target.value) }}
-                        >
-                          <option value="">Sin especificar</option>
-                          {UNIT_OPTIONS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-                        </select>
+                          placeholder="Ej: kg, litro, unidad..."
+                          onChange={e => setInlineUnit(e.target.value)}
+                          onBlur={() => saveInlineField('unit_of_measure', inlineUnit)}
+                        />
                       ) : (
-                        <span className="neg-detail-value">{UNIT_OPTIONS.find(u => u.value === inlineUnit)?.label || 'Sin especificar'}</span>
+                        <span className="neg-detail-value">{inlineUnit || 'Sin especificar'}</span>
                       )}
                     </div>
                   )}

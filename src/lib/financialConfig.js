@@ -15,11 +15,3 @@ const DEFAULTS = { hitos: true, historial_precio: true, volumen: true, condicion
 export function resolveFinancialConfig(raw) {
   return { ...DEFAULTS, ...(raw || {}) }
 }
-
-export const UNIT_OPTIONS = [
-  { value: 'kg', label: 'Kilogramo (kg)' },
-  { value: 'litro', label: 'Litro (L)' },
-  { value: 'unidad', label: 'Unidad' },
-  { value: 'servicio', label: 'Servicio' },
-  { value: 'proyecto', label: 'Proyecto completo' },
-]

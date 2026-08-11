@@ -4,6 +4,13 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (13)
+
+### Fix: Unidad de medida como campo libre + orden de Hitos
+- **Unidad hardcodeada**: el select de Unidad (kg/litro/unidad/servicio/proyecto) no cubría los casos reales de uso — se reemplaza por texto libre en ambos lados (Editar y Vista, tab Financiero), sin lista fija. Se elimina `UNIT_OPTIONS` de `financialConfig.js`
+- **Hitos, fecha/momento pegado al nombre**: la fecha o referencia de tiempo ("al lanzamiento", etc.) pasa a mostrarse al lado del nombre del hito (antes quedaba después del monto, desprolijo). El monto ahora es una columna alineada a la derecha con ancho fijo, para que se lea de un vistazo. Mismo criterio aplicado en la Vista (`DealMilestones.jsx`) y en la previsualización de hitos del formulario de creación (`NegotiationModal`)
+- Sin cambios de SQL
+
 ## 2026-08-10 (12)
 
 ### Fix: 4 ajustes reportados probando el rediseño del modal de Proyecto

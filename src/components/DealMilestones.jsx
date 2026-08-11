@@ -158,11 +158,11 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
               <div key={m.id} className="neg-task-row">
                 <div className="neg-task-body">
                   <span className="neg-task-title">{m.name}</span>
+                  {timing && <span className="neg-milestone-timing-inline">{timing}</span>}
                 </div>
                 <span className={`neg-milestone-amount ${Number(m.amount) < 0 ? 'neg-milestone-amount--negative' : ''}`}>
                   {formatAmount(m.amount)}{currency ? ` ${currency}` : ''}
                 </span>
-                {timing && <span className="neg-task-date">{timing}</span>}
                 {canEdit && (
                   <>
                     <button className="neg-milestone-edit" onClick={() => startEdit(m)} title="Editar hito">✏️</button>
