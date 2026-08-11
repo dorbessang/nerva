@@ -4,6 +4,14 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-08-11 (17)
+
+### Fix: una notita "fijada en Bitácora" se mezclaba con el registro cronológico
+- Causa: al pegar una nota eligiendo "Bitácora" como página desde el modal de Editar, se guardaba con `page = NULL` — exactamente el mismo valor que usa un renglón escrito directo en la Bitácora. Una vez guardadas, ambas cosas eran indistinguibles y el post-it terminaba renderizado como un ítem más del log, en vez de destacarse como recordatorio aparte
+- Se separan los dos casos: un renglón de Bitácora sigue usando `page = NULL` (es el registro en sí), pero un post-it "pegado en Bitácora" ahora guarda `page = 'bitacora'` (antes colapsaba a NULL) — la tab de Bitácora ahora renderiza dos secciones: los post-its fijados arriba (estética de nota, como siempre) y el registro cronológico abajo (como ya funcionaba)
+- Nota: notas ya guardadas antes de este fix con `page = NULL` que en realidad eran post-its "pegados en Bitácora" no se pueden distinguir retroactivamente de renglones reales del log — quedan mezcladas en el registro. Los pins nuevos, de acá en adelante, no van a tener este problema
+- Sin cambios de SQL — la columna `page` ya admitía cualquier texto libre
+
 ## 2026-08-11 (16)
 
 ### Feature: Enter/Esc en composers chicos, drag & drop en Documentos, historial de precio como quiebres por volumen, "Última cotización" automática, post-its con cinta

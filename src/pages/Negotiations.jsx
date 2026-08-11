@@ -1972,6 +1972,17 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                   negotiationId={neg.id}
                   workspaceId={neg.workspace_id || workspaceId}
                   page="bitacora"
+                  variant="postit"
+                  hideComposer
+                  canEdit={canNote}
+                  onChanged={() => { setActivityRefresh(v => v + 1); onNotesChanged?.() }}
+                  contextLabel={neg.product || neg.title}
+                />
+                <div className="detail-section-title" style={{ marginTop: 4 }}>Registro</div>
+                <NotesPostIts
+                  negotiationId={neg.id}
+                  workspaceId={neg.workspace_id || workspaceId}
+                  page="__log__"
                   variant="timeline"
                   canEdit={canNote}
                   onChanged={() => { setActivityRefresh(v => v + 1); onNotesChanged?.() }}

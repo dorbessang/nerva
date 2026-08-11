@@ -60,13 +60,19 @@ function extractMentionedUserIds(text, members) {
 // @mención.
 //
 // `page` (solo tiene sentido junto con negotiationId) filtra/asigna en qué
-// "página" del proyecto vive cada nota — 'bitacora' (o sin especificar) es
-// la general (page NULL en la base), cualquier otro valor ('financiero',
-// 'tareas', 'documentos') queda fijado ahí. `variant` cambia el renderizado:
-// 'postit' (default, el collage de siempre) o 'timeline' (lista cronológica
-// prolija, usada por la Bitácora — mismo dato, sin la estética de post-it).
+// "página" del proyecto vive cada nota. '__log__' es un valor especial que
+// significa "el renglón cronológico de la Bitácora en sí" (page NULL en la
+// base) — no un post-it, es el registro que se escribe ahí mismo. Cualquier
+// otro valor ('bitacora', 'financiero', 'tareas', 'documentos') es un post-it
+// FIJADO a esa página (page = ese valor literal en la base) — un recordatorio
+// que se ve aparte, no un renglón más del log. Antes 'bitacora' colapsaba a
+// NULL y se mezclaba con el log; ahora queda su propio valor para poder
+// separarlos en el render. `variant` cambia el renderizado: 'postit'
+// (default, el collage de siempre) o 'timeline' (lista cronológica prolija,
+// usada por la Bitácora — mismo dato, sin la estética de post-it).
 // `hideComposer` oculta el input de alta (las notas con página se crean
-// desde el modal de Editar del proyecto, no inline en cada tab).
+// desde el modal de Editar del proyecto, no inline en cada tab — salvo el
+// log de Bitácora, '__log__', que sí se carga inline ahí mismo).
 export default function NotesPostIts({ negotiationId, entityId, workspaceId, canEdit, onChanged, contextLabel, page, variant = 'postit', hideComposer = false }) {
   const { user, profile } = useAuth()
   const [notes, setNotes] = useState([])
@@ -88,7 +94,7 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
     let query = supabase.from('negotiation_notes').select('*')
     if (negotiationId) {
       query = query.eq('negotiation_id', negotiationId)
-      if (page) query = page === 'bitacora' ? query.is('page', null) : query.eq('page', page)
+      if (page) query = page === '__log__' ? query.is('page', null) : query.eq('page', page)
     } else if (entityId) {
       query = query.eq('entity_id', entityId)
     } else {
@@ -154,7 +160,7 @@ export default function NotesPostIts({ negotiationId, entityId, workspaceId, can
       workspace_id: workspaceId,
       content,
       note_date: newNoteDate,
-      page: negotiationId && page && page !== 'bitacora' ? page : null,
+      page: negotiationId && page && page !== '__log__' ? page : null,
     }).select('id').single()
     if (error) { console.error('addNote error:', error.message); setSavingNote(false); return }
     await logActivity(supabase, {

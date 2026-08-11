@@ -16,11 +16,13 @@ export function notePageLabel(page) {
   return NOTE_PAGES.find(p => p.value === (page || 'bitacora'))?.label || 'Bitácora (general)'
 }
 
-// Notitas de colores "pegadas" a una página puntual del proyecto (Financiero/
-// Tareas/Documentos) o a la Bitácora general — a diferencia de esas mismas
-// notas vistas ahí (solo lectura/edición inline, ver NotesPostIts), acá es
-// donde se crean: elegís la página al agregarlas. Solo tiene sentido con un
-// proyecto ya guardado (necesita negotiationId).
+// Notitas de colores "pegadas" a una página puntual del proyecto (Bitácora/
+// Financiero/Tareas/Documentos) — a diferencia de esas mismas notas vistas
+// ahí (solo lectura/edición inline, ver NotesPostIts), acá es donde se
+// crean: elegís la página al agregarlas. Solo tiene sentido con un proyecto
+// ya guardado (necesita negotiationId). "Pegar en: Bitácora" NO es lo mismo
+// que escribir un renglón de la Bitácora — queda fijada aparte, como
+// recordatorio, no se mezcla con el log cronológico (ver NotesPostIts.jsx).
 export default function NegotiationNotesEditor({ negotiationId, workspaceId }) {
   const { user } = useAuth()
   const [notes, setNotes] = useState([])
@@ -47,7 +49,7 @@ export default function NegotiationNotesEditor({ negotiationId, workspaceId }) {
       workspace_id: workspaceId,
       content: newText.trim(),
       note_date: newDate,
-      page: newPage === 'bitacora' ? null : newPage,
+      page: newPage,
     })
     if (error) { console.error('addNegotiationNote error:', error.message); setSaving(false); return }
     await logActivity(supabase, {
