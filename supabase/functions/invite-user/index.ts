@@ -19,6 +19,12 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://nerva-drab.vercel.app'
+// Sin dominio propio verificado en Resend todavía (ver PENDIENTES) — con la
+// dirección de pruebas de Resend el mail solo entrega si el destinatario es
+// el dueño de la cuenta de Resend. Cuando se verifique un dominio, cambiar
+// este secret a algo tipo 'Nerva <invitaciones@tudominio.com>'.
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
+const RESEND_FROM = Deno.env.get('RESEND_FROM') ?? 'Nerva <onboarding@resend.dev>'
 
 const VALID_ROLES = ['owner', 'admin', 'editor', 'viewer']
 
@@ -37,11 +43,46 @@ function json(body: unknown, status = 200) {
 // deno-lint-ignore no-explicit-any
 type AdminClient = any
 
+// Manda el mail de invitación vía Resend (API HTTP directa, no el mailer de
+// Supabase — generateLink no manda mail por su cuenta). Si no hay
+// RESEND_API_KEY configurado como secret, o Resend rechaza el envío (ej.
+// sandbox sin dominio propio, destinatario no es el dueño de la cuenta),
+// no revienta la invitación entera — el link generado sigue devolviéndose
+// en la respuesta para copiar a mano, como fallback.
+async function sendInviteEmail(email: string, link: string, workspaceName: string | null) {
+  if (!RESEND_API_KEY) return { sent: false }
+  const wsPhrase = workspaceName ? ` a "${workspaceName}"` : ''
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: RESEND_FROM,
+        to: [email],
+        subject: `Te invitaron${wsPhrase} en Nerva`,
+        html: `<p>Te invitaron${wsPhrase} en Nerva.</p><p><a href="${link}">Hacé click acá para crear tu cuenta</a></p><p>Si el link no funciona, copiá y pegá esta dirección en tu navegador:<br>${link}</p>`,
+        text: `Te invitaron${wsPhrase} en Nerva.\n\nCreá tu cuenta acá: ${link}`,
+      }),
+    })
+    if (!res.ok) {
+      console.error('Resend error:', res.status, await res.text())
+      return { sent: false }
+    }
+    return { sent: true }
+  } catch (err) {
+    console.error('Resend fetch error:', err)
+    return { sent: false }
+  }
+}
+
 // Comparte la lógica de "sumar a alguien a un workspace" entre 'invite'
 // (owner invitando a su equipo) e 'invite_client' (staff dando de alta un
 // cliente nuevo como owner de su propio workspace) — solo cambian el
 // workspaceId (uno ya existente vs. recién creado) y el role.
 async function addOrInviteUser(admin: AdminClient, email: string, role: string, workspaceId: string) {
+  const { data: ws } = await admin.from('workspaces').select('name').eq('id', workspaceId).maybeSingle()
+  const workspaceName = ws?.name || null
+
   // Si el email ya tiene una cuenta confirmada (aceptó una invitación antes,
   // en este workspace o en otro), no se puede volver a invitar por mail:
   // ya tiene contraseña propia. Lo sumamos directo al workspace.
@@ -68,13 +109,12 @@ async function addOrInviteUser(admin: AdminClient, email: string, role: string, 
     })
     if (memberError) return { error: memberError.message }
 
-    const { data: ws } = await admin.from('workspaces').select('name').eq('id', workspaceId).maybeSingle()
     await admin.from('notifications').insert({
       workspace_id: workspaceId,
       user_id: existingUser.id,
       type: 'added_to_workspace',
       title: 'Te sumaron a un workspace',
-      body: `Ahora sos parte de "${ws?.name || 'un workspace'}" como ${role}.`,
+      body: `Ahora sos parte de "${workspaceName || 'un workspace'}" como ${role}.`,
     })
 
     return { direct: true }
@@ -124,7 +164,10 @@ async function addOrInviteUser(admin: AdminClient, email: string, role: string, 
     expires_at: expiresAt,
   })
 
-  return { inviteLink: linkData?.properties?.action_link ?? null }
+  const actionLink = linkData?.properties?.action_link ?? null
+  const emailResult = actionLink ? await sendInviteEmail(email, actionLink, workspaceName) : { sent: false }
+
+  return { inviteLink: actionLink, emailSent: emailResult.sent }
 }
 
 Deno.serve(async (req) => {
@@ -172,7 +215,7 @@ Deno.serve(async (req) => {
 
     const result = await addOrInviteUser(admin, email, 'owner', newWs.id)
     if (result.error) return json({ error: result.error }, 400)
-    return json({ ok: true, workspaceId: newWs.id, direct: result.direct, inviteLink: result.inviteLink })
+    return json({ ok: true, workspaceId: newWs.id, direct: result.direct, inviteLink: result.inviteLink, emailSent: result.emailSent })
   }
 
   if (!workspaceId) return json({ error: 'Falta workspaceId' }, 400)
@@ -218,5 +261,5 @@ Deno.serve(async (req) => {
 
   const result = await addOrInviteUser(admin, email, role, workspaceId)
   if (result.error) return json({ error: result.error }, 400)
-  return json({ ok: true, direct: result.direct, inviteLink: result.inviteLink })
+  return json({ ok: true, direct: result.direct, inviteLink: result.inviteLink, emailSent: result.emailSent })
 })

@@ -81,7 +81,11 @@ export default function Profile() {
     if (data?.direct) {
       setClientSuccess(`${clientEmail.trim()} ya tenía cuenta — se creó "${clientWsName.trim()}" y se lo sumó directo como owner.`)
     } else {
-      setClientSuccess(`Workspace "${clientWsName.trim()}" creado. Copiá el link y mandáselo a ${clientEmail.trim()} (todavía no se manda mail automático).`)
+      setClientSuccess(
+        data?.emailSent
+          ? `Workspace "${clientWsName.trim()}" creado. Se le mandó el mail de invitación a ${clientEmail.trim()}.`
+          : `Workspace "${clientWsName.trim()}" creado, pero no se pudo mandar el mail (por ahora usamos el dominio de pruebas de Resend, que solo entrega a tu propio email). Copiá el link y mandáselo a mano.`
+      )
       setClientInviteLink(data?.inviteLink || null)
     }
     setClientWsName('')

@@ -268,7 +268,11 @@ function TabUsuarios({ workspaceId }) {
       setInviteSuccess(`${inviteEmail.trim()} ya tenía cuenta y se sumó directo al workspace.`)
       fetchMembers()
     } else {
-      setInviteSuccess(`Invitación creada para ${inviteEmail.trim()}. Copiá el link y mandáselo (todavía no se manda mail automático).`)
+      setInviteSuccess(
+        data?.emailSent
+          ? `Invitación enviada a ${inviteEmail.trim()} por mail.`
+          : `Invitación creada para ${inviteEmail.trim()}, pero no se pudo mandar el mail (por ahora usamos el dominio de pruebas de Resend, que solo entrega a tu propio email). Copiá el link y mandáselo a mano.`
+      )
       setInviteLink(data?.inviteLink || null)
       fetchInvitations()
     }
