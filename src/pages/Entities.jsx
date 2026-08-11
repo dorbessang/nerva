@@ -1065,7 +1065,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
                             {task.title}
                           </span>
                         </div>
-                        {task.due_date && <span className="neg-task-date">{new Date(task.due_date).toLocaleDateString('es-AR')}</span>}
+                        {task.due_date && <span className="neg-task-date">{new Date(task.due_date + 'T00:00:00').toLocaleDateString('es-AR')}</span>}
                       </div>
                     ))}
                   </div>

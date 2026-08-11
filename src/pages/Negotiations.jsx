@@ -2232,7 +2232,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                               )}
                             </div>
                             <span className={`neg-task-status badge-${task.status}`}>{statusLabel(task.status)}</span>
-                            {task.due_date && <span className="neg-task-date">{new Date(task.due_date).toLocaleDateString('es-AR')}</span>}
+                            {task.due_date && <span className="neg-task-date">{new Date(task.due_date + 'T00:00:00').toLocaleDateString('es-AR')}</span>}
                           </div>
                         )
                       })}

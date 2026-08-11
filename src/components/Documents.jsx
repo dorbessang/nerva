@@ -115,8 +115,10 @@ export default function Documents({ negotiationId, entityId, workspaceId, canEdi
   }
 
   async function handleDelete(doc) {
+    setError(null)
+    const { error: deleteError } = await supabase.from('documents').delete().eq('id', doc.id)
+    if (deleteError) { console.error('delete document error:', deleteError.message); setError('No se pudo eliminar el documento. Intentá de nuevo.'); return }
     await supabase.storage.from('documents').remove([doc.storage_path])
-    await supabase.from('documents').delete().eq('id', doc.id)
     setDocuments(prev => prev.filter(d => d.id !== doc.id))
     onChanged?.()
   }

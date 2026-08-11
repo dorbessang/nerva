@@ -122,6 +122,7 @@ export default function ImportNegotiationsModal({ workspaceId, entities, entityT
   const [rows, setRows] = useState([])
   const [fileError, setFileError] = useState('')
   const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
   // idx -> 'unlinked' | `link:<id>` — default 'unlinked' (igual que hoy: si no
   // se resuelve, el proveedor queda sin vincular, no bloquea el import).
   const [dupResolutions, setDupResolutions] = useState({})
@@ -170,8 +171,9 @@ export default function ImportNegotiationsModal({ workspaceId, entities, entityT
 
   async function handleImport() {
     setImporting(true)
+    setImportError('')
     const now = new Date().toISOString()
-    const { data } = await supabase.from('negotiations').insert(validRows.map(r => {
+    const { data, error: insertError } = await supabase.from('negotiations').insert(validRows.map(r => {
       const row = {
         workspace_id: workspaceId,
         primary_entity_id: resolvedEntityId(r),
@@ -193,11 +195,27 @@ export default function ImportNegotiationsModal({ workspaceId, entities, entityT
       return row
     })).select('id')
 
+    if (insertError) {
+      console.error('import negotiations error:', insertError.message)
+      setImportError('No se pudo completar la importación. Nada se guardó — intentá de nuevo.')
+      setImporting(false)
+      return
+    }
+
     if (data) {
       const links = validRows
         .map((r, i) => resolvedEntityId(r) ? { negotiation_id: data[i].id, entity_id: resolvedEntityId(r), role: providerRoleId } : null)
         .filter(Boolean)
-      if (links.length > 0) await supabase.from('negotiation_entities').insert(links)
+      if (links.length > 0) {
+        const { error: linkError } = await supabase.from('negotiation_entities').insert(links)
+        if (linkError) {
+          console.error('import negotiation_entities error:', linkError.message)
+          setImportError('Los proyectos se importaron, pero algunos vínculos con proveedores no se pudieron guardar.')
+          setImporting(false)
+          onImported()
+          return
+        }
+      }
     }
 
     setImporting(false)
@@ -292,6 +310,7 @@ export default function ImportNegotiationsModal({ workspaceId, entities, entityT
                   </tbody>
                 </table>
               </div>
+              {importError && <p className="import-error">{importError}</p>}
               <div className="import-actions">
                 <button className="import-btn-cancel" onClick={() => setStep('upload')}>← Elegir otro archivo</button>
                 <button className="import-btn-confirm" disabled={validRows.length === 0 || importing} onClick={handleImport}>

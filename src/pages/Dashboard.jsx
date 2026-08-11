@@ -443,7 +443,7 @@ function TeamDashboard() {
                     >
                       {isOverdue(task.due_date)
                         ? "Vencida"
-                        : new Date(task.due_date).toLocaleDateString("es-AR")}
+                        : new Date(task.due_date + 'T00:00:00').toLocaleDateString("es-AR")}
                     </span>
                   )}
                 </div>

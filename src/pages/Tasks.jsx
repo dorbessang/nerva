@@ -324,7 +324,7 @@ export default function Tasks() {
                   {task.status === 'pending' ? 'Pendiente' : task.status === 'in_progress' ? 'En progreso' : 'Hecho'}
                 </span>
                 <span className="task-due">
-                  {task.due_date ? new Date(task.due_date).toLocaleDateString('es-AR') : ''}
+                  {task.due_date ? new Date(task.due_date + 'T00:00:00').toLocaleDateString('es-AR') : ''}
                 </span>
               </div>
             </div>

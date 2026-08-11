@@ -33,6 +33,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState(null)
+  const [actionError, setActionError] = useState('')
 
   useEffect(() => { fetchMilestones() }, [negotiationId])
 
@@ -78,7 +79,9 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
   }
 
   async function handleDelete(id) {
-    await supabase.from('deal_milestones').delete().eq('id', id)
+    setActionError('')
+    const { error } = await supabase.from('deal_milestones').delete().eq('id', id)
+    if (error) { console.error('deleteMilestone error:', error.message); setActionError('No se pudo eliminar el hito. Intentá de nuevo.'); return }
     setMilestones(prev => prev.filter(m => m.id !== id))
     onChanged?.()
   }
@@ -120,13 +123,15 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
   async function handleSaveEdit(id) {
     const amount = parseFloat(editForm.amount)
     if (!editForm.name.trim() || Number.isNaN(amount) || amount === 0) return
+    setActionError('')
     const patch = {
       name: editForm.name.trim(),
       amount,
       estimated_date: editForm.estimated_date || null,
       timing_note: editForm.timing_note.trim() || null,
     }
-    await supabase.from('deal_milestones').update(patch).eq('id', id)
+    const { error } = await supabase.from('deal_milestones').update(patch).eq('id', id)
+    if (error) { console.error('saveMilestone error:', error.message); setActionError('No se pudo guardar el hito. Intentá de nuevo.'); return }
     setEditingId(null)
     setEditForm(null)
     fetchMilestones() // re-fetch en vez de patchear en memoria: puede haber cambiado la fecha, y con eso el orden
@@ -208,6 +213,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
           Total: {formatAmount(total)}{currency ? ` ${currency}` : ''}
         </div>
       )}
+      {actionError && <p className="form-error">{actionError}</p>}
       {canEdit && (
         <div className="neg-milestone-add">
           <input

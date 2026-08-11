@@ -150,6 +150,7 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
   const [rows, setRows] = useState([])
   const [fileError, setFileError] = useState('')
   const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
   const [existingEntities, setExistingEntities] = useState([])
   // idx -> 'create' | 'skip' | `link:<id>` — default es 'create' (fila dudosa sin
   // resolver se crea igual, ya se avisó en el preview).
@@ -204,8 +205,9 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
 
   async function handleImport() {
     setImporting(true)
+    setImportError('')
     const now = new Date().toISOString()
-    const { data: inserted } = await supabase.from('entities').insert(rowsToCreate.map(r => {
+    const { data: inserted, error: insertError } = await supabase.from('entities').insert(rowsToCreate.map(r => {
       const row = { workspace_id: workspaceId, entity_type_id: entityTypeId, status: 'active' }
       const customFields = {}
       for (const def of importFields) {
@@ -220,6 +222,13 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
       return row
     })).select('id')
 
+    if (insertError) {
+      console.error('import entities error:', insertError.message)
+      setImportError('No se pudo completar la importación. Nada se guardó — intentá de nuevo.')
+      setImporting(false)
+      return
+    }
+
     const contactRows = []
     if (inserted) {
       rowsToCreate.forEach((r, i) => {
@@ -230,9 +239,16 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
       if (r.contact) contactRows.push({ ...r.contact, entity_id: entityId })
     })
     if (contactRows.length > 0) {
-      await supabase.from('contacts').insert(contactRows.map(c => (
+      const { error: contactError } = await supabase.from('contacts').insert(contactRows.map(c => (
         { workspace_id: workspaceId, entity_id: c.entity_id, name: c.name, role: c.role, email: c.email, phone: c.phone, is_primary: true }
       )))
+      if (contactError) {
+        console.error('import contacts error:', contactError.message)
+        setImportError('Las entidades se importaron, pero algunos contactos no se pudieron guardar.')
+        setImporting(false)
+        onImported()
+        return
+      }
     }
 
     setImporting(false)
@@ -338,6 +354,7 @@ export default function ImportEntitiesModal({ entityTypeId, entityTypeSingular, 
                   </tbody>
                 </table>
               </div>
+              {importError && <p className="import-error">{importError}</p>}
               <div className="import-actions">
                 <button className="import-btn-cancel" onClick={() => setStep('upload')}>← Elegir otro archivo</button>
                 <button className="import-btn-confirm" disabled={(rowsToCreate.length + rowsToLink.length) === 0 || importing} onClick={handleImport}>
