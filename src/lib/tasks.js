@@ -39,7 +39,9 @@ function dedupeTasks(tasks) {
 // es: tareas del mismo proyecto/entidad + tareas de las entidades
 // vinculadas a ese proyecto (o el/los proyecto/s vinculado/s a esa
 // entidad) + tareas sueltas (sin proyecto ni entidad), que siempre entran
-// sin importar el tipo de la tarea que se está creando/editando.
+// sin importar el tipo de la tarea que se está creando/editando. Una
+// tarea suelta no tiene ningún contexto propio que la acote, así que para
+// ella el pool es directamente todo el workspace.
 export async function fetchPredecessorCandidates(supabase, { workspaceId, negotiationId, entityId }) {
   const cols = 'id, title, status, predecessor_task_id'
   const standaloneQuery = supabase.from('tasks').select(cols)
@@ -67,7 +69,7 @@ export async function fetchPredecessorCandidates(supabase, { workspaceId, negoti
     return dedupeTasks([...(sameEntity || []), ...(negTasksRes.data || []), ...(standalone || [])])
   }
 
-  const { data } = await standaloneQuery
+  const { data } = await supabase.from('tasks').select(cols).eq('workspace_id', workspaceId)
   return data || []
 }
 
