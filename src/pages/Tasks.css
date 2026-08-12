@@ -172,6 +172,15 @@
   border-left-color: #0B1F3A;
 }
 
+.task-card[draggable="true"] { cursor: grab; }
+
+.task-card--drag-over {
+  background-color: #EFF6FF;
+  border-left-color: #1D4ED8;
+  outline: 2px dashed #1D4ED8;
+  outline-offset: -2px;
+}
+
 .task-check {
   width: 18px;
   height: 18px;

@@ -5,6 +5,7 @@ import { mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, is
 import { naturalSortByName } from '../lib/tableSort'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import { CustomFieldInput } from './CustomFieldInput'
+import SearchableSelect from './SearchableSelect'
 import './EntityModal.css'
 
 // Modal de alta/edición de Producto — mismo patrón que EntityModal (dispatch
@@ -124,10 +125,13 @@ export default function ProductModal({ onClose, onCreated, initial = null, produ
       return (
         <div key={def.key} className="form-group">
           <label>{def.label}{def.required ? ' *' : ''}</label>
-          <select value={values[def.key] || ''} onChange={e => setValue(def.key, e.target.value)}>
-            <option value="">Sin asignar</option>
-            {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
+          <SearchableSelect
+            value={values[def.key] || ''}
+            onChange={v => setValue(def.key, v)}
+            options={entities.map(e => ({ value: e.id, label: e.name }))}
+            placeholder="Buscar proveedor..."
+            emptyLabel="Sin asignar"
+          />
         </div>
       )
     }

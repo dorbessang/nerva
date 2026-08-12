@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { createTask } from '../lib/tasks'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
+import SearchableSelect from './SearchableSelect'
 import './TaskModal.css'
 
 export default function TaskModal({ onClose, onCreated }) {
@@ -120,12 +121,13 @@ export default function TaskModal({ onClose, onCreated }) {
 
           <div className="form-group">
             <label>PROYECTO (opcional)</label>
-            <select value={negotiationId} onChange={e => setNegotiationId(e.target.value)}>
-              <option value="">Sin proyecto</option>
-              {negotiations.map(n => (
-                <option key={n.id} value={n.id}>{n.product || n.title}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={negotiationId}
+              onChange={setNegotiationId}
+              options={negotiations.map(n => ({ value: n.id, label: n.product || n.title }))}
+              placeholder="Buscar proyecto..."
+              emptyLabel="Sin proyecto"
+            />
           </div>
 
           {negotiationTasks.length > 0 && (

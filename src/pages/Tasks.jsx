@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import TaskModal from '../components/TaskModal'
 import TaskDrawer from '../components/TaskDrawer'
-import { isTaskBlocked, notifySuccessors, dismissNotificationsForTask } from '../lib/tasks'
+import SearchableSelect from '../components/SearchableSelect'
+import { isTaskBlocked, notifySuccessors, dismissNotificationsForTask, wouldCreateCycle } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { naturalSortByName } from '../lib/tableSort'
 import { isPrivileged as isPrivilegedRole, canEditContent } from '../lib/roles'
@@ -34,6 +35,10 @@ export default function Tasks() {
   const [showModal, setShowModal] = useState(false)
   const [confirmTask, setConfirmTask] = useState(null)
   const [selectedTask, setSelectedTask] = useState(null)
+  const [dragTaskId, setDragTaskId] = useState(null)
+  const [dragOverId, setDragOverId] = useState(null)
+  const [dropConfirm, setDropConfirm] = useState(null) // { dragged, target }
+  const [dropError, setDropError] = useState(null)
 
   useEffect(() => {
     if (!workspaceId) return
@@ -143,6 +148,29 @@ export default function Tasks() {
     setConfirmTask(task)
   }
 
+  function handleDrop(targetTask) {
+    const draggedTask = tasks.find(t => t.id === dragTaskId)
+    setDragOverId(null)
+    if (!draggedTask || draggedTask.id === targetTask.id) return
+    setDropConfirm({ dragged: draggedTask, target: targetTask })
+  }
+
+  // El chequeo de ciclo necesita el árbol completo de predecesoras del
+  // workspace, no solo lo que está cargado en pantalla (puede estar filtrado).
+  async function confirmSetPredecessor() {
+    setDropError(null)
+    const { dragged, target } = dropConfirm
+    const { data: allTasks } = await supabase.from('tasks').select('id, predecessor_task_id').eq('workspace_id', workspaceId)
+    if (wouldCreateCycle(allTasks || [], dragged.id, target.id)) {
+      setDropError('Esa dependencia crearía un ciclo (una tarea terminaría dependiendo de sí misma).')
+      return
+    }
+    const { error } = await supabase.from('tasks').update({ predecessor_task_id: target.id }).eq('id', dragged.id)
+    if (error) { setDropError('No se pudo guardar la dependencia. Intentá de nuevo.'); return }
+    setDropConfirm(null)
+    fetchTasks()
+  }
+
   async function handleConfirmDone() {
     const { error } = await supabase
       .from('tasks')
@@ -207,22 +235,24 @@ export default function Tasks() {
         <div className="tasks-dropdowns">
           <div className="filter-field">
             <label className="filter-field-label">Proyecto</label>
-            <select className="dropdown-filter" value={filterNegotiation} onChange={e => setFilterNegotiation(e.target.value)}>
-              <option value="">Todos los proyectos</option>
-              {negotiations.map(n => (
-                <option key={n.id} value={n.id}>{n.product || n.title}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={filterNegotiation}
+              onChange={setFilterNegotiation}
+              options={negotiations.map(n => ({ value: n.id, label: n.product || n.title }))}
+              placeholder="Buscar proyecto..."
+              emptyLabel="Todos los proyectos"
+            />
           </div>
 
           <div className="filter-field">
             <label className="filter-field-label">Proveedor</label>
-            <select className="dropdown-filter" value={filterEntity} onChange={e => setFilterEntity(e.target.value)}>
-              <option value="">Todos los proveedores</option>
-              {entities.map(e => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={filterEntity}
+              onChange={setFilterEntity}
+              options={entities.map(e => ({ value: e.id, label: e.name }))}
+              placeholder="Buscar proveedor..."
+              emptyLabel="Todos los proveedores"
+            />
           </div>
 
           {isPrivileged && (
@@ -265,8 +295,14 @@ export default function Tasks() {
             return (
             <div
               key={task.id}
-              className={`task-card ${task.status === 'done' ? 'status-done' : ''}`}
+              className={`task-card ${task.status === 'done' ? 'status-done' : ''} ${dragOverId === task.id ? 'task-card--drag-over' : ''}`}
               onClick={() => setSelectedTask(task)}
+              draggable={canCreateTask}
+              onDragStart={() => setDragTaskId(task.id)}
+              onDragOver={e => { if (canCreateTask) { e.preventDefault(); setDragOverId(task.id) } }}
+              onDragLeave={() => setDragOverId(id => (id === task.id ? null : id))}
+              onDrop={e => { e.preventDefault(); if (canCreateTask) handleDrop(task) }}
+              title={canCreateTask ? 'Arrastrá una tarea sobre otra para marcarla como dependiente' : undefined}
             >
               <button
                 className={`task-check ${task.status === 'done' ? 'checked' : ''}`}
@@ -362,6 +398,22 @@ export default function Tasks() {
             <div className="confirm-actions">
               <button className="btn-secondary" onClick={() => setConfirmTask(null)}>Cancelar</button>
               <button className="btn-confirm" onClick={handleConfirmDone}>Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {dropConfirm && (
+        <div className="confirm-overlay" onClick={() => { setDropConfirm(null); setDropError(null) }}>
+          <div className="confirm-card" onClick={e => e.stopPropagation()}>
+            <p className="confirm-title">¿Marcar como dependiente?</p>
+            <p className="confirm-desc">
+              "{dropConfirm.dragged.title}" va a quedar bloqueada hasta que "{dropConfirm.target.title}" se marque como hecha.
+            </p>
+            {dropError && <p className="form-error">{dropError}</p>}
+            <div className="confirm-actions">
+              <button className="btn-secondary" onClick={() => { setDropConfirm(null); setDropError(null) }}>Cancelar</button>
+              <button className="btn-confirm" onClick={confirmSetPredecessor}>Confirmar</button>
             </div>
           </div>
         </div>

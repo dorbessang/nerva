@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { logActivity } from '../lib/activity'
+import SearchableSelect from './SearchableSelect'
 // Mismo patrón que DealMilestones.jsx — reusa .neg-note-input/.neg-milestone-*
 // ya definidas en Negotiations.css.
 
@@ -221,14 +222,14 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
                     autoFocus
                   />
                   {needsProductPicker && (
-                    <select
-                      className="neg-note-date-input"
+                    <SearchableSelect
+                      style={{ width: 160, minWidth: 160, flexShrink: 0 }}
                       value={editForm.product_id}
-                      onChange={ev => setEditForm(f => ({ ...f, product_id: ev.target.value }))}
-                    >
-                      <option value="">Producto...</option>
-                      {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                      onChange={v => setEditForm(f => ({ ...f, product_id: v }))}
+                      options={products.map(p => ({ value: p.id, label: p.name }))}
+                      placeholder="Producto..."
+                      emptyLabel="Sin producto"
+                    />
                   )}
                   <input
                     type="number"
@@ -311,14 +312,14 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
               onChange={e => setNewDate(e.target.value)}
             />
             {needsProductPicker && (
-              <select
-                className="neg-note-date-input"
+              <SearchableSelect
+                style={{ width: 160, minWidth: 160, flexShrink: 0 }}
                 value={newProductId}
-                onChange={e => setNewProductId(e.target.value)}
-              >
-                <option value="">Producto...</option>
-                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+                onChange={setNewProductId}
+                options={products.map(p => ({ value: p.id, label: p.name }))}
+                placeholder="Producto..."
+                emptyLabel="Sin producto"
+              />
             )}
             <input
               type="text"
