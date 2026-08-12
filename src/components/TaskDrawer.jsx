@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { wouldCreateCycle, isTaskBlocked, notifyTaskAssigned, createTask } from '../lib/tasks'
+import { wouldCreateCycle, isTaskBlocked, notifyTaskAssigned, createTask, fetchPredecessorCandidates } from '../lib/tasks'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './TaskDrawer.css'
 
@@ -44,19 +44,9 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
     if (data) setMembers(data)
   }
 
-  // El "pool" de candidatas a predecesora es del mismo tipo que la tarea:
-  // si es de un proyecto, otras tareas de ese proyecto; si es de una
-  // entidad, otras tareas de esa entidad; si es suelta (sin ninguna de las
-  // dos), otras tareas sueltas del workspace.
   async function fetchSiblingTasks() {
-    let query = supabase.from('tasks').select('id, title, status, predecessor_task_id').eq('workspace_id', workspaceId)
-    query = task.negotiation_id
-      ? query.eq('negotiation_id', task.negotiation_id)
-      : task.entity_id
-      ? query.eq('entity_id', task.entity_id)
-      : query.is('negotiation_id', null).is('entity_id', null)
-    const { data } = await query
-    if (data) setSiblingTasks(data)
+    const data = await fetchPredecessorCandidates(supabase, { workspaceId, negotiationId: task.negotiation_id, entityId: task.entity_id })
+    setSiblingTasks(data)
   }
 
   const predecessorOptions = siblingTasks.filter(

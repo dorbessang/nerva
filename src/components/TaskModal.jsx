@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { createTask } from '../lib/tasks'
+import { createTask, fetchPredecessorCandidates } from '../lib/tasks'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import SearchableSelect from './SearchableSelect'
 import './TaskModal.css'
@@ -27,17 +27,11 @@ export default function TaskModal({ onClose, onCreated }) {
     fetchNegotiations()
   }, [])
 
-  // El pool de candidatas a predecesora es del mismo tipo que la tarea que
-  // se está creando: si se eligió un proyecto, otras tareas de ese
-  // proyecto; si no, otras tareas sueltas del workspace (sin proyecto ni
-  // entidad — esta modal no permite vincular a una entidad).
   useEffect(() => {
     setPredecessorId('')
-    const query = negotiationId
-      ? supabase.from('tasks').select('id, title, status').eq('negotiation_id', negotiationId)
-      : supabase.from('tasks').select('id, title, status').eq('workspace_id', workspaceId).is('negotiation_id', null).is('entity_id', null)
-    query.then(({ data }) => setNegotiationTasks(data || []))
-  }, [negotiationId])
+    if (!workspaceId) return
+    fetchPredecessorCandidates(supabase, { workspaceId, negotiationId }).then(setNegotiationTasks)
+  }, [negotiationId, workspaceId])
 
   async function fetchMembers() {
     const { data } = await supabase

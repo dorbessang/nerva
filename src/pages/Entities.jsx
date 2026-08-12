@@ -12,7 +12,7 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import NotesPostIts from '../components/NotesPostIts'
 import ActivityTimeline from '../components/ActivityTimeline'
 import Documents from '../components/Documents'
-import { createTask } from '../lib/tasks'
+import { createTask, fetchPredecessorCandidates } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { formatAmount } from '../components/DealMilestones'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
@@ -735,10 +735,16 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
   const [newTaskAssignee, setNewTaskAssignee] = useState('')
   const [newTaskDue, setNewTaskDue] = useState('')
   const [newTaskPredecessor, setNewTaskPredecessor] = useState('')
+  const [taskCandidates, setTaskCandidates] = useState([])
   const [savingTask, setSavingTask] = useState(false)
   const [scorecard, setScorecard] = useState({ pipeline: [], pendingProjectTasks: 0 })
 
   useEffect(() => { fetchEntityTasks(); fetchMembers(); fetchProducts(); fetchEntityProducts(); fetchFieldOrder() }, [entity.id])
+
+  useEffect(() => {
+    if (!workspaceId) return
+    fetchPredecessorCandidates(supabase, { workspaceId, entityId: entity.id }).then(setTaskCandidates)
+  }, [entity.id, workspaceId])
 
   useEffect(() => {
     const negIds = (entity.negotiation_entities || []).map(n => n.negotiation?.id).filter(Boolean)
@@ -807,6 +813,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
     setNewTaskPredecessor('')
     setShowTaskForm(false)
     fetchEntityTasks()
+    fetchPredecessorCandidates(supabase, { workspaceId, entityId: entity.id }).then(setTaskCandidates)
     setActivityRefresh(v => v + 1)
   }
 
@@ -1029,10 +1036,10 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
                       {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email || 'Usuario'}</option>)}
                     </select>
                     <input type="date" className="neg-note-date-input" value={newTaskDue} onChange={e => setNewTaskDue(e.target.value)} />
-                    {entityTasks.length > 0 && (
+                    {taskCandidates.length > 0 && (
                       <select value={newTaskPredecessor} onChange={e => setNewTaskPredecessor(e.target.value)} style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid #e5e7eb', fontSize: 13 }}>
                         <option value="">No depende de otra</option>
-                        {entityTasks.map(t => (
+                        {taskCandidates.map(t => (
                           <option key={t.id} value={t.id}>Depende de: {t.title}{t.status === 'done' ? ' (hecha)' : ''}</option>
                         ))}
                       </select>

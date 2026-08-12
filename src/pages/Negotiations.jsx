@@ -12,7 +12,7 @@ import ActivityTimeline from '../components/ActivityTimeline'
 import DealMilestones, { formatAmount } from '../components/DealMilestones'
 import PriceHistory from '../components/PriceHistory'
 import Documents from '../components/Documents'
-import { isTaskBlocked, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask, createTask } from '../lib/tasks'
+import { isTaskBlocked, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask, createTask, fetchPredecessorCandidates } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
 import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, isFieldFilterable, matchesAllFieldFilters, filterChoicesFor, describeFieldFilters, SPECIAL_FIELD_TYPES } from '../lib/customFields'
@@ -2296,13 +2296,13 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
         />
       )}
       {showTaskModal && (
-        <TaskModalInline negotiationId={neg.id} existingTasks={tasks} onClose={() => setShowTaskModal(false)} onCreated={() => { fetchTasks(); setActivityRefresh(v => v + 1) }} />
+        <TaskModalInline negotiationId={neg.id} onClose={() => setShowTaskModal(false)} onCreated={() => { fetchTasks(); setActivityRefresh(v => v + 1) }} />
       )}
     </div>
   )
 }
 
-function TaskModalInline({ negotiationId, existingTasks, onClose, onCreated }) {
+function TaskModalInline({ negotiationId, onClose, onCreated }) {
   const { workspaceId, user } = useAuth()
   useEscapeToClose(onClose)
   const [title, setTitle] = useState('')
@@ -2311,6 +2311,7 @@ function TaskModalInline({ negotiationId, existingTasks, onClose, onCreated }) {
   const [assignedTo, setAssignedTo] = useState('')
   const [predecessorId, setPredecessorId] = useState('')
   const [members, setMembers] = useState([])
+  const [candidates, setCandidates] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -2321,6 +2322,11 @@ function TaskModalInline({ negotiationId, existingTasks, onClose, onCreated }) {
       .eq('status', 'active')
       .then(({ data }) => { if (data) setMembers(data) })
   }, [workspaceId])
+
+  useEffect(() => {
+    if (!workspaceId) return
+    fetchPredecessorCandidates(supabase, { workspaceId, negotiationId }).then(setCandidates)
+  }, [negotiationId, workspaceId])
 
   async function handleSave() {
     if (!title.trim()) return
@@ -2370,12 +2376,12 @@ function TaskModalInline({ negotiationId, existingTasks, onClose, onCreated }) {
               {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email || 'Usuario'}</option>)}
             </select>
           </div>
-          {existingTasks?.length > 0 && (
+          {candidates.length > 0 && (
             <div className="form-group">
               <label>DEPENDE DE (opcional)</label>
               <select value={predecessorId} onChange={e => setPredecessorId(e.target.value)}>
                 <option value="">Ninguna</option>
-                {existingTasks.map(t => (
+                {candidates.map(t => (
                   <option key={t.id} value={t.id}>{t.title}{t.status === 'done' ? ' (hecha)' : ''}</option>
                 ))}
               </select>

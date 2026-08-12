@@ -26,6 +26,51 @@ export function wouldCreateCycle(allTasks, taskId, candidatePredecessorId) {
   return false
 }
 
+function dedupeTasks(tasks) {
+  const seen = new Set()
+  return tasks.filter(t => (seen.has(t.id) ? false : (seen.add(t.id), true)))
+}
+
+// Pool de tareas candidatas a predecesora, para el desplegable "Depende
+// de" (al crear una tarea) o el de edición (TaskDrawer). Antes cada
+// formulario lo armaba a su manera — uno recibía la lista por prop del
+// padre (podía quedar desactualizada), otro consultaba directo pero sin
+// cubrir más que "mismo proyecto". Ahora es un único fetch, y el alcance
+// es: tareas del mismo proyecto/entidad + tareas de las entidades
+// vinculadas a ese proyecto (o el/los proyecto/s vinculado/s a esa
+// entidad) + tareas sueltas (sin proyecto ni entidad), que siempre entran
+// sin importar el tipo de la tarea que se está creando/editando.
+export async function fetchPredecessorCandidates(supabase, { workspaceId, negotiationId, entityId }) {
+  const cols = 'id, title, status, predecessor_task_id'
+  const standaloneQuery = supabase.from('tasks').select(cols)
+    .eq('workspace_id', workspaceId).is('negotiation_id', null).is('entity_id', null)
+
+  if (negotiationId) {
+    const { data: links } = await supabase.from('negotiation_entities').select('entity_id').eq('negotiation_id', negotiationId)
+    const entityIds = (links || []).map(l => l.entity_id)
+    const [{ data: sameProject }, entityTasksRes, { data: standalone }] = await Promise.all([
+      supabase.from('tasks').select(cols).eq('negotiation_id', negotiationId),
+      entityIds.length > 0 ? supabase.from('tasks').select(cols).in('entity_id', entityIds) : Promise.resolve({ data: [] }),
+      standaloneQuery,
+    ])
+    return dedupeTasks([...(sameProject || []), ...(entityTasksRes.data || []), ...(standalone || [])])
+  }
+
+  if (entityId) {
+    const { data: links } = await supabase.from('negotiation_entities').select('negotiation_id').eq('entity_id', entityId)
+    const negIds = (links || []).map(l => l.negotiation_id)
+    const [{ data: sameEntity }, negTasksRes, { data: standalone }] = await Promise.all([
+      supabase.from('tasks').select(cols).eq('entity_id', entityId),
+      negIds.length > 0 ? supabase.from('tasks').select(cols).in('negotiation_id', negIds) : Promise.resolve({ data: [] }),
+      standaloneQuery,
+    ])
+    return dedupeTasks([...(sameEntity || []), ...(negTasksRes.data || []), ...(standalone || [])])
+  }
+
+  const { data } = await standaloneQuery
+  return data || []
+}
+
 // Al completar una tarea, avisa in-app a los asignados de las tareas que
 // dependían de ella y que ahora quedan desbloqueadas.
 export async function notifySuccessors(supabase, completedTask, workspaceId) {
