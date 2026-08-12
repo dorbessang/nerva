@@ -4,6 +4,7 @@ import { supabase } from './supabase'
 import { getCountryName } from '../components/CountrySelector'
 import { formatAmount } from '../components/DealMilestones'
 import { resolveMemberNames } from './customFields'
+import { terminalStatusNames } from './customStates'
 import {
   NAVY, ACCENT, GRAY_BG, GRAY_TEXT, BORDER, INK, PAGE_W,
   setText, setFill, formatDatePdf, stateColorRgb, drawPill,
@@ -34,7 +35,8 @@ function drawSummary(doc, { negotiations, customStates, tasksByNeg, pipeline, ge
   doc.text('Resumen general', MARGIN, 20)
 
   const providerIds = new Set(negotiations.map(n => getPrimaryEntity(n)?.id).filter(Boolean))
-  const completedCount = negotiations.filter(n => n.status === 'Completado').length
+  const terminalNames = terminalStatusNames(customStates)
+  const completedCount = negotiations.filter(n => terminalNames.has(n.status)).length
   const pendingTasks = negotiations.reduce(
     (sum, n) => sum + (tasksByNeg[n.id] || []).filter(t => t.status !== 'done').length, 0
   )

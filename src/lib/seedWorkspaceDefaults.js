@@ -16,12 +16,12 @@ const STATE_PRESETS = [
   { name: 'En Negociación', color: '#D97706', bg_color: '#FFFBEB' },
   { name: 'Due Diligence', color: '#7C3AED', bg_color: '#F5F3FF' },
   { name: 'Contrato', color: '#0891B2', bg_color: '#ECFEFF' },
-  { name: 'Completado', color: '#059669', bg_color: '#ECFDF5' },
+  { name: 'Completado', color: '#059669', bg_color: '#ECFDF5', is_terminal: true },
 ]
 
 const MINIMAL_STATE_PRESETS = [
   { name: 'En curso', color: '#1D4ED8', bg_color: '#EFF6FF' },
-  { name: 'Completado', color: '#059669', bg_color: '#ECFDF5' },
+  { name: 'Completado', color: '#059669', bg_color: '#ECFDF5', is_terminal: true },
 ]
 
 // is_structural: true — no borrables, required fijo en true (salvo Contactos).
@@ -75,6 +75,7 @@ function stateRows(workspaceId, presets) {
     color: s.color,
     bg_color: s.bg_color,
     sort_order: i,
+    is_terminal: !!s.is_terminal,
   }))
 }
 

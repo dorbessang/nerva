@@ -4,6 +4,7 @@ import { supabase } from './supabase'
 import { getCountryName } from '../components/CountrySelector'
 import { formatAmount } from '../components/DealMilestones'
 import { sumMilestonesByCurrency } from './pipeline'
+import { terminalStatusNames } from './customStates'
 import {
   NAVY, ACCENT, GRAY_BG, GRAY_TEXT, BORDER, INK, PAGE_W,
   setText, setFill, stateColorRgb, drawPill,
@@ -34,7 +35,8 @@ function drawSummary(doc, { entities, negotiations, customStates, pipeline, type
   doc.setFontSize(16)
   doc.text('Resumen general', MARGIN, 20)
 
-  const completedCount = negotiations.filter(n => n.status === 'Completado').length
+  const terminalNames = terminalStatusNames(customStates)
+  const completedCount = negotiations.filter(n => terminalNames.has(n.status)).length
 
   let y = drawStatCards(doc, [
     { value: entities.length, label: 'Entidades', color: NAVY },

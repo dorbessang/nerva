@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { sumMilestonesByCurrency } from "../lib/pipeline";
 import { timeAgo as sharedTimeAgo } from "../lib/timeAgo";
 import { lowActivityWindow, isLowActivityAlert } from "../lib/lowActivity";
+import { terminalStatusNames } from "../lib/customStates";
 import "./Dashboard.css";
 
 export default function Dashboard() {
@@ -130,14 +131,16 @@ function TeamDashboard() {
     endOfWeek.setDate(endOfWeek.getDate() + (7 - endOfWeek.getDay()));
     const endOfWeekStr = endOfWeek.toISOString().split("T")[0];
 
-    // Proyectos en zona de alerta: activos, no completados, sin actividad entre 90 y 120 días
+    const terminalNames = terminalStatusNames(statesRes.data);
+
+    // Proyectos en zona de alerta: activos, no en estado final, sin actividad entre alertDays e inactiveDays
     const alertWindow = lowActivityWindow(new Date(), activeWorkspace?.low_activity_alert_days, activeWorkspace?.low_activity_inactive_days);
-    const alert = negotiations.filter(n => isLowActivityAlert(n, alertWindow));
+    const alert = negotiations.filter(n => isLowActivityAlert(n, alertWindow, terminalNames));
     setAlertProjects(alert);
 
     setStats({
-      activeProjects: negotiations.filter(n => n.activity_status === 'active' && n.status !== 'Completado').length,
-      completedProjects: negotiations.filter(n => n.status === 'Completado').length,
+      activeProjects: negotiations.filter(n => n.activity_status === 'active' && !terminalNames.has(n.status)).length,
+      completedProjects: negotiations.filter(n => terminalNames.has(n.status)).length,
       pausedProjects: negotiations.filter(n => n.activity_status === 'paused').length,
       inactiveProjects: negotiations.filter(n => n.activity_status === 'inactive').length,
       pendingTasks: tasks.filter((t) => t.status !== "done").length,
@@ -150,7 +153,7 @@ function TeamDashboard() {
       activeEntities: entitiesRes.data?.length || 0,
     });
 
-    const activeNegs = negotiations.filter(n => n.activity_status === 'active' && n.status !== 'Completado');
+    const activeNegs = negotiations.filter(n => n.activity_status === 'active' && !terminalNames.has(n.status));
 
     // Sumamos los hitos de pago de los proyectos en curso, agrupados por moneda
     // (sin conversión automática — cada moneda se muestra por separado)
@@ -159,11 +162,14 @@ function TeamDashboard() {
     setPipelineValue(
       sumMilestonesByCurrency((milestonesRes.data || []).filter(m => activeNegIds.has(m.negotiation_id)), currencyByNegId)
     );
-    const completedStateData = (statesRes.data || []).find(s => s.name === 'Completado');
-    const completedNegCount = negotiations.filter(n => n.status === 'Completado').length;
+    // Si hay más de un estado marcado final, se muestran agrupados bajo el
+    // primero (caso normal: solo hay uno, "Completado" o como se lo haya
+    // rebautizado el workspace).
+    const completedStateData = (statesRes.data || []).find(s => s.is_terminal);
+    const completedNegCount = negotiations.filter(n => terminalNames.has(n.status)).length;
     setStateCounts([
       ...(statesRes.data || [])
-        .filter(s => s.name !== 'Completado')
+        .filter(s => !s.is_terminal)
         .map(s => ({
           name: s.name,
           color: s.color,
@@ -171,7 +177,7 @@ function TeamDashboard() {
           total: activeNegs.length,
         })),
       {
-        name: 'Completado',
+        name: completedStateData?.name || 'Completado',
         color: completedStateData?.color || '#059669',
         count: completedNegCount,
         total: negotiations.length,

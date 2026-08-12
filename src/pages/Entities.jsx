@@ -26,7 +26,7 @@ import { getInitials, getAvatarColor } from '../lib/avatarColors'
 import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
 import { entityHasType } from '../lib/entityTypes'
 import { fetchFullNegotiation } from '../lib/negotiations'
-import { resolveStateConfig } from '../lib/customStates'
+import { resolveStateConfig, terminalStatusNames } from '../lib/customStates'
 import { sumMilestonesByCurrency } from '../lib/pipeline'
 import { isOwner, canEditContent } from '../lib/roles'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
@@ -977,6 +977,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
                 scorecard={scorecard}
                 entityTasksPending={entityTasks.filter(t => t.status !== 'done').length}
                 entityTypeSingular={entityTypeSingular}
+                negotiationStates={negotiationStates}
               />
             )}
 
@@ -1257,8 +1258,9 @@ function relativeDaysLabel(date) {
   return `hace ${days} días`
 }
 
-function EntityScorecard({ entity, negs, counts, getStateConfig, scorecard, entityTasksPending, entityTypeSingular }) {
-  const completedCount = negs.filter(n => n.status === 'Completado').length
+function EntityScorecard({ entity, negs, counts, getStateConfig, scorecard, entityTasksPending, entityTypeSingular, negotiationStates }) {
+  const terminalNames = terminalStatusNames(negotiationStates)
+  const completedCount = negs.filter(n => terminalNames.has(n.status)).length
   const pendingTasks = scorecard.pendingProjectTasks + entityTasksPending
   const maxCount = Math.max(1, ...Object.values(counts))
 

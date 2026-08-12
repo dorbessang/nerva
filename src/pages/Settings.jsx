@@ -457,11 +457,13 @@ function TabEstados({ workspaceId }) {
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState('#64748B')
   const [newBgColor, setNewBgColor] = useState('#F1F5F9')
+  const [newIsTerminal, setNewIsTerminal] = useState(false)
   const [bgManual, setBgManual] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [saving, setSaving] = useState(false)
   const objectType = STATES_OBJECT_TYPE
-  const [editing, setEditing] = useState(null) // { id, name, color, bg_color }
+  const [editing, setEditing] = useState(null) // { id, name, color, bg_color, is_terminal }
+  const [deleteError, setDeleteError] = useState(null)
 
   useEffect(() => {
     fetchStates()
@@ -489,10 +491,12 @@ function TabEstados({ workspaceId }) {
       color: newColor,
       bg_color: newBgColor,
       sort_order: states.length,
+      is_terminal: newIsTerminal,
     })
     setNewName('')
     setNewColor('#64748B')
     setNewBgColor('#F1F5F9')
+    setNewIsTerminal(false)
     setSaving(false)
     fetchStates()
   }
@@ -501,8 +505,17 @@ function TabEstados({ workspaceId }) {
     if (!editing?.name?.trim()) return
     const original = states.find(s => s.id === editing.id)
     const newName = editing.name.trim()
+    // Si se le está sacando el flag "final" y era el único, no lo dejamos
+    // sin ninguno — la app depende de que exista al menos un estado
+    // terminal (cuenta de "completados", exclusión de las alertas de
+    // inactividad, etc.)
+    if (original?.is_terminal && !editing.is_terminal && states.filter(s => s.is_terminal).length === 1) {
+      setDeleteError('Tiene que quedar al menos un estado marcado como "final".')
+      return
+    }
+    setDeleteError(null)
     await supabase.from('custom_states').update({
-      name: newName, color: editing.color, bg_color: editing.bg_color,
+      name: newName, color: editing.color, bg_color: editing.bg_color, is_terminal: editing.is_terminal,
     }).eq('id', editing.id)
     // El estado se guarda como texto libre en negotiations.status (matcheo
     // por nombre, no por id) — si el label cambió, hay que actualizar en
@@ -517,6 +530,15 @@ function TabEstados({ workspaceId }) {
 
   const [confirmDeleteState, setConfirmDeleteState] = useState(null)
 
+  function requestDelete(s) {
+    if (s.is_terminal && states.filter(st => st.is_terminal).length === 1) {
+      setDeleteError('No se puede eliminar: tiene que quedar al menos un estado marcado como "final".')
+      return
+    }
+    setDeleteError(null)
+    setConfirmDeleteState(s.id)
+  }
+
   async function handleDelete(id) {
     await supabase.from('custom_states').delete().eq('id', id)
     setConfirmDeleteState(null)
@@ -530,10 +552,14 @@ function TabEstados({ workspaceId }) {
           <h2 className="settings-block-title">Estados de proyecto</h2>
         </div>
 
+        <p className="settings-hint">
+          "Final" marca qué estado(s) cuentan como proyecto cerrado — se usa para las estadísticas de completados y para que un proyecto en ese estado no dispare las alertas de inactividad. Tiene que quedar siempre al menos uno marcado.
+        </p>
+        {deleteError && <p className="form-error">{deleteError}</p>}
+
         {loading ? <div className="settings-loading">Cargando...</div> : (
           <div className="settings-table">
             {states.map(s => {
-              const isProtected = s.name === 'Completado'
               const isEditing = editing?.id === s.id
               return (
                 <div key={s.id} className="settings-row" style={{ flexWrap: 'wrap', gap: 8 }}>
@@ -566,6 +592,14 @@ function TabEstados({ workspaceId }) {
                         <span className="state-badge-preview" style={{ backgroundColor: editing.bg_color, color: editing.color }}>
                           {editing.name || 'Vista previa'}
                         </span>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13 }}>
+                          <input
+                            type="checkbox"
+                            checked={!!editing.is_terminal}
+                            onChange={e => setEditing(ed => ({ ...ed, is_terminal: e.target.checked }))}
+                          />
+                          Estado final
+                        </label>
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="settings-btn-primary" onClick={handleSaveEdit}>Guardar</button>
@@ -582,23 +616,22 @@ function TabEstados({ workspaceId }) {
                         >
                           {s.name}
                         </span>
+                        {s.is_terminal && (
+                          <span className="settings-state-protected" title="Estado final — cuenta como proyecto cerrado">🏁 Final</span>
+                        )}
                       </div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        {isProtected ? (
-                          <span className="settings-state-protected" title="Este estado es requerido por el sistema — el nombre no se puede cambiar">🔒 Protegido</span>
-                        ) : (
-                          <button className="settings-btn-secondary" onClick={() => setEditing({ id: s.id, name: s.name, color: s.color, bg_color: s.bg_color })}>
-                            Editar
-                          </button>
-                        )}
-                        {isProtected ? null : confirmDeleteState === s.id ? (
+                        <button className="settings-btn-secondary" onClick={() => setEditing({ id: s.id, name: s.name, color: s.color, bg_color: s.bg_color, is_terminal: s.is_terminal })}>
+                          Editar
+                        </button>
+                        {confirmDeleteState === s.id ? (
                           <div className="delete-confirm-inline">
                             <span>¿Seguro?</span>
                             <button className="settings-btn-danger" onClick={() => handleDelete(s.id)}>Sí</button>
                             <button className="settings-btn-secondary" onClick={() => setConfirmDeleteState(null)}>No</button>
                           </div>
                         ) : (
-                          <button className="settings-btn-danger" onClick={() => setConfirmDeleteState(s.id)}>Eliminar</button>
+                          <button className="settings-btn-danger" onClick={() => requestDelete(s)}>Eliminar</button>
                         )}
                       </div>
                     </>
@@ -669,6 +702,10 @@ function TabEstados({ workspaceId }) {
           <div className="state-preview" style={{ backgroundColor: newBgColor, color: newColor }}>
             {newName || 'Vista previa'}
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13 }}>
+            <input type="checkbox" checked={newIsTerminal} onChange={e => setNewIsTerminal(e.target.checked)} />
+            Estado final
+          </label>
           <button className="settings-btn-primary" onClick={handleAdd} disabled={saving}>
             + Agregar
           </button>

@@ -60,39 +60,49 @@ export default function Layout({ children }) {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (workspaceId) { fetchAlertProjects(); fetchInactiveProjects(); }
+    if (workspaceId) fetchLowActivityBanners();
   }, [workspaceId, activeWorkspace?.low_activity_alert_days, activeWorkspace?.low_activity_inactive_days]);
 
-  async function fetchAlertProjects() {
+  // Trae los estados marcados "final" del workspace (is_terminal) y con eso
+  // arma los dos banners — antes se excluía directo por SQL comparando
+  // contra el texto fijo 'Completado', ahora ese nombre es libre de
+  // cambiar por workspace.
+  async function fetchLowActivityBanners() {
+    const { data: states } = await supabase
+      .from('custom_states')
+      .select('name')
+      .eq('workspace_id', workspaceId)
+      .eq('object_type', 'negotiation')
+      .eq('is_terminal', true);
+    const terminalNames = new Set((states || []).map(s => s.name));
+
     const { since, until } = lowActivityWindow(
       new Date(),
       activeWorkspace?.low_activity_alert_days,
       activeWorkspace?.low_activity_inactive_days
     );
-    const { data } = await supabase
-      .from('negotiations')
-      .select('id')
-      .eq('workspace_id', workspaceId)
-      .eq('activity_status', 'active')
-      .neq('status', 'Completado')
-      .lt('last_activity_at', since)
-      .gte('last_activity_at', until);
-    setAlertProjects(data || []);
-    setBannerDismissed(false);
-  }
+    const [{ data: alertData }, { data: inactiveData }] = await Promise.all([
+      supabase
+        .from('negotiations')
+        .select('id, status')
+        .eq('workspace_id', workspaceId)
+        .eq('activity_status', 'active')
+        .lt('last_activity_at', since)
+        .gte('last_activity_at', until),
+      // Proyectos que ya cruzaron el umbral de inactividad de verdad (el
+      // cron los pasó a activity_status='inactive') — banner aparte del de
+      // "baja actividad" de arriba, que es solo para los que todavía están
+      // en la zona de alerta pero no se marcaron inactivos todavía.
+      supabase
+        .from('negotiations')
+        .select('id, status')
+        .eq('workspace_id', workspaceId)
+        .eq('activity_status', 'inactive'),
+    ]);
 
-  // Proyectos que ya cruzaron el umbral de inactividad de verdad (el cron
-  // los pasó a activity_status='inactive') — banner aparte del de "baja
-  // actividad" de arriba, que es solo para los que todavía están en la
-  // zona de alerta pero no se marcaron inactivos todavía.
-  async function fetchInactiveProjects() {
-    const { data } = await supabase
-      .from('negotiations')
-      .select('id')
-      .eq('workspace_id', workspaceId)
-      .eq('activity_status', 'inactive')
-      .neq('status', 'Completado');
-    setInactiveProjects(data || []);
+    setAlertProjects((alertData || []).filter(n => !terminalNames.has(n.status)));
+    setBannerDismissed(false);
+    setInactiveProjects((inactiveData || []).filter(n => !terminalNames.has(n.status)));
     setInactiveBannerDismissed(false);
   }
 

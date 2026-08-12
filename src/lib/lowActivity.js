@@ -13,9 +13,12 @@ export function lowActivityWindow(now = new Date(), alertDays = 90, inactiveDays
 
 // Mismo criterio que lowActivityWindow, aplicado a un proyecto ya cargado
 // en memoria (evita otra ida a la base cuando ya se tiene la lista).
-export function isLowActivityAlert(neg, window = lowActivityWindow()) {
+// `terminalNames` — Set de nombres de estado "final" (ver
+// lib/customStates.js#terminalStatusNames) — un proyecto en un estado
+// final no cuenta, esté renombrado como esté.
+export function isLowActivityAlert(neg, window = lowActivityWindow(), terminalNames = new Set()) {
   return neg.activity_status === 'active' &&
-    neg.status !== 'Completado' &&
+    !terminalNames.has(neg.status) &&
     neg.last_activity_at < window.since &&
     neg.last_activity_at >= window.until
 }

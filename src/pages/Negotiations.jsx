@@ -27,7 +27,8 @@ import { entityHasType } from '../lib/entityTypes'
 import { resolveFinancialConfig } from '../lib/financialConfig'
 import { matchEntity } from '../lib/entityMatching'
 import { fetchFullNegotiation } from '../lib/negotiations'
-import { resolveStateConfig } from '../lib/customStates'
+import { resolveStateConfig, terminalStatusNames } from '../lib/customStates'
+import { lowActivityWindow, isLowActivityAlert } from '../lib/lowActivity'
 import { sumMilestonesByCurrency } from '../lib/pipeline'
 import { isOwner, canEditContent, isPrivileged as isPrivilegedRole } from '../lib/roles'
 import './Negotiations.css'
@@ -329,12 +330,16 @@ export default function Negotiations() {
     return `https://flagcdn.com/w20/${primary.country_code.toLowerCase()}.png`
   }
 
-  const activeNegs = negotiations.filter(n => n.activity_status === 'active' && n.status !== 'Completado')
-  const completedState = customStates.find(s => s.name === 'Completado')
-  const completedCount = negotiations.filter(n => n.status === 'Completado').length
+  const terminalNames = terminalStatusNames(customStates)
+  const activeNegs = negotiations.filter(n => n.activity_status === 'active' && !terminalNames.has(n.status))
+  // Si hay más de un estado marcado final, se agrupan bajo el primero
+  // (caso normal: solo hay uno, "Completado" o como se lo haya rebautizado
+  // el workspace).
+  const completedState = customStates.find(s => s.is_terminal)
+  const completedCount = negotiations.filter(n => terminalNames.has(n.status)).length
   const stateCounts = [
     ...customStates
-      .filter(s => s.name !== 'Completado')
+      .filter(s => !s.is_terminal)
       .map(s => ({
         name: s.name,
         color: s.color || '#64748B',
@@ -343,7 +348,7 @@ export default function Negotiations() {
         total: activeNegs.length,
       })),
     {
-      name: 'Completado',
+      name: completedState?.name || 'Completado',
       color: completedState?.color || '#059669',
       bg_color: completedState?.bg_color || '#ECFDF5',
       count: completedCount,
@@ -351,8 +356,11 @@ export default function Negotiations() {
     },
   ]
 
-  const day90ago = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
-  const day120ago = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString()
+  const lowActivityWindowBounds = lowActivityWindow(
+    new Date(),
+    activeWorkspace?.low_activity_alert_days,
+    activeWorkspace?.low_activity_inactive_days
+  )
 
   const filterableDefs = customFieldDefs.filter(isFieldFilterable)
   const statusDef = customFieldDefs.find(d => d.field_type === 'status')
@@ -373,8 +381,7 @@ export default function Negotiations() {
     if (filterActivity === 'paused') { if (n.activity_status !== 'paused') return false }
     if (filterActivity === 'inactive') { if (n.activity_status !== 'inactive') return false }
     if (filterActivity === 'low_activity') {
-      if (!(n.activity_status === 'active' && n.status !== 'Completado' &&
-            n.last_activity_at < day90ago && n.last_activity_at >= day120ago)) return false
+      if (!isLowActivityAlert(n, lowActivityWindowBounds, terminalNames)) return false
     }
     if (search) {
       const q = search.toLowerCase()
