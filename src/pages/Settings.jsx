@@ -483,6 +483,7 @@ function TabEstados({ workspaceId }) {
 
   async function handleAdd() {
     if (!newName.trim()) return
+    setDeleteError(null)
     setSaving(true)
     await supabase.from('custom_states').insert({
       workspace_id: workspaceId,
@@ -603,7 +604,7 @@ function TabEstados({ workspaceId }) {
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="settings-btn-primary" onClick={handleSaveEdit}>Guardar</button>
-                        <button className="settings-btn-secondary" onClick={() => setEditing(null)}>Cancelar</button>
+                        <button className="settings-btn-secondary" onClick={() => { setEditing(null); setDeleteError(null) }}>Cancelar</button>
                       </div>
                     </>
                   ) : (
@@ -621,7 +622,7 @@ function TabEstados({ workspaceId }) {
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <button className="settings-btn-secondary" onClick={() => setEditing({ id: s.id, name: s.name, color: s.color, bg_color: s.bg_color, is_terminal: s.is_terminal })}>
+                        <button className="settings-btn-secondary" onClick={() => { setEditing({ id: s.id, name: s.name, color: s.color, bg_color: s.bg_color, is_terminal: s.is_terminal }); setDeleteError(null) }}>
                           Editar
                         </button>
                         {confirmDeleteState === s.id ? (

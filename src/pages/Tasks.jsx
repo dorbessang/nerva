@@ -78,6 +78,7 @@ export default function Tasks() {
         *,
         profile:assigned_to ( full_name ),
         negotiation:negotiation_id ( id, title, product ),
+        entity:entity_id ( id, name, country_code ),
         predecessor:predecessor_task_id ( id, title, status, profile:assigned_to ( full_name ) )
       `)
       .eq('workspace_id', workspaceId)
@@ -88,6 +89,7 @@ export default function Tasks() {
     if (filter === 'active') query = query.in('status', ['pending', 'in_progress'])
     if (filter === 'mine') query = query.in('status', ['pending', 'in_progress']).eq('assigned_to', user?.id)
     if (filter === 'others') query = query.in('status', ['pending', 'in_progress']).neq('assigned_to', user?.id)
+    if (filter === 'unassigned') query = query.in('status', ['pending', 'in_progress']).is('assigned_to', null)
     if (filter === 'done') query = query.eq('status', 'done')
     if (filterAssignee) query = query.eq('assigned_to', filterAssignee)
     if (filterNegotiation) query = query.eq('negotiation_id', filterNegotiation)
@@ -188,7 +190,7 @@ export default function Tasks() {
         <div className="tasks-filters">
           {[
             { key: 'mine', label: 'Mis tareas' },
-            ...(canEditContent(effectiveRole) ? [{ key: 'others', label: 'Terceros' }] : []),
+            ...(canEditContent(effectiveRole) ? [{ key: 'others', label: 'Terceros' }, { key: 'unassigned', label: 'De equipo' }] : []),
             ...(isPrivileged ? [{ key: 'active', label: 'Todas activas' }] : [{ key: 'active', label: 'Activas' }]),
             { key: 'done', label: 'Hechas' },
           ].map(f => (
@@ -309,6 +311,18 @@ export default function Tasks() {
                     )}
                     {task.negotiation.entity?.name && ' · '}
                     {task.negotiation.product || task.negotiation.title}
+                  </p>
+                )}
+                {!task.negotiation && task.entity && (
+                  <p className="task-meta">
+                    {task.entity.country_code && (
+                      <img
+                        src={`https://flagcdn.com/w20/${task.entity.country_code.toLowerCase()}.png`}
+                        alt=""
+                        style={{ width: 14, borderRadius: 2, marginRight: 4, verticalAlign: 'middle' }}
+                      />
+                    )}
+                    <span style={{ fontWeight: 600, color: '#374151' }}>{task.entity.name}</span>
                   </p>
                 )}
               </div>
