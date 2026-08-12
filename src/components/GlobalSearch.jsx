@@ -42,7 +42,7 @@ export default function GlobalSearch() {
   const [open, setOpen] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState({ negotiations: [], entities: [], tasks: [], notes: [] })
+  const [results, setResults] = useState({ negotiations: [], entities: [], products: [], contacts: [], tasks: [], notes: [], documents: [] })
   const boxRef = useRef(null)
   const inputRef = useRef(null)
   const debounceRef = useRef(null)
@@ -78,15 +78,16 @@ export default function GlobalSearch() {
           .ilike('content', like).limit(LIMIT),
       ])
       setResults({
-        negotiations: [], entities: [],
+        negotiations: [], entities: [], products: [], contacts: [],
         tasks: tasksRes.data || [],
         notes: notesRes.data || [],
+        documents: [],
       })
       setLoading(false)
       return
     }
 
-    const [negRes, entRes, taskRes, noteRes] = await Promise.all([
+    const [negRes, entRes, prodRes, contactRes, taskRes, noteRes, docRes] = await Promise.all([
       supabase.from('negotiations')
         .select('id, product, title, primary_entity:primary_entity_id(name), negotiation_entities(entity:entity_id(name))')
         .eq('workspace_id', workspaceId)
@@ -94,6 +95,12 @@ export default function GlobalSearch() {
       supabase.from('entities').select('id, name, entity_type_id')
         .eq('workspace_id', workspaceId)
         .ilike('name', like).limit(LIMIT),
+      supabase.from('products').select('id, name, entity:entity_id(name)')
+        .eq('workspace_id', workspaceId)
+        .ilike('name', like).limit(LIMIT),
+      supabase.from('contacts').select('id, name, entity:entity_id(id, name, entity_type_id)')
+        .eq('workspace_id', workspaceId)
+        .or(`name.ilike.${safeLike},email.ilike.${safeLike}`).limit(LIMIT),
       supabase.from('tasks')
         .select(`
           id, title, negotiation_id, entity_id,
@@ -110,13 +117,24 @@ export default function GlobalSearch() {
         `)
         .eq('workspace_id', workspaceId)
         .ilike('content', like).limit(LIMIT),
+      supabase.from('documents')
+        .select(`
+          id, name, negotiation_id, entity_id,
+          negotiation:negotiation_id(id, product, title, primary_entity:primary_entity_id(name), negotiation_entities(entity:entity_id(name))),
+          entity:entity_id(id, name, entity_type_id)
+        `)
+        .eq('workspace_id', workspaceId)
+        .ilike('name', like).limit(LIMIT),
     ])
 
     setResults({
       negotiations: negRes.data || [],
       entities: entRes.data || [],
+      products: prodRes.data || [],
+      contacts: contactRes.data || [],
       tasks: taskRes.data || [],
       notes: noteRes.data || [],
+      documents: docRes.data || [],
     })
     setLoading(false)
   }
@@ -128,7 +146,7 @@ export default function GlobalSearch() {
     const trimmed = value.trim()
     if (trimmed.length < MIN_CHARS) {
       setOpen(false)
-      setResults({ negotiations: [], entities: [], tasks: [], notes: [] })
+      setResults({ negotiations: [], entities: [], products: [], contacts: [], tasks: [], notes: [], documents: [] })
       return
     }
     setOpen(true)
@@ -153,7 +171,13 @@ export default function GlobalSearch() {
     return goTo('/agenda')
   }
 
-  const hasResults = results.negotiations.length || results.entities.length || results.tasks.length || results.notes.length
+  function goToDocument(doc) {
+    if (doc.negotiation_id) return goTo(`/negotiations?openNeg=${doc.negotiation_id}`)
+    if (doc.entity_id) return goTo(`/entities/${doc.entity?.entity_type_id}?openEntity=${doc.entity_id}`)
+  }
+
+  const hasResults = results.negotiations.length || results.entities.length || results.products.length
+    || results.contacts.length || results.tasks.length || results.notes.length || results.documents.length
 
   return (
     <div className={`global-search ${mobileOpen ? 'is-mobile-open' : ''}`} ref={boxRef}>
@@ -170,7 +194,7 @@ export default function GlobalSearch() {
         ref={inputRef}
         className="global-search-input"
         type="text"
-        placeholder={isPersonal ? 'Buscar tareas o notas…' : 'Buscar proyectos, entidades, tareas…'}
+        placeholder={isPersonal ? 'Buscar tareas o notas…' : 'Buscar en toda la app…'}
         value={query}
         onChange={handleChange}
         onFocus={() => { if (query.trim().length >= MIN_CHARS) setOpen(true) }}
@@ -204,6 +228,32 @@ export default function GlobalSearch() {
                   ))}
                 </div>
               )}
+              {results.products.length > 0 && (
+                <div className="global-search-group">
+                  <div className="global-search-group-label">Productos</div>
+                  {results.products.map(p => (
+                    <button key={p.id} className="global-search-item" onClick={() => goTo(`/products?openProduct=${p.id}`)}>
+                      <span className="global-search-item-note">{p.name}</span>
+                      {p.entity?.name && <span className="global-search-item-sub">de {p.entity.name}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {results.contacts.length > 0 && (
+                <div className="global-search-group">
+                  <div className="global-search-group-label">Contactos</div>
+                  {results.contacts.map(c => (
+                    <button
+                      key={c.id}
+                      className="global-search-item"
+                      onClick={() => c.entity && goTo(`/entities/${c.entity.entity_type_id}?openEntity=${c.entity.id}`)}
+                    >
+                      <span className="global-search-item-note">{c.name}</span>
+                      {c.entity?.name && <span className="global-search-item-sub">en {c.entity.name}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
               {results.tasks.length > 0 && (
                 <div className="global-search-group">
                   <div className="global-search-group-label">Tareas</div>
@@ -225,6 +275,19 @@ export default function GlobalSearch() {
                       <span className="global-search-item-note">{truncate(n.content, 70)}</span>
                       {contextLabel(n) && (
                         <span className="global-search-item-sub">en {contextLabel(n)}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {results.documents.length > 0 && (
+                <div className="global-search-group">
+                  <div className="global-search-group-label">Documentos</div>
+                  {results.documents.map(d => (
+                    <button key={d.id} className="global-search-item" onClick={() => goToDocument(d)}>
+                      <span className="global-search-item-note">{d.name}</span>
+                      {contextLabel(d) && (
+                        <span className="global-search-item-sub">en {contextLabel(d)}</span>
                       )}
                     </button>
                   ))}

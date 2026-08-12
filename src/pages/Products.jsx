@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { LayoutGrid, Table2 } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -78,6 +79,8 @@ async function exportProductsXlsx(products, cols, allColumns, productFieldDefs, 
 
 export default function Products() {
   const { user, workspaceId, effectiveRole } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const canBulkDelete = isOwner(effectiveRole)
   const canImport = canEditContent(effectiveRole)
   const [products, setProducts] = useState([])
@@ -221,6 +224,17 @@ export default function Products() {
     setProducts(naturalSortByName(combined))
     setLoading(false)
   }
+
+  // Si viene de la búsqueda global (u otra pantalla), abre directo el detalle
+  useEffect(() => {
+    const openProductId = new URLSearchParams(location.search).get('openProduct')
+    if (!openProductId || products.length === 0) return
+    const found = products.find(p => p.id === openProductId)
+    if (found) {
+      setSelectedProduct(found)
+      navigate('/products', { replace: true })
+    }
+  }, [location.search, products])
 
   async function fetchNegotiationStates() {
     const { data } = await supabase
