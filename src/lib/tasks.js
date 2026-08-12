@@ -39,13 +39,21 @@ function dedupeTasks(tasks) {
 // es: tareas del mismo proyecto/entidad + tareas de las entidades
 // vinculadas a ese proyecto (o el/los proyecto/s vinculado/s a esa
 // entidad) + tareas sueltas (sin proyecto ni entidad), que siempre entran
-// sin importar el tipo de la tarea que se está creando/editando. Una
-// tarea suelta no tiene ningún contexto propio que la acote, así que para
-// ella el pool es directamente todo el workspace.
+// sin importar el tipo de la tarea que se está creando/editando. Si ese
+// pool acotado da vacío (proyecto nuevo sin nada relacionado todavía), en
+// vez de dejar el campo sin candidatas cae a cualquier tarea del
+// workspace — la idea es acotar cuando hay algo relevante para ofrecer,
+// nunca esconder la función entera por falta de candidatas "relacionadas".
+// Una tarea suelta no tiene ningún contexto propio que la acote, así que
+// para ella el pool es directamente todo el workspace.
 export async function fetchPredecessorCandidates(supabase, { workspaceId, negotiationId, entityId }) {
   const cols = 'id, title, status, predecessor_task_id'
   const standaloneQuery = supabase.from('tasks').select(cols)
     .eq('workspace_id', workspaceId).is('negotiation_id', null).is('entity_id', null)
+  async function wholeWorkspace() {
+    const { data } = await supabase.from('tasks').select(cols).eq('workspace_id', workspaceId)
+    return data || []
+  }
 
   if (negotiationId) {
     const { data: links } = await supabase.from('negotiation_entities').select('entity_id').eq('negotiation_id', negotiationId)
@@ -55,7 +63,8 @@ export async function fetchPredecessorCandidates(supabase, { workspaceId, negoti
       entityIds.length > 0 ? supabase.from('tasks').select(cols).in('entity_id', entityIds) : Promise.resolve({ data: [] }),
       standaloneQuery,
     ])
-    return dedupeTasks([...(sameProject || []), ...(entityTasksRes.data || []), ...(standalone || [])])
+    const pool = dedupeTasks([...(sameProject || []), ...(entityTasksRes.data || []), ...(standalone || [])])
+    return pool.length > 0 ? pool : wholeWorkspace()
   }
 
   if (entityId) {
@@ -66,11 +75,11 @@ export async function fetchPredecessorCandidates(supabase, { workspaceId, negoti
       negIds.length > 0 ? supabase.from('tasks').select(cols).in('negotiation_id', negIds) : Promise.resolve({ data: [] }),
       standaloneQuery,
     ])
-    return dedupeTasks([...(sameEntity || []), ...(negTasksRes.data || []), ...(standalone || [])])
+    const pool = dedupeTasks([...(sameEntity || []), ...(negTasksRes.data || []), ...(standalone || [])])
+    return pool.length > 0 ? pool : wholeWorkspace()
   }
 
-  const { data } = await supabase.from('tasks').select(cols).eq('workspace_id', workspaceId)
-  return data || []
+  return wholeWorkspace()
 }
 
 // Al completar una tarea, avisa in-app a los asignados de las tareas que
