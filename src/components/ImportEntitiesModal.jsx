@@ -1,21 +1,11 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { parseSpreadsheet, getCell, getCellRaw, downloadTemplate } from '../lib/importXlsx'
-import { getCountryCode } from './CountrySelector'
+import { parseFieldValue } from '../lib/importFields'
 import { renderCustomFieldDisplay } from '../lib/customFields'
 import { matchEntity } from '../lib/entityMatching'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './ImportModal.css'
-
-function parseDate(v) {
-  if (!v) return null
-  if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10)
-  const s = String(v).trim()
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
-  const m = s.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$/)
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
-  return null
-}
 
 // Campos que no tiene sentido pedir por planilla: Tipo ya está implícito en
 // qué pestaña de Entidades se importa, Contactos es un sub-formulario
@@ -26,66 +16,6 @@ const SKIP_TYPES = ['entity_type', 'contacts', 'user']
 
 function importFieldsOf(entityFieldDefs) {
   return (entityFieldDefs || []).filter(d => !SKIP_TYPES.includes(d.field_type))
-}
-
-function resolveChoiceId(def, text) {
-  const choices = def.options?.choices || []
-  const match = choices.find(c => c.label.toLowerCase() === text.toLowerCase() || c.id.toLowerCase() === text.toLowerCase())
-  if (match) return { value: match.id, warning: null }
-  return { value: text, warning: `"${def.label}": "${text}" no coincide con ninguna opción configurada` }
-}
-
-function parseFieldValue(def, cell, cellRaw) {
-  const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
-
-  if (type === 'select') {
-    if (!cell) return { value: null, warning: null }
-    return resolveChoiceId(def, cell)
-  }
-  if (type === 'multiselect') {
-    if (!cell) return { value: [], warning: null }
-    const tokens = cell.split(',').map(t => t.trim()).filter(Boolean)
-    const warnings = []
-    const ids = tokens.map(t => {
-      const r = resolveChoiceId(def, t)
-      if (r.warning) warnings.push(r.warning)
-      return r.value
-    })
-    return { value: ids, warning: warnings.join('; ') || null }
-  }
-  if (type === 'country') {
-    if (def.options?.multiple) {
-      if (!cell) return { value: [], warning: null }
-      const tokens = cell.split(',').map(t => t.trim()).filter(Boolean)
-      const warnings = []
-      const codes = tokens.map(t => {
-        const code = getCountryCode(t)
-        if (!code) warnings.push(`"${def.label}": país "${t}" no reconocido`)
-        return code
-      }).filter(Boolean)
-      return { value: codes, warning: warnings.join('; ') || null }
-    }
-    if (!cell) return { value: null, warning: null }
-    const code = getCountryCode(cell)
-    return { value: code, warning: code ? null : `"${def.label}": país "${cell}" no reconocido` }
-  }
-  if (type === 'boolean') {
-    if (!cell) return { value: false, warning: null }
-    return { value: ['si', 'sí', 'true', 'x', '1'].includes(cell.trim().toLowerCase()), warning: null }
-  }
-  if (type === 'number') {
-    if (!cell) return { value: null, warning: null }
-    const n = Number(cell)
-    return { value: isNaN(n) ? null : n, warning: isNaN(n) ? `"${def.label}": "${cell}" no es un número` : null }
-  }
-  if (type === 'date') {
-    const display = cellRaw instanceof Date ? cellRaw.toLocaleDateString('es-AR') : String(cellRaw || '').trim()
-    if (!display) return { value: null, warning: null }
-    const parsed = parseDate(cellRaw)
-    return { value: parsed, warning: parsed ? null : `"${def.label}": fecha "${display}" no reconocida` }
-  }
-  // text, textarea, link, email, phone
-  return { value: cell || null, warning: null }
 }
 
 // El contacto principal se ofrece como columnas planas aparte de los

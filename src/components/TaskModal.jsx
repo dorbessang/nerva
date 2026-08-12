@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { notifyTaskAssigned } from '../lib/tasks'
-import { logActivity } from '../lib/activity'
+import { createTask } from '../lib/tasks'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './TaskModal.css'
 
@@ -59,29 +58,12 @@ export default function TaskModal({ onClose, onCreated }) {
     setError(null)
     if (!title.trim()) { setError('El título es obligatorio'); return }
     setLoading(true)
-    const { data, error } = await supabase.from('tasks').insert({
-      workspace_id: workspaceId,
-      title: title.trim(),
-      description: description.trim() || null,
-      priority,
-      due_date: dueDate || null,
-      assigned_to: assignedTo || null,
-      negotiation_id: negotiationId || null,
-      predecessor_task_id: predecessorId || null,
-      status: 'pending',
-      created_by: user.id,
-    }).select('id, title').single()
+    const { error } = await createTask(supabase, {
+      workspaceId, title, description, priority, dueDate, assignedTo,
+      negotiationId, predecessorId, createdBy: user.id, actorId: user.id,
+    })
     setLoading(false)
     if (error) { setError('Error al crear la tarea. Intentá de nuevo.'); return }
-    if (data) {
-      await notifyTaskAssigned(supabase, { workspaceId, task: data, assignedTo, actingUserId: user.id })
-      if (negotiationId) {
-        await logActivity(supabase, {
-          workspaceId, negotiationId, type: 'task_created',
-          title: `Tarea creada: "${data.title}"`, actorId: user.id,
-        })
-      }
-    }
     onCreated()
     onClose()
   }

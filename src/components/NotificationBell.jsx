@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { timeAgo } from '../lib/timeAgo'
 import './NotificationBell.css'
 
 export default function NotificationBell() {
@@ -90,16 +91,6 @@ export default function NotificationBell() {
   }
 
   const unreadCount = notifications.length
-
-  function timeAgo(dateStr) {
-    const diffMs = Date.now() - new Date(dateStr).getTime()
-    const mins = Math.floor(diffMs / 60000)
-    if (mins < 1) return 'ahora'
-    if (mins < 60) return `hace ${mins}m`
-    const hours = Math.floor(mins / 60)
-    if (hours < 24) return `hace ${hours}h`
-    return `hace ${Math.floor(hours / 24)}d`
-  }
 
   return (
     <div className="notif-bell-wrap" ref={ref}>

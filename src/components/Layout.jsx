@@ -9,6 +9,7 @@ import NotificationBell from "./NotificationBell";
 import GlobalSearch from "./GlobalSearch";
 import WelcomeSetup from "../pages/WelcomeSetup";
 import { isOwner } from "../lib/roles";
+import { lowActivityWindow } from "../lib/lowActivity";
 import "./Layout.css";
 
 function EntityIcon({ name, size = 18 }) {
@@ -61,16 +62,15 @@ export default function Layout({ children }) {
   }, [workspaceId]);
 
   async function fetchAlertProjects() {
-    const day90ago = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-    const day120ago = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
+    const { since, until } = lowActivityWindow();
     const { data } = await supabase
       .from('negotiations')
       .select('id')
       .eq('workspace_id', workspaceId)
       .eq('activity_status', 'active')
       .neq('status', 'Completado')
-      .lt('last_activity_at', day90ago)
-      .gte('last_activity_at', day120ago);
+      .lt('last_activity_at', since)
+      .gte('last_activity_at', until);
     setAlertProjects(data || []);
     setBannerDismissed(false);
   }

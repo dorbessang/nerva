@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { timeAgo as sharedTimeAgo } from '../lib/timeAgo'
 import './ActivityTimeline.css'
 
 const TYPE_ICONS = {
@@ -51,15 +52,7 @@ export default function ActivityTimeline({ negotiationId, entityId, refreshKey }
   }
 
   function timeAgo(dateStr) {
-    const diffMs = Date.now() - new Date(dateStr).getTime()
-    const mins = Math.floor(diffMs / 60000)
-    if (mins < 1) return 'ahora'
-    if (mins < 60) return `hace ${mins}m`
-    const hours = Math.floor(mins / 60)
-    if (hours < 24) return `hace ${hours}h`
-    const days = Math.floor(hours / 24)
-    if (days < 30) return `hace ${days}d`
-    return new Date(dateStr).toLocaleDateString('es-AR')
+    return sharedTimeAgo(dateStr, { maxDays: 30 })
   }
 
   if (loading) return <p className="detail-empty">Cargando actividad...</p>

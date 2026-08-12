@@ -6,6 +6,8 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { sumMilestonesByCurrency } from "../lib/pipeline";
+import { timeAgo as sharedTimeAgo } from "../lib/timeAgo";
+import { lowActivityWindow, isLowActivityAlert } from "../lib/lowActivity";
 import "./Dashboard.css";
 
 export default function Dashboard() {
@@ -124,20 +126,13 @@ function TeamDashboard() {
     const negotiations = negsRes.data || [];
     const tasks = tasksRes.data || [];
 
-    const now = new Date();
-    const day90ago = new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString();
-    const day120ago = new Date(now - 120 * 24 * 60 * 60 * 1000).toISOString();
     const endOfWeek = new Date();
     endOfWeek.setDate(endOfWeek.getDate() + (7 - endOfWeek.getDay()));
     const endOfWeekStr = endOfWeek.toISOString().split("T")[0];
 
     // Proyectos en zona de alerta: activos, no completados, sin actividad entre 90 y 120 días
-    const alert = negotiations.filter(n =>
-      n.activity_status === 'active' &&
-      n.status !== 'Completado' &&
-      n.last_activity_at < day90ago &&
-      n.last_activity_at >= day120ago
-    );
+    const alertWindow = lowActivityWindow();
+    const alert = negotiations.filter(n => isLowActivityAlert(n, alertWindow));
     setAlertProjects(alert);
 
     setStats({
@@ -215,16 +210,8 @@ function TeamDashboard() {
     return date < new Date().toISOString().split("T")[0];
   }
 
-  // Convierte una fecha en texto relativo (hace 2h, ayer, etc.)
   function timeAgo(dateStr) {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `hace ${mins}m`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `hace ${hrs}h`;
-    const days = Math.floor(hrs / 24);
-    if (days === 1) return "ayer";
-    return `hace ${days} días`;
+    return sharedTimeAgo(dateStr, { showNow: false, showYesterday: true, daySuffix: ' días' });
   }
 
   if (loading) return <div className="db-loading">Cargando...</div>;

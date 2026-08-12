@@ -12,7 +12,7 @@ import ActivityTimeline from '../components/ActivityTimeline'
 import DealMilestones, { formatAmount } from '../components/DealMilestones'
 import PriceHistory from '../components/PriceHistory'
 import Documents from '../components/Documents'
-import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask } from '../lib/tasks'
+import { isTaskBlocked, wouldCreateCycle, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask, createTask } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
 import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, isFieldFilterable, matchesAllFieldFilters, filterChoicesFor, describeFieldFilters, SPECIAL_FIELD_TYPES } from '../lib/customFields'
@@ -2303,6 +2303,7 @@ function TaskModalInline({ negotiationId, existingTasks, onClose, onCreated }) {
   const [predecessorId, setPredecessorId] = useState('')
   const [members, setMembers] = useState([])
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     supabase.from('workspace_members')
@@ -2315,21 +2316,13 @@ function TaskModalInline({ negotiationId, existingTasks, onClose, onCreated }) {
   async function handleSave() {
     if (!title.trim()) return
     setSaving(true)
-    const { data } = await supabase.from('tasks').insert({
-      workspace_id: workspaceId,
-      title: title.trim(), priority,
-      due_date: dueDate || null, assigned_to: assignedTo || null,
-      negotiation_id: negotiationId, predecessor_task_id: predecessorId || null,
-      status: 'pending',
-    }).select('id, title').single()
+    setError(null)
+    const { error: saveError } = await createTask(supabase, {
+      workspaceId, title, priority, dueDate, assignedTo,
+      negotiationId, predecessorId, createdBy: user?.id, actorId: user?.id,
+    })
     setSaving(false)
-    if (data) {
-      await notifyTaskAssigned(supabase, { workspaceId, task: data, assignedTo, actingUserId: user?.id })
-      await logActivity(supabase, {
-        workspaceId, negotiationId, type: 'task_created',
-        title: `Tarea creada: "${data.title}"`, actorId: user?.id,
-      })
-    }
+    if (saveError) { setError('No se pudo crear la tarea. Intentá de nuevo.'); return }
     onCreated()
     onClose()
   }
@@ -2379,6 +2372,7 @@ function TaskModalInline({ negotiationId, existingTasks, onClose, onCreated }) {
               </select>
             </div>
           )}
+          {error && <p className="form-error">{error}</p>}
           <div className="modal-actions">
             <button className="btn-secondary" onClick={onClose}>Cancelar</button>
             <button className="btn-primary" onClick={handleSave} disabled={saving}>

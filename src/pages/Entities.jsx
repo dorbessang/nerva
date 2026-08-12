@@ -12,7 +12,7 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import NotesPostIts from '../components/NotesPostIts'
 import ActivityTimeline from '../components/ActivityTimeline'
 import Documents from '../components/Documents'
-import { notifyTaskAssigned } from '../lib/tasks'
+import { createTask } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { formatAmount } from '../components/DealMilestones'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
@@ -793,25 +793,13 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
   async function handleAddEntityTask() {
     if (!newTaskTitle.trim()) return
     setSavingTask(true)
-    const { data, error } = await supabase.from('tasks').insert({
-      workspace_id: workspaceId,
-      entity_id: entity.id,
-      title: newTaskTitle.trim(),
-      assigned_to: newTaskAssignee || null,
-      due_date: newTaskDue || null,
-      status: 'pending',
-      priority: 'medium',
-      created_by: user?.id,
-    }).select('id, title').single()
+    const { error } = await createTask(supabase, {
+      workspaceId, entityId: entity.id, title: newTaskTitle,
+      assignedTo: newTaskAssignee, dueDate: newTaskDue,
+      createdBy: user?.id, actorId: user?.id,
+    })
     setSavingTask(false)
     if (error) return
-    if (data) {
-      await notifyTaskAssigned(supabase, { workspaceId, task: data, assignedTo: newTaskAssignee, actingUserId: user?.id })
-      await logActivity(supabase, {
-        workspaceId, entityId: entity.id, type: 'task_created',
-        title: `Tarea creada: "${data.title}"`, actorId: user?.id,
-      })
-    }
     setNewTaskTitle('')
     setNewTaskAssignee('')
     setNewTaskDue('')

@@ -1,20 +1,11 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { parseSpreadsheet, getCell, getCellRaw, downloadTemplate } from '../lib/importXlsx'
+import { parseFieldValue } from '../lib/importFields'
 import { renderCustomFieldDisplay } from '../lib/customFields'
 import { matchEntity } from '../lib/entityMatching'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './ImportModal.css'
-
-function parseDate(v) {
-  if (!v) return null
-  if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10)
-  const s = String(v).trim()
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
-  const m = s.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$/)
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
-  return null
-}
 
 // Entidades vinculadas se maneja aparte (columna "Proveedor", matchea por
 // nombre contra entidades ya cargadas — solo la principal, igual que
@@ -26,57 +17,6 @@ const SKIP_TYPES = ['entities_link', 'products_link', 'financial', 'user']
 
 function importFieldsOf(negotiationFieldDefs) {
   return (negotiationFieldDefs || []).filter(d => !SKIP_TYPES.includes(d.field_type))
-}
-
-function resolveChoiceId(def, text) {
-  const choices = def.options?.choices || []
-  const match = choices.find(c => c.label.toLowerCase() === text.toLowerCase() || c.id.toLowerCase() === text.toLowerCase())
-  if (match) return { value: match.id, warning: null }
-  return { value: text, warning: `"${def.label}": "${text}" no coincide con ninguna opción configurada` }
-}
-
-function parseFieldValue(def, cell, cellRaw, customStates) {
-  const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
-
-  if (type === 'status') {
-    const fallback = customStates[0]?.name || 'Contactado'
-    if (!cell) return { value: fallback, warning: null }
-    const match = customStates.find(s => s.name.toLowerCase() === cell.toLowerCase())
-    if (match) return { value: match.name, warning: null }
-    return { value: fallback, warning: `"${def.label}": "${cell}" no reconocido, se usó "${fallback}"` }
-  }
-  if (type === 'select') {
-    if (!cell) return { value: null, warning: null }
-    return resolveChoiceId(def, cell)
-  }
-  if (type === 'multiselect') {
-    if (!cell) return { value: [], warning: null }
-    const tokens = cell.split(',').map(t => t.trim()).filter(Boolean)
-    const warnings = []
-    const ids = tokens.map(t => {
-      const r = resolveChoiceId(def, t)
-      if (r.warning) warnings.push(r.warning)
-      return r.value
-    })
-    return { value: ids, warning: warnings.join('; ') || null }
-  }
-  if (type === 'boolean') {
-    if (!cell) return { value: false, warning: null }
-    return { value: ['si', 'sí', 'true', 'x', '1'].includes(cell.trim().toLowerCase()), warning: null }
-  }
-  if (type === 'number') {
-    if (!cell) return { value: null, warning: null }
-    const n = Number(cell)
-    return { value: isNaN(n) ? null : n, warning: isNaN(n) ? `"${def.label}": "${cell}" no es un número` : null }
-  }
-  if (type === 'date') {
-    const display = cellRaw instanceof Date ? cellRaw.toLocaleDateString('es-AR') : String(cellRaw || '').trim()
-    if (!display) return { value: null, warning: null }
-    const parsed = parseDate(cellRaw)
-    return { value: parsed, warning: parsed ? null : `"${def.label}": fecha "${display}" no reconocida` }
-  }
-  // text, textarea, link, email, phone
-  return { value: cell || null, warning: null }
 }
 
 function buildRows(raw, importFields, entities, customStates) {

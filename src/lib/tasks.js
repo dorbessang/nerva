@@ -1,6 +1,7 @@
 // Helpers compartidos para tareas encadenadas (predecessor_task_id)
 
 import { isNotificationEnabled } from './notifications'
+import { logActivity } from './activity'
 
 export function isTaskBlocked(task) {
   return !!task.predecessor && task.predecessor.status !== 'done'
@@ -67,6 +68,43 @@ export async function notifyTaskAssigned(supabase, { workspaceId, task, assigned
     body: `Te asignaron "${task.title}".`,
     task_id: task.id,
   })
+}
+
+// Crea una tarea: insert + notificación al asignado (si aplica) + log de
+// actividad (si cuelga de un proyecto o una entidad). Comparte esta lógica
+// TaskModal.jsx, el modal inline de un proyecto (Negotiations.jsx) y el
+// form inline de una entidad (Entities.jsx) — antes cada uno la
+// reimplementaba a mano, con diferencias que se habían colado sin querer
+// (el de proyecto no chequeaba si el insert fallaba, y no guardaba quién
+// creó la tarea).
+export async function createTask(supabase, {
+  workspaceId, title, description, priority = 'medium', dueDate, assignedTo,
+  negotiationId, entityId, predecessorId, createdBy, actorId,
+}) {
+  const { data, error } = await supabase.from('tasks').insert({
+    workspace_id: workspaceId,
+    title: title.trim(),
+    description: description?.trim() || null,
+    priority,
+    due_date: dueDate || null,
+    assigned_to: assignedTo || null,
+    negotiation_id: negotiationId || null,
+    entity_id: entityId || null,
+    predecessor_task_id: predecessorId || null,
+    status: 'pending',
+    created_by: createdBy || null,
+  }).select('id, title').single()
+
+  if (error) return { error }
+
+  await notifyTaskAssigned(supabase, { workspaceId, task: data, assignedTo, actingUserId: actorId })
+  if (negotiationId || entityId) {
+    await logActivity(supabase, {
+      workspaceId, negotiationId, entityId, type: 'task_created',
+      title: `Tarea creada: "${data.title}"`, actorId,
+    })
+  }
+  return { data }
 }
 
 // Si la tarea ya se resolvió (se completó, sin importar si fue desde la
