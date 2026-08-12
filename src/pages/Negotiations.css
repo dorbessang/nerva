@@ -1930,9 +1930,9 @@
 .clear-filters-btn {
   background: none;
   border: 1px solid #e5e7eb;
-  border-radius: 7px;
-  padding: 7px 12px;
-  font-size: 12.5px;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
   font-weight: 500;
   color: #DC2626;
   cursor: pointer;

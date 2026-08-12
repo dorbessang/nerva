@@ -332,11 +332,9 @@ export default function Negotiations() {
 
   const terminalNames = terminalStatusNames(customStates)
   const activeNegs = negotiations.filter(n => n.activity_status === 'active' && !terminalNames.has(n.status))
-  // Si hay más de un estado marcado final, se agrupan bajo el primero
-  // (caso normal: solo hay uno, "Completado" o como se lo haya rebautizado
-  // el workspace).
-  const completedState = customStates.find(s => s.is_terminal)
-  const completedCount = negotiations.filter(n => terminalNames.has(n.status)).length
+  // Cada estado final se muestra por separado — pueden significar cosas
+  // distintas (Ganado, Perdido, etc.), agruparlos bajo uno solo escondería
+  // esa diferencia.
   const stateCounts = [
     ...customStates
       .filter(s => !s.is_terminal)
@@ -347,13 +345,15 @@ export default function Negotiations() {
         count: activeNegs.filter(n => n.status === s.name).length,
         total: activeNegs.length,
       })),
-    {
-      name: completedState?.name || 'Completado',
-      color: completedState?.color || '#059669',
-      bg_color: completedState?.bg_color || '#ECFDF5',
-      count: completedCount,
-      total: negotiations.length,
-    },
+    ...customStates
+      .filter(s => s.is_terminal)
+      .map(s => ({
+        name: s.name,
+        color: s.color || '#059669',
+        bg_color: s.bg_color || '#ECFDF5',
+        count: negotiations.filter(n => n.status === s.name).length,
+        total: negotiations.length,
+      })),
   ]
 
   const lowActivityWindowBounds = lowActivityWindow(

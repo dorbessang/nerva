@@ -1260,6 +1260,7 @@ function relativeDaysLabel(date) {
 
 function EntityScorecard({ entity, negs, counts, getStateConfig, scorecard, entityTasksPending, entityTypeSingular, negotiationStates }) {
   const terminalNames = terminalStatusNames(negotiationStates)
+  const terminalStates = (negotiationStates || []).filter(s => s.is_terminal)
   const completedCount = negs.filter(n => terminalNames.has(n.status)).length
   const pendingTasks = scorecard.pendingProjectTasks + entityTasksPending
   const maxCount = Math.max(1, ...Object.values(counts))
@@ -1283,10 +1284,14 @@ function EntityScorecard({ entity, negs, counts, getStateConfig, scorecard, enti
           <div className="entity-proj-stat-n" style={{ color: '#0B1F3A' }}>{negs.length}</div>
           <div className="entity-proj-stat-lbl">Proyectos</div>
         </div>
-        <div className="entity-proj-stat">
-          <div className="entity-proj-stat-n" style={{ color: '#059669' }}>{completedCount}</div>
-          <div className="entity-proj-stat-lbl">Completados</div>
-        </div>
+        {terminalStates.map(s => (
+          <div className="entity-proj-stat" key={s.id}>
+            <div className="entity-proj-stat-n" style={{ color: s.color || '#059669' }}>
+              {negs.filter(n => n.status === s.name).length}
+            </div>
+            <div className="entity-proj-stat-lbl">{s.name}</div>
+          </div>
+        ))}
         <div className="entity-proj-stat">
           <div className="entity-proj-stat-n" style={{ color: '#D97706' }}>{negs.length - completedCount}</div>
           <div className="entity-proj-stat-lbl">En curso</div>

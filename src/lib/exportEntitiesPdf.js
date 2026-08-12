@@ -36,12 +36,20 @@ function drawSummary(doc, { entities, negotiations, customStates, pipeline, type
   doc.text('Resumen general', MARGIN, 20)
 
   const terminalNames = terminalStatusNames(customStates)
+  const terminalStates = (customStates || []).filter(s => s.is_terminal)
   const completedCount = negotiations.filter(n => terminalNames.has(n.status)).length
 
+  // Un estado final puede significar cosas distintas (Ganado, Perdido, etc.)
+  // — cada uno se muestra en su propia tarjeta, no se suman en un solo
+  // "Completados" que escondería la diferencia.
   let y = drawStatCards(doc, [
     { value: entities.length, label: 'Entidades', color: NAVY },
     { value: negotiations.length, label: 'Proyectos', color: [29, 78, 216] },
-    { value: completedCount, label: 'Completados', color: [5, 150, 105] },
+    ...terminalStates.map(s => ({
+      value: negotiations.filter(n => n.status === s.name).length,
+      label: s.name,
+      color: s.color ? stateColorRgb(s.color) : [5, 150, 105],
+    })),
     { value: negotiations.length - completedCount, label: 'En curso', color: [217, 119, 6] },
   ], 30) + 14
 

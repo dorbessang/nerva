@@ -82,9 +82,14 @@ export function drawFooter(doc, { label, page, total }) {
   doc.text(`${page} / ${total}`, PAGE_W - MARGIN, 207, { align: 'right' })
 }
 
-// Tarjetas de stat (4, en fila) + devuelve el Y donde termina el bloque
+// Tarjetas de stat en fila + devuelve el Y donde termina el bloque. El ancho
+// de cada una se ajusta según cuántas entren — antes era fijo (62mm) porque
+// siempre eran 4, pero un workspace puede tener varios estados finales y
+// entonces la cantidad de tarjetas varía.
 export function drawStatCards(doc, cards, startY) {
-  const cardW = 62, cardH = 28, gap = 6, startX = MARGIN
+  const cardH = 28, gap = 6, startX = MARGIN
+  const available = PAGE_W - startX * 2
+  const cardW = Math.min(62, (available - gap * (cards.length - 1)) / cards.length)
   cards.forEach((c, i) => {
     const x = startX + i * (cardW + gap)
     setFill(doc, GRAY_BG)

@@ -41,6 +41,10 @@ function TeamDashboard() {
   // Conteo de proyectos por estado para el gráfico
   const [stateCounts, setStateCounts] = useState([]);
 
+  // Desglose de proyectos completados por cada estado final (puede haber
+  // más de uno: Ganado, Perdido, etc. — no se suman en un solo número).
+  const [completedByState, setCompletedByState] = useState([]);
+
   // Tareas asignadas al usuario logueado
   const [myTasks, setMyTasks] = useState([]);
 
@@ -162,11 +166,10 @@ function TeamDashboard() {
     setPipelineValue(
       sumMilestonesByCurrency((milestonesRes.data || []).filter(m => activeNegIds.has(m.negotiation_id)), currencyByNegId)
     );
-    // Si hay más de un estado marcado final, se muestran agrupados bajo el
-    // primero (caso normal: solo hay uno, "Completado" o como se lo haya
-    // rebautizado el workspace).
-    const completedStateData = (statesRes.data || []).find(s => s.is_terminal);
-    const completedNegCount = negotiations.filter(n => terminalNames.has(n.status)).length;
+    // Cada estado final se muestra por separado — pueden significar cosas
+    // distintas (Ganado, Perdido, etc.), agruparlos bajo uno solo escondería
+    // esa diferencia.
+    const terminalStates = (statesRes.data || []).filter(s => s.is_terminal);
     setStateCounts([
       ...(statesRes.data || [])
         .filter(s => !s.is_terminal)
@@ -176,13 +179,17 @@ function TeamDashboard() {
           count: activeNegs.filter(n => n.status === s.name).length,
           total: activeNegs.length,
         })),
-      {
-        name: completedStateData?.name || 'Completado',
-        color: completedStateData?.color || '#059669',
-        count: completedNegCount,
+      ...terminalStates.map(s => ({
+        name: s.name,
+        color: s.color,
+        count: negotiations.filter(n => n.status === s.name).length,
         total: negotiations.length,
-      },
+      })),
     ]);
+    setCompletedByState(terminalStates.map(s => ({
+      name: s.name,
+      count: negotiations.filter(n => n.status === s.name).length,
+    })));
 
     setMyTasks(myTasksRes.data || []);
 
@@ -244,7 +251,11 @@ function TeamDashboard() {
         <div className="db-metric-card">
           <p className="db-metric-label">Proyectos en curso</p>
           <p className="db-metric-value">{stats.activeProjects}</p>
-          <p className="db-metric-detail">{stats.completedProjects} completados</p>
+          <p className="db-metric-detail">
+            {completedByState.length <= 1
+              ? `${stats.completedProjects} completados`
+              : completedByState.map(s => `${s.count} ${s.name}`).join(' · ')}
+          </p>
         </div>
         <div className="db-metric-card">
           <p className="db-metric-label">Tareas pendientes</p>

@@ -4,7 +4,6 @@ import { supabase } from './supabase'
 import { getCountryName } from '../components/CountrySelector'
 import { formatAmount } from '../components/DealMilestones'
 import { resolveMemberNames } from './customFields'
-import { terminalStatusNames } from './customStates'
 import {
   NAVY, ACCENT, GRAY_BG, GRAY_TEXT, BORDER, INK, PAGE_W,
   setText, setFill, formatDatePdf, stateColorRgb, drawPill,
@@ -35,16 +34,22 @@ function drawSummary(doc, { negotiations, customStates, tasksByNeg, pipeline, ge
   doc.text('Resumen general', MARGIN, 20)
 
   const providerIds = new Set(negotiations.map(n => getPrimaryEntity(n)?.id).filter(Boolean))
-  const terminalNames = terminalStatusNames(customStates)
-  const completedCount = negotiations.filter(n => terminalNames.has(n.status)).length
+  const terminalStates = (customStates || []).filter(s => s.is_terminal)
   const pendingTasks = negotiations.reduce(
     (sum, n) => sum + (tasksByNeg[n.id] || []).filter(t => t.status !== 'done').length, 0
   )
 
+  // Un estado final puede significar cosas distintas (Ganado, Perdido, etc.)
+  // — cada uno se muestra en su propia tarjeta, no se suman en un solo
+  // "Completados" que escondería la diferencia.
   let y = drawStatCards(doc, [
     { value: negotiations.length, label: 'Proyectos', color: NAVY },
     { value: providerIds.size, label: 'Proveedores', color: [29, 78, 216] },
-    { value: completedCount, label: 'Completados', color: [5, 150, 105] },
+    ...terminalStates.map(s => ({
+      value: negotiations.filter(n => n.status === s.name).length,
+      label: s.name,
+      color: s.color ? stateColorRgb(s.color) : [5, 150, 105],
+    })),
     { value: pendingTasks, label: 'Tareas pend.', color: [217, 119, 6] },
   ], 30) + 14
 
