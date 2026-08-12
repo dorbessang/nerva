@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { wouldCreateCycle, isTaskBlocked, notifyTaskAssigned } from '../lib/tasks'
+import { wouldCreateCycle, isTaskBlocked, notifyTaskAssigned, createTask } from '../lib/tasks'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './TaskDrawer.css'
 
@@ -19,6 +19,11 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
   const [siblingTasks, setSiblingTasks] = useState([])
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showSubtaskForm, setShowSubtaskForm] = useState(false)
+  const [subtaskTitle, setSubtaskTitle] = useState('')
+  const [subtaskAssignee, setSubtaskAssignee] = useState('')
+  const [subtaskDue, setSubtaskDue] = useState('')
+  const [savingSubtask, setSavingSubtask] = useState(false)
 
   useEffect(() => {
     fetchMembers()
@@ -39,18 +44,41 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
     if (data) setMembers(data)
   }
 
+  // El "pool" de candidatas a predecesora es del mismo tipo que la tarea:
+  // si es de un proyecto, otras tareas de ese proyecto; si es de una
+  // entidad, otras tareas de esa entidad; si es suelta (sin ninguna de las
+  // dos), otras tareas sueltas del workspace.
   async function fetchSiblingTasks() {
-    if (!task.negotiation_id) return
-    const { data } = await supabase
-      .from('tasks')
-      .select('id, title, status, predecessor_task_id')
-      .eq('negotiation_id', task.negotiation_id)
+    let query = supabase.from('tasks').select('id, title, status, predecessor_task_id').eq('workspace_id', workspaceId)
+    query = task.negotiation_id
+      ? query.eq('negotiation_id', task.negotiation_id)
+      : task.entity_id
+      ? query.eq('entity_id', task.entity_id)
+      : query.is('negotiation_id', null).is('entity_id', null)
+    const { data } = await query
     if (data) setSiblingTasks(data)
   }
 
   const predecessorOptions = siblingTasks.filter(
     t => t.id !== task.id && !wouldCreateCycle(siblingTasks, task.id, t.id)
   )
+
+  async function handleAddSubtask() {
+    if (!subtaskTitle.trim()) return
+    setSavingSubtask(true)
+    const { error } = await createTask(supabase, {
+      workspaceId, title: subtaskTitle, assignedTo: subtaskAssignee, dueDate: subtaskDue,
+      negotiationId: task.negotiation_id, entityId: task.entity_id,
+      predecessorId: task.id, createdBy: user?.id, actorId: user?.id,
+    })
+    setSavingSubtask(false)
+    if (error) return
+    setSubtaskTitle('')
+    setSubtaskAssignee('')
+    setSubtaskDue('')
+    setShowSubtaskForm(false)
+    onUpdated()
+  }
 
   async function handleSave() {
     setSaving(true)
@@ -181,6 +209,41 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
               🔒 Depende de "{task.predecessor.title}" — no se puede completar hasta que esa se marque como hecha.
             </p>
           )}
+
+          <div className="form-group">
+            {!showSubtaskForm ? (
+              <button type="button" className="btn-secondary" onClick={() => setShowSubtaskForm(true)}>
+                + Crear tarea dependiente
+              </button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 12, background: '#f9fafb', borderRadius: 8 }}>
+                <label>NUEVA TAREA QUE DEPENDE DE ESTA</label>
+                <input
+                  type="text"
+                  placeholder="¿Qué hay que hacer?"
+                  value={subtaskTitle}
+                  onChange={e => setSubtaskTitle(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleAddSubtask() }}
+                  autoFocus
+                />
+                <div className="form-row">
+                  <select value={subtaskAssignee} onChange={e => setSubtaskAssignee(e.target.value)}>
+                    <option value="">Sin asignar</option>
+                    {members.map(m => (
+                      <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || 'Usuario'}</option>
+                    ))}
+                  </select>
+                  <input type="date" value={subtaskDue} onChange={e => setSubtaskDue(e.target.value)} />
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button type="button" className="btn-secondary" onClick={() => setShowSubtaskForm(false)}>Cancelar</button>
+                  <button type="button" className="btn-primary" onClick={handleAddSubtask} disabled={savingSubtask || !subtaskTitle.trim()}>
+                    {savingSubtask ? 'Creando...' : 'Crear'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="drawer-footer">

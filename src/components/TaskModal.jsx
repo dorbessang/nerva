@@ -26,13 +26,16 @@ export default function TaskModal({ onClose, onCreated }) {
     fetchNegotiations()
   }, [])
 
+  // El pool de candidatas a predecesora es del mismo tipo que la tarea que
+  // se está creando: si se eligió un proyecto, otras tareas de ese
+  // proyecto; si no, otras tareas sueltas del workspace (sin proyecto ni
+  // entidad — esta modal no permite vincular a una entidad).
   useEffect(() => {
     setPredecessorId('')
-    if (!negotiationId) { setNegotiationTasks([]); return }
-    supabase.from('tasks')
-      .select('id, title, status')
-      .eq('negotiation_id', negotiationId)
-      .then(({ data }) => setNegotiationTasks(data || []))
+    const query = negotiationId
+      ? supabase.from('tasks').select('id, title, status').eq('negotiation_id', negotiationId)
+      : supabase.from('tasks').select('id, title, status').eq('workspace_id', workspaceId).is('negotiation_id', null).is('entity_id', null)
+    query.then(({ data }) => setNegotiationTasks(data || []))
   }, [negotiationId])
 
   async function fetchMembers() {
@@ -125,7 +128,7 @@ export default function TaskModal({ onClose, onCreated }) {
             </select>
           </div>
 
-          {negotiationId && negotiationTasks.length > 0 && (
+          {negotiationTasks.length > 0 && (
             <div className="form-group">
               <label>DEPENDE DE (opcional)</label>
               <select value={predecessorId} onChange={e => setPredecessorId(e.target.value)}>
