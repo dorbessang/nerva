@@ -43,6 +43,8 @@ export default function Layout({ children }) {
   const wsDropdownRef = useRef(null);
   const [alertProjects, setAlertProjects] = useState([]);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [inactiveProjects, setInactiveProjects] = useState([]);
+  const [inactiveBannerDismissed, setInactiveBannerDismissed] = useState(false);
 
   const isPersonalWorkspace = activeWorkspace?.type === 'personal';
   const needsOnboarding = activeWorkspace && activeWorkspace.type !== 'personal' && activeWorkspace.onboarded === false;
@@ -58,11 +60,15 @@ export default function Layout({ children }) {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (workspaceId) fetchAlertProjects();
-  }, [workspaceId]);
+    if (workspaceId) { fetchAlertProjects(); fetchInactiveProjects(); }
+  }, [workspaceId, activeWorkspace?.low_activity_alert_days, activeWorkspace?.low_activity_inactive_days]);
 
   async function fetchAlertProjects() {
-    const { since, until } = lowActivityWindow();
+    const { since, until } = lowActivityWindow(
+      new Date(),
+      activeWorkspace?.low_activity_alert_days,
+      activeWorkspace?.low_activity_inactive_days
+    );
     const { data } = await supabase
       .from('negotiations')
       .select('id')
@@ -73,6 +79,21 @@ export default function Layout({ children }) {
       .gte('last_activity_at', until);
     setAlertProjects(data || []);
     setBannerDismissed(false);
+  }
+
+  // Proyectos que ya cruzaron el umbral de inactividad de verdad (el cron
+  // los pasó a activity_status='inactive') — banner aparte del de "baja
+  // actividad" de arriba, que es solo para los que todavía están en la
+  // zona de alerta pero no se marcaron inactivos todavía.
+  async function fetchInactiveProjects() {
+    const { data } = await supabase
+      .from('negotiations')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .eq('activity_status', 'inactive')
+      .neq('status', 'Completado');
+    setInactiveProjects(data || []);
+    setInactiveBannerDismissed(false);
   }
 
   // Cerrar dropdown al hacer click afuera
@@ -203,21 +224,43 @@ export default function Layout({ children }) {
         </div>
       </header>
 
-      {/* Banner global de alerta — proyectos con 90-120 días sin actividad */}
-      {alertProjects.length > 0 && !bannerDismissed && (
-        <div className="layout-alert-banner">
-          <span className="layout-alert-icon">⚠️</span>
-          <span className="layout-alert-text">
-            <strong>{alertProjects.length} {alertProjects.length === 1 ? 'proyecto lleva' : 'proyectos llevan'} más de 3 meses sin actividad.</strong>
-            {' '}¿Querés revisarlos?
-          </span>
-          <button
-            className="layout-alert-cta"
-            onClick={() => navigate('/negotiations?filter=low_activity')}
-          >
-            Ver proyectos
-          </button>
-          <button className="layout-alert-close" onClick={() => setBannerDismissed(true)}>✕</button>
+      {((alertProjects.length > 0 && !bannerDismissed) || (inactiveProjects.length > 0 && !inactiveBannerDismissed)) && (
+        <div className="layout-alert-banners">
+          {/* Zona de aviso — entre low_activity_alert_days y low_activity_inactive_days del workspace */}
+          {alertProjects.length > 0 && !bannerDismissed && (
+            <div className="layout-alert-banner">
+              <span className="layout-alert-icon">⚠️</span>
+              <span className="layout-alert-text">
+                <strong>{alertProjects.length} {alertProjects.length === 1 ? 'proyecto lleva' : 'proyectos llevan'} más de {activeWorkspace?.low_activity_alert_days ?? 90} días sin actividad.</strong>
+                {' '}¿Querés revisarlos?
+              </span>
+              <button
+                className="layout-alert-cta"
+                onClick={() => navigate('/negotiations?filter=low_activity')}
+              >
+                Ver proyectos
+              </button>
+              <button className="layout-alert-close" onClick={() => setBannerDismissed(true)}>✕</button>
+            </div>
+          )}
+
+          {/* Proyectos que ya cruzaron el umbral y se marcaron 'inactive' de verdad (cron diario) */}
+          {inactiveProjects.length > 0 && !inactiveBannerDismissed && (
+            <div className="layout-alert-banner layout-alert-banner--inactive">
+              <span className="layout-alert-icon">💤</span>
+              <span className="layout-alert-text">
+                <strong>{inactiveProjects.length} {inactiveProjects.length === 1 ? 'proyecto pasó' : 'proyectos pasaron'} a inactivo por falta de seguimiento.</strong>
+                {' '}¿Querés revisarlos?
+              </span>
+              <button
+                className="layout-alert-cta"
+                onClick={() => navigate('/negotiations?filter=inactive')}
+              >
+                Ver proyectos
+              </button>
+              <button className="layout-alert-close" onClick={() => setInactiveBannerDismissed(true)}>✕</button>
+            </div>
+          )}
         </div>
       )}
 

@@ -68,7 +68,7 @@ export default function Settings() {
         {activeTab === 'proyectos' && showModuleTabs && <ModuloProyectos workspaceId={workspaceId} />}
         {activeTab === 'entidades' && showModuleTabs && <ModuloEntidades workspaceId={workspaceId} />}
         {activeTab === 'productos' && showModuleTabs && <ModuloProductos workspaceId={workspaceId} />}
-        {activeTab === 'workspace' && isAdminOrOwner && <TabWorkspace workspaceId={workspaceId} />}
+        {activeTab === 'workspace' && isAdminOrOwner && <TabWorkspace workspaceId={workspaceId} isOwner={isOwner} />}
         {activeTab === 'notificaciones' && <TabNotificaciones workspaceId={workspaceId} />}
       </div>
     </div>
@@ -1613,12 +1613,18 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
 
 // ─── TAB WORKSPACE ────────────────────────────────────────────────────────────
 
-function TabWorkspace({ workspaceId }) {
+function TabWorkspace({ workspaceId, isOwner }) {
   const { refreshWorkspaces } = useAuth()
   const [workspace, setWorkspace] = useState(null)
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  const [alertDays, setAlertDays] = useState('')
+  const [inactiveDays, setInactiveDays] = useState('')
+  const [activityError, setActivityError] = useState('')
+  const [savingActivity, setSavingActivity] = useState(false)
+  const [savedActivity, setSavedActivity] = useState(false)
 
   useEffect(() => {
     fetchWorkspace()
@@ -1633,6 +1639,8 @@ function TabWorkspace({ workspaceId }) {
     if (data) {
       setWorkspace(data)
       setName(data.name)
+      setAlertDays(String(data.low_activity_alert_days ?? 90))
+      setInactiveDays(String(data.low_activity_inactive_days ?? 120))
     }
   }
 
@@ -1646,6 +1654,27 @@ function TabWorkspace({ workspaceId }) {
     setSaved(true)
     await refreshWorkspaces()
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  // Mismo criterio que el check de la base (workspaces_low_activity_days_check)
+  // — se valida acá también para dar el error al toque, sin esperar el
+  // viaje a la base.
+  async function handleSaveActivityLimits() {
+    setActivityError('')
+    const alert = parseInt(alertDays, 10)
+    const inactive = parseInt(inactiveDays, 10)
+    if (!Number.isInteger(alert) || alert <= 0) { setActivityError('El aviso tiene que ser un número mayor a 0'); return }
+    if (!Number.isInteger(inactive) || inactive <= alert) { setActivityError('El límite de "inactivo" tiene que ser mayor al del aviso'); return }
+    setSavingActivity(true)
+    const { error } = await supabase
+      .from('workspaces')
+      .update({ low_activity_alert_days: alert, low_activity_inactive_days: inactive })
+      .eq('id', workspaceId)
+    setSavingActivity(false)
+    if (error) { setActivityError('No se pudo guardar. Intentá de nuevo.'); return }
+    setSavedActivity(true)
+    await refreshWorkspaces()
+    setTimeout(() => setSavedActivity(false), 2000)
   }
 
   if (!workspace) return <div className="settings-loading">Cargando...</div>
@@ -1666,6 +1695,29 @@ function TabWorkspace({ workspaceId }) {
           {saving ? 'Guardando...' : saved ? '✓ Guardado' : 'Guardar cambios'}
         </button>
       </div>
+
+      {isOwner && (
+        <div className="settings-block">
+          <h2 className="settings-block-title">Alertas de inactividad</h2>
+          <p className="settings-hint">
+            Pasados los días de "aviso", un proyecto activo sin novedades aparece en el banner de baja actividad. Pasados los días de "inactivo", se marca inactivo solo y aparece en su propio aviso. Solo el owner puede cambiar estos dos números.
+          </p>
+          <div className="form-row">
+            <div className="form-group" style={{ maxWidth: 180 }}>
+              <label>AVISO (DÍAS)</label>
+              <input type="number" min="1" value={alertDays} onChange={e => setAlertDays(e.target.value)} />
+            </div>
+            <div className="form-group" style={{ maxWidth: 180 }}>
+              <label>INACTIVO (DÍAS)</label>
+              <input type="number" min="1" value={inactiveDays} onChange={e => setInactiveDays(e.target.value)} />
+            </div>
+          </div>
+          {activityError && <p className="form-error">{activityError}</p>}
+          <button className="settings-btn-primary" onClick={handleSaveActivityLimits} disabled={savingActivity}>
+            {savingActivity ? 'Guardando...' : savedActivity ? '✓ Guardado' : 'Guardar cambios'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

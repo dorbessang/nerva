@@ -1,15 +1,13 @@
-// Detecta proyectos activos sin actividad reciente — entre 90 y 120 días.
-// Pasado los 120 ya se marcan 'inactive' solos (mark_inactive_negotiations,
-// cron en Supabase); esta ventana es la de "alerta todavía no automática".
-// Antes esta misma regla (con los mismos 90/120 sueltos) estaba copiada en
-// Layout.jsx (banner global) y Dashboard.jsx (card de alerta).
-const LOW_ACTIVITY_MIN_DAYS = 90
-const LOW_ACTIVITY_MAX_DAYS = 120
-
-export function lowActivityWindow(now = new Date()) {
+// Detecta proyectos activos sin actividad reciente — entre alertDays e
+// inactiveDays (configurables por workspace, workspaces.low_activity_*,
+// default 90/120). Pasado inactiveDays ya se marcan 'inactive' solos
+// (mark_inactive_negotiations, cron en Supabase, usa el mismo valor); esta
+// ventana es la de "alerta todavía no automática". Antes esta misma regla
+// (con 90/120 fijos) estaba copiada en Layout.jsx y Dashboard.jsx.
+export function lowActivityWindow(now = new Date(), alertDays = 90, inactiveDays = 120) {
   return {
-    since: new Date(now - LOW_ACTIVITY_MIN_DAYS * 24 * 60 * 60 * 1000).toISOString(),
-    until: new Date(now - LOW_ACTIVITY_MAX_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+    since: new Date(now - alertDays * 24 * 60 * 60 * 1000).toISOString(),
+    until: new Date(now - inactiveDays * 24 * 60 * 60 * 1000).toISOString(),
   }
 }
 

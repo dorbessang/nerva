@@ -226,10 +226,12 @@ export default function Negotiations() {
   const [bulkWorking, setBulkWorking] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
 
-  // Si viene del banner del dashboard, pre-filtra por baja actividad
+  // Si viene de uno de los banners globales, pre-filtra por baja actividad
+  // o por inactivos
   useEffect(() => {
     const params = new URLSearchParams(location.search)
-    if (params.get('filter') === 'low_activity') setFilterActivity('low_activity')
+    const filter = params.get('filter')
+    if (filter === 'low_activity' || filter === 'inactive') setFilterActivity(filter)
   }, [location.search])
 
   // Si viene de una notificación, abre directo el proyecto (y resalta la tarea)

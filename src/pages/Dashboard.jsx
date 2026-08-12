@@ -17,7 +17,7 @@ export default function Dashboard() {
 }
 
 function TeamDashboard() {
-  const { user, workspaceId } = useAuth()
+  const { user, workspaceId, activeWorkspace } = useAuth()
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [chartView, setChartView] = useState("bars"); // 'bars' | 'donut'
@@ -131,7 +131,7 @@ function TeamDashboard() {
     const endOfWeekStr = endOfWeek.toISOString().split("T")[0];
 
     // Proyectos en zona de alerta: activos, no completados, sin actividad entre 90 y 120 días
-    const alertWindow = lowActivityWindow();
+    const alertWindow = lowActivityWindow(new Date(), activeWorkspace?.low_activity_alert_days, activeWorkspace?.low_activity_inactive_days);
     const alert = negotiations.filter(n => isLowActivityAlert(n, alertWindow));
     setAlertProjects(alert);
 
