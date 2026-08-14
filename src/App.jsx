@@ -21,10 +21,22 @@ import Profile from "./pages/Profile";
 import Agenda from "./pages/Agenda";
 
 function ProtectedRoute({ children }) {
-  const { user, loading } = useAuth();
+  const { user, loading, needsOnboarding } = useAuth();
   if (loading) return <div style={styles.loading}>Cargando...</div>;
   if (!user) return <Navigate to="/login" replace />;
+  if (needsOnboarding) return <Navigate to="/set-password" replace />;
   return <Layout>{children}</Layout>;
+}
+
+// Evita el caso inverso: alguien que ya completó el alta (full_name
+// seteado) pero reabre un link de invitación viejo, o entra a /set-password
+// a mano — lo manda derecho al dashboard en vez de mostrarle el formulario
+// de nuevo.
+function SetPasswordRoute() {
+  const { user, loading, needsOnboarding } = useAuth();
+  if (loading) return <div style={styles.loading}>Cargando...</div>;
+  if (user && !needsOnboarding) return <Navigate to="/dashboard" replace />;
+  return <SetPassword />;
 }
 
 function EntityRoute() {
@@ -66,7 +78,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/set-password" element={<SetPassword />} />
+          <Route path="/set-password" element={<SetPasswordRoute />} />
           <Route
             path="/dashboard"
             element={

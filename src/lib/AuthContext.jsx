@@ -25,8 +25,16 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) fetchWorkspaces(session.user.id)
-      else {
+      if (session?.user) {
+        // Vuelve a "cargando" (y limpia el profile viejo) apenas cambia la
+        // sesión — sin esto, un cambio de sesión en la misma pestaña (ej. el
+        // link de invitación reemplazando una sesión ya activa) podía
+        // renderizar un instante con el profile de la sesión ANTERIOR
+        // todavía en memoria, lo que rompía la decisión de needsOnboarding.
+        setLoading(true)
+        setProfile(null)
+        fetchWorkspaces(session.user.id)
+      } else {
         setRole(null)
         setProfile(null)
         setIsStaff(false)
@@ -115,8 +123,17 @@ export function AuthProvider({ children }) {
 
   const activeWorkspace = workspaces.find(w => w.id === workspaceId) || null
 
+  // Única forma de crear una cuenta es por invitación, y full_name solo se
+  // completa al mandar el formulario de "Crear contraseña" (SetPassword) —
+  // así que un profile ya cargado con full_name vacío significa, sin
+  // ambigüedad, que esta persona todavía no terminó el alta. Sirve de
+  // guardia a nivel de toda la app: sin importar cómo haya quedado la
+  // sesión activa (link de invitación, pestaña vieja, lo que sea), si no
+  // completó el alta no puede usar el resto de la app.
+  const needsOnboarding = !loading && !!user && profile !== null && !profile?.full_name
+
   return (
-    <AuthContext.Provider value={{ user, session, role, effectiveRole, isStaff, impersonateRole, profile, refreshProfile, workspaceId, workspaces, activeWorkspace, setActiveWorkspace, refreshWorkspaces, loading }}>
+    <AuthContext.Provider value={{ user, session, role, effectiveRole, isStaff, impersonateRole, profile, refreshProfile, workspaceId, workspaces, activeWorkspace, setActiveWorkspace, refreshWorkspaces, loading, needsOnboarding }}>
       {children}
     </AuthContext.Provider>
   )
