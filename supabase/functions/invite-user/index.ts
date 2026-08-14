@@ -18,7 +18,9 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://nerva-drab.vercel.app'
+const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://www.gonerva.com'
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
+const INVITE_FROM = 'Nerva <invitaciones@gonerva.com>'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,6 +36,41 @@ function json(body: unknown, status = 200) {
 
 // deno-lint-ignore no-explicit-any
 type AdminClient = any
+
+// Manda el mail de invitación por Resend. Si falla (o no hay API key
+// configurada todavía), no tira la invitación entera abajo — el owner
+// siempre se queda con el link a mano para mandarlo manual como fallback.
+async function sendInviteEmail(email: string, inviteLink: string, workspaceName: string) {
+  if (!RESEND_API_KEY) return false
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: INVITE_FROM,
+        to: email,
+        subject: `Te invitaron a "${workspaceName}" en Nerva`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+            <h2>Te invitaron a Nerva</h2>
+            <p>Te sumaron al workspace <strong>${workspaceName}</strong>. Hacé click abajo para crear tu contraseña y entrar.</p>
+            <p style="margin: 24px 0;">
+              <a href="${inviteLink}" style="background: #111; color: #fff; padding: 12px 20px; border-radius: 6px; text-decoration: none;">Crear mi cuenta</a>
+            </p>
+            <p style="color: #666; font-size: 13px;">Si el botón no funciona, copiá este link: <br>${inviteLink}</p>
+          </div>
+        `,
+      }),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
 
 // Comparte la lógica de "sumar a alguien a un workspace" entre 'invite'
 // (owner invitando a su equipo) e 'invite_client' (staff dando de alta un
@@ -80,9 +117,9 @@ async function addOrInviteUser(admin: AdminClient, email: string, role: string, 
 
   // generateLink crea el usuario invitado (todavía sin contraseña) y el link
   // de acceso, pero no manda ningún mail (evita el rate limit del mailer
-  // default de Supabase). Por ahora el link se muestra en la UI para que el
-  // owner/staff lo copie y lo mande a mano; cuando se configure SMTP propio
-  // (Resend) se puede mandar solo.
+  // default de Supabase) — el mail real se manda aparte, por Resend, más
+  // abajo. El link se sigue devolviendo igual a la UI como fallback, por si
+  // el mail no llega (falla Resend, cae en spam, etc.).
   const { data: linkData, error: inviteError } = await admin.auth.admin.generateLink({
     type: 'invite',
     email,
@@ -122,7 +159,14 @@ async function addOrInviteUser(admin: AdminClient, email: string, role: string, 
     expires_at: expiresAt,
   })
 
-  return { inviteLink: linkData?.properties?.action_link ?? null }
+  const inviteLink = linkData?.properties?.action_link ?? null
+  let emailSent = false
+  if (inviteLink) {
+    const { data: ws } = await admin.from('workspaces').select('name').eq('id', workspaceId).maybeSingle()
+    emailSent = await sendInviteEmail(email, inviteLink, ws?.name || 'tu workspace')
+  }
+
+  return { inviteLink, emailSent }
 }
 
 Deno.serve(async (req) => {
@@ -170,7 +214,13 @@ Deno.serve(async (req) => {
 
     const result = await addOrInviteUser(admin, email, 'owner', newWs.id)
     if (result.error) return json({ error: result.error }, 400)
-    return json({ ok: true, workspaceId: newWs.id, direct: result.direct, inviteLink: result.inviteLink })
+    return json({
+      ok: true,
+      workspaceId: newWs.id,
+      direct: result.direct,
+      inviteLink: result.inviteLink,
+      emailSent: result.emailSent,
+    })
   }
 
   if (!workspaceId) return json({ error: 'Falta workspaceId' }, 400)
@@ -215,5 +265,5 @@ Deno.serve(async (req) => {
 
   const result = await addOrInviteUser(admin, email, role, workspaceId)
   if (result.error) return json({ error: result.error }, 400)
-  return json({ ok: true, direct: result.direct, inviteLink: result.inviteLink })
+  return json({ ok: true, direct: result.direct, inviteLink: result.inviteLink, emailSent: result.emailSent })
 })

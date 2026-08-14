@@ -80,8 +80,11 @@ export default function Profile() {
     }
     if (data?.direct) {
       setClientSuccess(`${clientEmail.trim()} ya tenía cuenta — se creó "${clientWsName.trim()}" y se lo sumó directo como owner.`)
+    } else if (data?.emailSent) {
+      setClientSuccess(`Workspace "${clientWsName.trim()}" creado. Invitación enviada por mail a ${clientEmail.trim()}.`)
+      setClientInviteLink(data?.inviteLink || null)
     } else {
-      setClientSuccess(`Workspace "${clientWsName.trim()}" creado. Copiá el link y mandáselo a ${clientEmail.trim()} (todavía no se manda mail automático).`)
+      setClientSuccess(`Workspace "${clientWsName.trim()}" creado, pero no se pudo mandar el mail — copiá el link y mandáselo a mano a ${clientEmail.trim()}.`)
       setClientInviteLink(data?.inviteLink || null)
     }
     setClientWsName('')

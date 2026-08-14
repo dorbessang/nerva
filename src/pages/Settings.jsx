@@ -267,8 +267,12 @@ function TabUsuarios({ workspaceId }) {
     if (data?.direct) {
       setInviteSuccess(`${inviteEmail.trim()} ya tenía cuenta y se sumó directo al workspace.`)
       fetchMembers()
+    } else if (data?.emailSent) {
+      setInviteSuccess(`Invitación enviada por mail a ${inviteEmail.trim()}.`)
+      setInviteLink(data?.inviteLink || null)
+      fetchInvitations()
     } else {
-      setInviteSuccess(`Invitación creada para ${inviteEmail.trim()}. Copiá el link y mandáselo (todavía no se manda mail automático).`)
+      setInviteSuccess(`Invitación creada para ${inviteEmail.trim()}, pero no se pudo mandar el mail — copiá el link y mandáselo a mano.`)
       setInviteLink(data?.inviteLink || null)
       fetchInvitations()
     }
