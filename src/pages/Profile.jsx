@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { extractFunctionError } from '../lib/edgeFunctionError'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import './Settings.css'
 
 export default function Profile() {
@@ -25,6 +26,12 @@ export default function Profile() {
   const [clientError, setClientError] = useState(null)
   const [clientSuccess, setClientSuccess] = useState(null)
   const [clientInviteLink, setClientInviteLink] = useState(null)
+
+  const [deleteEmail, setDeleteEmail] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
+  const [deleteSuccess, setDeleteSuccess] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
     setFullName(profile?.full_name || '')
@@ -95,6 +102,25 @@ export default function Profile() {
     if (!clientInviteLink) return
     await navigator.clipboard.writeText(clientInviteLink)
     setClientSuccess('Link copiado al portapapeles.')
+  }
+
+  async function handleDeleteUser() {
+    setConfirmDelete(false)
+    setDeleteError(null)
+    setDeleteSuccess(null)
+    setDeleting(true)
+
+    const { data, error } = await supabase.functions.invoke('invite-user', {
+      body: { action: 'delete_user', email: deleteEmail.trim().toLowerCase() },
+    })
+
+    setDeleting(false)
+    if (error || data?.error) {
+      setDeleteError(data?.error || (await extractFunctionError(error)) || 'Error al eliminar la cuenta.')
+      return
+    }
+    setDeleteSuccess(`Cuenta ${deleteEmail.trim()} eliminada por completo.`)
+    setDeleteEmail('')
   }
 
   return (
@@ -189,7 +215,46 @@ export default function Profile() {
             </button>
           </div>
         )}
+
+        {isStaff && (
+          <div className="settings-block">
+            <h2 className="settings-block-title">Panel de Staff — Eliminar cuenta de usuario</h2>
+            <p style={{ fontSize: 13, color: '#6b7280', marginTop: -8, marginBottom: 16 }}>
+              Borra la cuenta por completo (no solo la saca de un workspace) — pierde acceso a todo, en todos
+              los workspaces donde estaba. Es irreversible. Pensado para limpiar cuentas de prueba o pedidos
+              de baja, no para gestión normal de miembros (eso se hace desde Configuración → Miembros).
+            </p>
+            <div className="form-group" style={{ maxWidth: 400 }}>
+              <label>EMAIL A ELIMINAR</label>
+              <input
+                type="email"
+                value={deleteEmail}
+                onChange={e => setDeleteEmail(e.target.value)}
+                placeholder="usuario@ejemplo.com"
+              />
+            </div>
+            {deleteError && <p className="settings-error">{deleteError}</p>}
+            {deleteSuccess && <p className="settings-success">{deleteSuccess}</p>}
+            <button
+              className="settings-btn-primary"
+              onClick={() => setConfirmDelete(true)}
+              disabled={deleting || !deleteEmail.trim()}
+            >
+              {deleting ? 'Eliminando...' : 'Eliminar cuenta'}
+            </button>
+          </div>
+        )}
       </div>
+
+      {confirmDelete && (
+        <DeleteConfirmModal
+          itemName={deleteEmail.trim()}
+          itemType="cuenta"
+          warningText="Se borra la cuenta por completo: pierde acceso a todos los workspaces donde estaba, y no se puede deshacer."
+          onConfirm={handleDeleteUser}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
     </div>
   )
 }

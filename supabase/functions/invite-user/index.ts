@@ -2,23 +2,28 @@
 //
 // Invita a un usuario a un workspace por email (usando la Admin API de
 // Supabase Auth, que requiere la service role key y por eso no puede
-// llamarse directo desde el frontend), cancela una invitación pendiente, o
+// llamarse directo desde el frontend), cancela una invitación pendiente,
 // (acción 'invite_client', solo para is_staff) da de alta un cliente nuevo
-// de una — workspace de equipo nuevo + esa persona como owner.
-// 'invite'/'cancel' requieren ser owner de ESE workspace; 'invite_client'
-// requiere is_staff, porque todavía no existe ningún workspace al cual
-// pedirle ownership.
+// de una — workspace de equipo nuevo + esa persona como owner, o (acción
+// 'delete_user', solo para is_staff) borra una cuenta por completo.
+// 'invite'/'cancel' requieren ser owner de ESE workspace; 'invite_client' y
+// 'delete_user' requieren is_staff (el primero porque todavía no existe
+// ningún workspace al cual pedirle ownership; el segundo es una acción
+// global, no de un workspace puntual).
 //
-// Body esperado: { action: 'invite' | 'cancel' | 'invite_client', workspaceId, email, role, workspaceName }
+// Body esperado: { action: 'invite' | 'cancel' | 'invite_client' | 'delete_user', workspaceId, email, role, workspaceName }
 // workspaceId es obligatorio para 'invite'/'cancel'. role es obligatorio para 'invite'.
-// workspaceName y email son obligatorios para 'invite_client'.
+// workspaceName y email son obligatorios para 'invite_client'. email es obligatorio para 'delete_user'.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://www.gonerva.com'
+// Sin el replace, un SITE_URL con "/" al final produciría "//set-password"
+// en el link del mail — con BrowserRouter esa ruta no matchea "/set-password"
+// y cae en el catch-all a /dashboard, salteando el formulario sin error visible.
+const SITE_URL = (Deno.env.get('SITE_URL') ?? 'https://www.gonerva.com').replace(/\/+$/, '')
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const INVITE_FROM = 'Nerva <invitaciones@gonerva.com>'
 
@@ -192,6 +197,37 @@ Deno.serve(async (req) => {
   if (!caller) return json({ error: 'No autorizado' }, 401)
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
+
+  if (action === 'delete_user') {
+    if (!email) return json({ error: 'Falta email' }, 400)
+
+    const { data: callerProfile } = await admin
+      .from('profiles')
+      .select('is_staff')
+      .eq('id', caller.id)
+      .maybeSingle()
+    if (!callerProfile?.is_staff) {
+      return json({ error: 'No tenés permisos para eliminar usuarios' }, 403)
+    }
+
+    const { data: usersPage } = await admin.auth.admin.listUsers({ perPage: 1000 })
+    const target = usersPage?.users?.find(
+      (u: { id: string; email?: string }) => u.email?.toLowerCase() === email.toLowerCase(),
+    )
+    if (!target) return json({ error: 'No existe ningún usuario con ese email' }, 404)
+
+    // notifications/notification_preferences no tienen ON DELETE en su FK a
+    // profiles — hay que vaciarlas antes o el delete de auth.users (que
+    // cascadea a profiles) se rechaza. workspace_members sí cascadea solo.
+    await admin.from('notifications').delete().eq('user_id', target.id)
+    await admin.from('notification_preferences').delete().eq('user_id', target.id)
+    await admin.from('invitations').delete().eq('email', email.toLowerCase())
+
+    const { error: delError } = await admin.auth.admin.deleteUser(target.id)
+    if (delError) return json({ error: delError.message }, 400)
+
+    return json({ ok: true })
+  }
 
   if (action === 'invite_client') {
     if (!email || !workspaceName) return json({ error: 'Faltan datos' }, 400)
