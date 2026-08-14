@@ -2,29 +2,30 @@
 //
 // Invita a un usuario a un workspace por email (usando la Admin API de
 // Supabase Auth, que requiere la service role key y por eso no puede
-// llamarse directo desde el frontend), cancela una invitación pendiente, o
+// llamarse directo desde el frontend), cancela una invitación pendiente,
 // (acción 'invite_client', solo para is_staff) da de alta un cliente nuevo
-// de una — workspace de equipo nuevo + esa persona como owner.
-// 'invite'/'cancel' requieren ser owner de ESE workspace; 'invite_client'
-// requiere is_staff, porque todavía no existe ningún workspace al cual
-// pedirle ownership.
+// de una — workspace de equipo nuevo + esa persona como owner, o (acción
+// 'delete_user', solo para is_staff) borra una cuenta por completo.
+// 'invite'/'cancel' requieren ser owner de ESE workspace; 'invite_client' y
+// 'delete_user' requieren is_staff (el primero porque todavía no existe
+// ningún workspace al cual pedirle ownership; el segundo es una acción
+// global, no de un workspace puntual).
 //
-// Body esperado: { action: 'invite' | 'cancel' | 'invite_client', workspaceId, email, role, workspaceName }
+// Body esperado: { action: 'invite' | 'cancel' | 'invite_client' | 'delete_user', workspaceId, email, role, workspaceName }
 // workspaceId es obligatorio para 'invite'/'cancel'. role es obligatorio para 'invite'.
-// workspaceName y email son obligatorios para 'invite_client'.
+// workspaceName y email son obligatorios para 'invite_client'. email es obligatorio para 'delete_user'.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://nerva-drab.vercel.app'
-// Sin dominio propio verificado en Resend todavía (ver PENDIENTES) — con la
-// dirección de pruebas de Resend el mail solo entrega si el destinatario es
-// el dueño de la cuenta de Resend. Cuando se verifique un dominio, cambiar
-// este secret a algo tipo 'Nerva <invitaciones@tudominio.com>'.
+// Sin el replace, un SITE_URL con "/" al final produciría "//set-password"
+// en el link del mail — con BrowserRouter esa ruta no matchea "/set-password"
+// y cae en el catch-all a /dashboard, salteando el formulario sin error visible.
+const SITE_URL = (Deno.env.get('SITE_URL') ?? 'https://www.gonerva.com').replace(/\/+$/, '')
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-const RESEND_FROM = Deno.env.get('RESEND_FROM') ?? 'Nerva <onboarding@resend.dev>'
+const INVITE_FROM = 'Nerva <invitaciones@gonerva.com>'
 
 const VALID_ROLES = ['owner', 'admin', 'editor', 'viewer']
 
@@ -45,33 +46,45 @@ type AdminClient = any
 
 // Manda el mail de invitación vía Resend (API HTTP directa, no el mailer de
 // Supabase — generateLink no manda mail por su cuenta). Si no hay
-// RESEND_API_KEY configurado como secret, o Resend rechaza el envío (ej.
-// sandbox sin dominio propio, destinatario no es el dueño de la cuenta),
-// no revienta la invitación entera — el link generado sigue devolviéndose
-// en la respuesta para copiar a mano, como fallback.
-async function sendInviteEmail(email: string, link: string, workspaceName: string | null) {
-  if (!RESEND_API_KEY) return { sent: false }
-  const wsPhrase = workspaceName ? ` a "${workspaceName}"` : ''
+// RESEND_API_KEY configurado como secret, o Resend rechaza el envío, no
+// revienta la invitación entera — el link generado sigue devolviéndose en
+// la respuesta para copiar a mano, como fallback.
+async function sendInviteEmail(email: string, inviteLink: string, workspaceName: string | null) {
+  if (!RESEND_API_KEY) return false
+  const wsLabel = workspaceName || 'tu workspace'
+
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        from: RESEND_FROM,
-        to: [email],
-        subject: `Te invitaron${wsPhrase} en Nerva`,
-        html: `<p>Te invitaron${wsPhrase} en Nerva.</p><p><a href="${link}">Hacé click acá para crear tu cuenta</a></p><p>Si el link no funciona, copiá y pegá esta dirección en tu navegador:<br>${link}</p>`,
-        text: `Te invitaron${wsPhrase} en Nerva.\n\nCreá tu cuenta acá: ${link}`,
+        from: INVITE_FROM,
+        to: email,
+        subject: `Te invitaron a "${wsLabel}" en Nerva`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+            <h2>Te invitaron a Nerva</h2>
+            <p>Te sumaron al workspace <strong>${wsLabel}</strong>. Hacé click abajo para crear tu contraseña y entrar.</p>
+            <p style="margin: 24px 0;">
+              <a href="${inviteLink}" style="background: #111; color: #fff; padding: 12px 20px; border-radius: 6px; text-decoration: none;">Crear mi cuenta</a>
+            </p>
+            <p style="color: #666; font-size: 13px;">Si el botón no funciona, copiá este link: <br>${inviteLink}</p>
+          </div>
+        `,
+        text: `Te invitaron a "${wsLabel}" en Nerva.\n\nCreá tu cuenta acá: ${inviteLink}`,
       }),
     })
     if (!res.ok) {
       console.error('Resend error:', res.status, await res.text())
-      return { sent: false }
+      return false
     }
-    return { sent: true }
+    return true
   } catch (err) {
     console.error('Resend fetch error:', err)
-    return { sent: false }
+    return false
   }
 }
 
@@ -120,11 +133,21 @@ async function addOrInviteUser(admin: AdminClient, email: string, role: string, 
     return { direct: true }
   }
 
+  // Existe pero nunca puso contraseña — típicamente alguien que se sacó de
+  // un workspace (o se le canceló la invitación por otro lado) antes de
+  // aceptarla. generateLink('invite') rechaza el pedido si el email ya está
+  // registrado, aunque sea sin confirmar, así que lo borramos primero: no
+  // pierde nada real (nunca tuvo acceso a nada) y queda libre para invitar
+  // de cero, incluso a un workspace distinto del original.
+  if (existingUser && !existingUser.email_confirmed_at) {
+    await admin.auth.admin.deleteUser(existingUser.id)
+  }
+
   // generateLink crea el usuario invitado (todavía sin contraseña) y el link
   // de acceso, pero no manda ningún mail (evita el rate limit del mailer
-  // default de Supabase). Por ahora el link se muestra en la UI para que el
-  // owner/staff lo copie y lo mande a mano; cuando se configure SMTP propio
-  // (Resend) se puede mandar solo.
+  // default de Supabase) — el mail real se manda aparte, por Resend, más
+  // abajo. El link se sigue devolviendo igual a la UI como fallback, por si
+  // el mail no llega (falla Resend, cae en spam, etc.).
   const { data: linkData, error: inviteError } = await admin.auth.admin.generateLink({
     type: 'invite',
     email,
@@ -164,10 +187,10 @@ async function addOrInviteUser(admin: AdminClient, email: string, role: string, 
     expires_at: expiresAt,
   })
 
-  const actionLink = linkData?.properties?.action_link ?? null
-  const emailResult = actionLink ? await sendInviteEmail(email, actionLink, workspaceName) : { sent: false }
+  const inviteLink = linkData?.properties?.action_link ?? null
+  const emailSent = inviteLink ? await sendInviteEmail(email, inviteLink, workspaceName) : false
 
-  return { inviteLink: actionLink, emailSent: emailResult.sent }
+  return { inviteLink, emailSent }
 }
 
 Deno.serve(async (req) => {
@@ -194,6 +217,37 @@ Deno.serve(async (req) => {
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
+  if (action === 'delete_user') {
+    if (!email) return json({ error: 'Falta email' }, 400)
+
+    const { data: callerProfile } = await admin
+      .from('profiles')
+      .select('is_staff')
+      .eq('id', caller.id)
+      .maybeSingle()
+    if (!callerProfile?.is_staff) {
+      return json({ error: 'No tenés permisos para eliminar usuarios' }, 403)
+    }
+
+    const { data: usersPage } = await admin.auth.admin.listUsers({ perPage: 1000 })
+    const target = usersPage?.users?.find(
+      (u: { id: string; email?: string }) => u.email?.toLowerCase() === email.toLowerCase(),
+    )
+    if (!target) return json({ error: 'No existe ningún usuario con ese email' }, 404)
+
+    // notifications/notification_preferences no tienen ON DELETE en su FK a
+    // profiles — hay que vaciarlas antes o el delete de auth.users (que
+    // cascadea a profiles) se rechaza. workspace_members sí cascadea solo.
+    await admin.from('notifications').delete().eq('user_id', target.id)
+    await admin.from('notification_preferences').delete().eq('user_id', target.id)
+    await admin.from('invitations').delete().eq('email', email.toLowerCase())
+
+    const { error: delError } = await admin.auth.admin.deleteUser(target.id)
+    if (delError) return json({ error: delError.message }, 400)
+
+    return json({ ok: true })
+  }
+
   if (action === 'invite_client') {
     if (!email || !workspaceName) return json({ error: 'Faltan datos' }, 400)
 
@@ -215,7 +269,13 @@ Deno.serve(async (req) => {
 
     const result = await addOrInviteUser(admin, email, 'owner', newWs.id)
     if (result.error) return json({ error: result.error }, 400)
-    return json({ ok: true, workspaceId: newWs.id, direct: result.direct, inviteLink: result.inviteLink, emailSent: result.emailSent })
+    return json({
+      ok: true,
+      workspaceId: newWs.id,
+      direct: result.direct,
+      inviteLink: result.inviteLink,
+      emailSent: result.emailSent,
+    })
   }
 
   if (!workspaceId) return json({ error: 'Falta workspaceId' }, 400)
