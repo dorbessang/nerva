@@ -120,6 +120,16 @@ async function addOrInviteUser(admin: AdminClient, email: string, role: string, 
     return { direct: true }
   }
 
+  // Existe pero nunca puso contraseña — típicamente alguien que se sacó de
+  // un workspace (o se le canceló la invitación por otro lado) antes de
+  // aceptarla. generateLink('invite') rechaza el pedido si el email ya está
+  // registrado, aunque sea sin confirmar, así que lo borramos primero: no
+  // pierde nada real (nunca tuvo acceso a nada) y queda libre para invitar
+  // de cero, incluso a un workspace distinto del original.
+  if (existingUser && !existingUser.email_confirmed_at) {
+    await admin.auth.admin.deleteUser(existingUser.id)
+  }
+
   // generateLink crea el usuario invitado (todavía sin contraseña) y el link
   // de acceso, pero no manda ningún mail (evita el rate limit del mailer
   // default de Supabase) — el mail real se manda aparte, por Resend, más
