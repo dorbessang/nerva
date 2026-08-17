@@ -6,6 +6,62 @@
 
 **Antes de correr CUALQUIER cosa marcada como pendiente acá (`[ ]`), confirmar primero con el usuario que ese paso no esté ya hecho.** El avance real de la app no siempre queda reflejado en este archivo al mismo ritmo — algo puede haberse resuelto de otra forma, en otro momento, o directamente ya no ser necesario. Nunca asumir que un `[ ]` sigue representando el estado real solo porque nadie lo tildó. Si hace falta optimizar o reordenar algo más adelante, se ve en su momento — pero **nunca re-ejecutar/reescribir "porque sí"** sin chequear antes. (Instrucción explícita del usuario, 2026-08-11.)
 
+---
+
+## 🗺️ ROADMAP MAESTRO — Fases A–F (2026-08-17)
+
+**Este es el punto de entrada para decidir qué sigue.** Nace de cruzar el análisis competitivo (CRMs, herramientas de deals complejos, gestores de tareas) con la devolución del usuario sobre esas ideas — [documento completo](https://claude.ai/code/artifact/26ff3ddf-ea1e-4861-a5b5-f57bffbbe816). El resto del archivo, más abajo, sigue siendo el detalle histórico/técnico de cada implementación — no hace falta leerlo entero para saber qué sigue, alcanza con esta sección. A medida que se cierra un ítem, se tilda acá **y** se deja la nota de implementación en la sección de detalle correspondiente (o una nueva, si es tema nuevo).
+
+**Principio que ordena las fases** (ya venía de la sesión de repensada estratégica del 2026-07-06, sigue vigente): ¿esto mejora el producto de hoy además de servir a la visión larga (CRM robusto para PyMEs, después ERP)? Si una feature solo se justifica por el ERP imaginario del futuro, no se construye todavía. Una sola app, un solo backbone — nunca reconstruir aparte.
+
+### Fase A — Cerrar lo abierto + cimientos baratos
+- [ ] Dashboard real: valor de pipeline por etapa, tiempo en etapa, forecast, tasa de cierre por tipo de entidad (hoy la pestaña Dashboard está desactualizada, ver "Pendientes estéticos" más abajo)
+- [ ] Capa de **Organización** a nivel de dato solamente: tabla `organizations` + `workspaces.organization_id` (nullable, aditivo) — sin UI todavía, para no migrar con dolor cuando llegue el dashboard unificado de la Fase D
+- [ ] Módulo de Productos — código ya construido, falta correr el SQL pendiente en la base real (ver sección "Módulo de Productos/Servicios" más abajo)
+- [ ] Decisión sobre las pestañas huérfanas de Estados en Entidades/Tareas (ver "Hallazgo pendiente de decisión" más abajo)
+- [ ] Panel de Settings puntual para el módulo Financiero (mencionado al cerrar Comisión, deferred a propósito)
+
+### Fase B — Actividad automática + el diferencial de gobernanza
+- [ ] **MVP de captura de actividad por mail**: dirección propia por usuario — reenviar/CCear un hilo ahí lo loguea contra la entidad o proyecto que matchea. Deliberadamente NO es el sync OAuth completo de Gmail/Outlook (ver "Qué dejamos afuera a propósito" abajo) — barato, buena parte del valor
+- [ ] **Motor de aprobaciones v1**, acotado a precio/comisión: extiende `negotiation_price_history`/`commission_pct` ya existente — una comisión o descuento fuera de rango genera una solicitud al rol correspondiente antes de confirmarse. Se apoya en la infraestructura de tareas dependientes (`predecessor_task_id`) que ya existe — una aprobación pendiente es, en el fondo, una tarea bloqueante con un aprobador
+
+### Fase C — IA aplicada (la escalera)
+Cada escalón reusa la misma pieza central (llamado a IA + pantalla de "revisar antes de guardar"), aplicada a un input distinto.
+- [ ] **Extracción de documentos → alta semi-automática**: subir una propuesta comercial/PDF, la IA prellena un borrador de Entidad/Proyecto/Producto usando el esquema real de `custom_field_definitions` del workspace — nunca se guarda solo, el usuario confirma
+- [ ] Mismo motor, otro input: notas de una reunión → tareas sugeridas (con dependencias si corresponde)
+- [ ] Resumir un hilo de mail largo en una nota de bitácora (depende de que exista la Fase B)
+- [ ] Búsqueda en lenguaje natural ("qué proyectos con X están parados hace 20 días") — más barata de construir una vez que el Dashboard de la Fase A tenga la capa de reportes resuelta
+
+### Fase D — Mirar hacia afuera + Organización completa
+- [ ] Portal de solo lectura para la contraparte (deal room): estado del deal, documentos, cronograma — reusa datos existentes, sin modelo nuevo
+- [ ] Recomendador de oportunidades sobre datos propios: entidades parecidas a una activa sin negociación en curso, productos nunca ofrecidos a una entidad dada — arranca como reglas simples, se puede llevar a IA después
+- [ ] Vista unificada de Organización (dato ya modelado desde la Fase A): dashboard agregado entre todos los workspaces de una misma empresa
+- [ ] Generalizar el motor de aprobaciones más allá de precio (gastos, tareas gateadas por rol) — solo si para entonces hay uso real multi-departamento que lo pida
+
+### Fase E — Infraestructura para vender como SaaS
+Ya diseñado en detalle más abajo (ver "ETAPA 2" y "FASE 2" — planes, Stripe, self-registration, landing, panel Super Admin). No hace falta repensarlo, solo ejecutarlo cuando el CRM esté probado con más de un cliente pago.
+- [ ] API pública / webhooks
+- [ ] Self-registration + planes (Free/Starter/Pro/Business) + Stripe
+- [ ] Landing GoNerva con pricing + panel Super Admin
+
+### Fase F — Impronta propia (jueguitos, con personalidad)
+**Explícitamente al final** — a pedido del usuario, recién cuando las fases A–E ya estén andando, no antes. Ideas ancladas a datos que Nerva ya tiene, no gamificación genérica:
+- [ ] Animación de cierre (confeti sutil, descartable) al mover una negociación a estado terminal-ganado, con el valor acumulado del trimestre "tickeando" en vivo
+- [ ] Racha de actividad por usuario (ícono tipo llama, días consecutivos con actividad real) — convierte la alerta de inactividad de negativa a motivadora
+- [ ] Mapa de calor de actividad por negociación, estilo contribution graph, en la vista de cada deal — reutiliza datos que ya existen en `activity_log`
+- [ ] "Salud del deal" como metáfora visual (crece con progreso, se marchita con inactividad) en vez de un semáforo numérico
+- [ ] Badges de hito a nivel workspace ("10 deals cerrados", "primera joint venture firmada") en un scoreboard de equipo — sin XP individual
+- [ ] Recap trimestral automático por workspace, estilo Spotify Wrapped: deals cerrados, valor total, ciclo promedio
+- [ ] Empty states con personalidad en workspaces nuevos sin datos, con un guiño al rubro del cliente
+
+### Qué dejamos afuera a propósito
+- **Inteligencia de mercado externa** (tipo ZoomInfo/Dealfront) — infraestructura de datos de terceros cara, categoría de producto distinta. El punto de "mirar afuera" se resuelve con datos propios (Fase D), no ajenos
+- **Sync completo OAuth de email/calendario** de entrada — se arranca con el MVP de "reenviar para loguear" (Fase B), se sube a sync completo solo si un cliente grande lo justifica
+- **UI del dashboard de Organización antes de tiempo** — el dato se modela en la Fase A, la pantalla se construye recién en la Fase D
+- **Generalizar aprobaciones a todo tipo de gasto/tarea desde el día uno** — arranca acotado a precio/comisión (ya tiene el dato), se generaliza solo con demanda real multi-equipo
+
+---
+
 ## 📍 Para la próxima sesión — empezar por acá (cierre de la sesión larga del 2026-08-11)
 
 Sesión larga de rediseño de Proyectos/Productos/Entidades. Todo el código quedó commiteado y pusheado a `claude/session-status-check-4r6t8e` (no mergeado a `main` — el último merge+deploy a producción fue a mitad de esta sesión, commit `f4176cb`; hay commits nuevos arriba de eso sin mergear todavía, esperar a que el usuario pida el próximo merge). Ver `CHANGELOG.md` para el detalle completo, entradas del `(9)` al `(25)` del `2026-08-11`.
@@ -570,6 +626,8 @@ El WS personal existía desde Etapa 1 solo como fila en la base (trigger `handle
 
 ## ETAPA 2 — Schema listo, lógica dormida en Etapa 1
 
+*(Plan/billing/self-registration/permisos por proyecto → absorbido por **Fase E** del Roadmap Maestro, arriba. Se ejecuta cuando el CRM esté probado con más de un cliente pago, no antes.)*
+
 - [ ] Perfil de usuario — resto del alcance (acotado a nombre + contraseña en Etapa 1):
   - Avatar/foto de perfil (requiere bucket de Storage + UI de carga)
   - Teléfono / cargo
@@ -598,6 +656,8 @@ El WS personal existía desde Etapa 1 solo como fila en la base (trigger `handle
 ---
 
 ## FASE 2 — Producto comercial
+
+*(API/webhooks y self-serve → **Fase E**; constructor de formularios/subentidades/calendario/multi-workspace completo quedan de backlog general, sin fase asignada todavía — se ubican cuando haya necesidad concreta de un cliente real.)*
 
 - [ ] Constructor de formularios custom por workspace
   - Primer caso concreto pedido por el usuario (sesión 2026-07-30): el campo **"Tipo de empresa"** de Entidades (`entities.custom_fields.company_type`, hoy un `<textarea>` de texto libre en `EntityModal` — "Ej: Laboratorio multinacional, Distribuidor regional...") tiene que pasar a ser una **lista de clases configurable desde Settings**, no texto libre. Aclaración explícita del usuario: esto es un campo *dentro* de cada entidad, no confundir con el **tipo de entidad** (Proveedor/Cliente/etc., tabla `entity_types`) — aplica igual sin importar el tipo de entidad, no es una lista distinta por tipo
