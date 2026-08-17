@@ -177,6 +177,7 @@ export default function Negotiations() {
   const [customFilterValues, setCustomFilterValues] = useState({})
   const [entityTypeFilters, setEntityTypeFilters] = useState({})
   const [filterActivity, setFilterActivity] = useState('active')
+  const [filterPendingTasks, setFilterPendingTasks] = useState(false)
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState(null)
 
@@ -186,12 +187,13 @@ export default function Negotiations() {
     setSortKey(dir ? key : null)
   }
   const [search, setSearch] = useState('')
-  const hasActiveFilters = search.trim() !== '' || filterActivity !== 'active'
+  const hasActiveFilters = search.trim() !== '' || filterActivity !== 'active' || filterPendingTasks
     || Object.values(customFilterValues).some(v => Array.isArray(v) ? v.length > 0 : !!v)
     || Object.values(entityTypeFilters).some(v => Array.isArray(v) ? v.length > 0 : !!v)
   function clearAllFilters() {
     setSearch('')
     setFilterActivity('active')
+    setFilterPendingTasks(false)
     setCustomFilterValues({})
     setEntityTypeFilters({})
   }
@@ -273,7 +275,7 @@ export default function Negotiations() {
     setMilestones(milestonesRes.data || [])
 
     const negIds = negsRes.data.map(n => n.id)
-    const [{ data: negEntities }, { data: negProducts }, { data: negNotes }] = await Promise.all([
+    const [{ data: negEntities }, { data: negProducts }, { data: negNotes }, { data: pendingTasks }] = await Promise.all([
       supabase
         .from('negotiation_entities')
         .select('negotiation_id, entity_id, role, entity:entity_id(id, name, country_code, entity_type_id)')
@@ -287,13 +289,22 @@ export default function Negotiations() {
         .select('id, negotiation_id, content, note_date')
         .in('negotiation_id', negIds)
         .order('note_date', { ascending: true }),
+      // Para el filtro "Con tareas pendientes" — alcanza con saber qué
+      // proyectos tienen al menos una, no hace falta traer las tareas enteras.
+      supabase
+        .from('tasks')
+        .select('negotiation_id')
+        .in('negotiation_id', negIds)
+        .in('status', ['pending', 'in_progress']),
     ])
+    const negIdsWithPendingTasks = new Set((pendingTasks || []).map(t => t.negotiation_id))
 
     const combined = negsRes.data.map(neg => ({
       ...neg,
       negotiation_entities: (negEntities || []).filter(ne => ne.negotiation_id === neg.id),
       negotiation_products: (negProducts || []).filter(np => np.negotiation_id === neg.id),
       notes_list: (negNotes || []).filter(n => n.negotiation_id === neg.id),
+      has_pending_tasks: negIdsWithPendingTasks.has(neg.id),
     }))
 
     setNegotiations(combined)
@@ -383,6 +394,7 @@ export default function Negotiations() {
     if (filterActivity === 'low_activity') {
       if (!isLowActivityAlert(n, lowActivityWindowBounds, terminalNames)) return false
     }
+    if (filterPendingTasks && !n.has_pending_tasks) return false
     if (search) {
       const q = search.toLowerCase()
       const matchesProject = n.title?.toLowerCase().includes(q) || n.product?.toLowerCase().includes(q)
@@ -674,6 +686,14 @@ export default function Negotiations() {
           </select>
         </div>
         <FiltersPanelButton groups={filterPanelGroups} />
+        <button
+          type="button"
+          className={`pending-tasks-toggle-btn ${filterPendingTasks ? 'active' : ''}`}
+          onClick={() => setFilterPendingTasks(v => !v)}
+          title="Mostrar solo proyectos con tareas pendientes"
+        >
+          📋 Con tareas pendientes
+        </button>
         {hasActiveFilters && (
           <button type="button" className="clear-filters-btn" onClick={clearAllFilters}>✕ Limpiar filtros</button>
         )}

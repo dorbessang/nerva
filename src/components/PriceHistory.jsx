@@ -33,7 +33,8 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
   const [lineValue, setLineValue] = useState('')
   const [lineQuantity, setLineQuantity] = useState('')
   const [linePresentation, setLinePresentation] = useState('')
-  const [stagedLines, setStagedLines] = useState([]) // [{ value, quantity, presentation }]
+  const [lineCommission, setLineCommission] = useState('')
+  const [stagedLines, setStagedLines] = useState([]) // [{ value, quantity, presentation, commissionPct }]
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState(null)
@@ -58,10 +59,12 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
       value,
       quantity: showQuantity && lineQuantity ? parseFloat(lineQuantity) : null,
       presentation: linePresentation.trim() || null,
+      commissionPct: lineCommission ? parseFloat(lineCommission) : null,
     }])
     setLineValue('')
     setLineQuantity('')
     setLinePresentation('')
+    setLineCommission('')
   }
 
   function removeLine(idx) {
@@ -73,6 +76,7 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
     setLineValue('')
     setLineQuantity('')
     setLinePresentation('')
+    setLineCommission('')
     setNewNote('')
     setNewProductId('')
   }
@@ -88,6 +92,7 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
         value: pendingValue,
         quantity: showQuantity && lineQuantity ? parseFloat(lineQuantity) : null,
         presentation: linePresentation.trim() || null,
+        commissionPct: lineCommission ? parseFloat(lineCommission) : null,
       })
     }
     if (!newDate || lines.length === 0) return
@@ -102,6 +107,7 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
       note: newNote.trim() || null,
       product_id: newProductId || null,
       presentation: l.presentation,
+      commission_pct: l.commissionPct,
     })))
     if (error) { console.error('addPriceHistory error:', error.message); setSaving(false); return }
     const title = lines.length === 1
@@ -129,6 +135,7 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
       note: e.note || '',
       product_id: e.product_id || '',
       presentation: e.presentation || '',
+      commission_pct: e.commission_pct !== null && e.commission_pct !== undefined ? String(e.commission_pct) : '',
     })
   }
 
@@ -141,6 +148,7 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
     setLineValue('')
     setLineQuantity('')
     setLinePresentation('')
+    setLineCommission('')
   }
 
   // Enter apila la línea actual (para seguir cargando otra presentación de
@@ -168,6 +176,7 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
       note: editForm.note.trim() || null,
       product_id: editForm.product_id || null,
       presentation: editForm.presentation.trim() || null,
+      commission_pct: editForm.commission_pct ? parseFloat(editForm.commission_pct) : null,
     }
     await supabase.from('negotiation_price_history').update(patch).eq('id', id)
     setEntries(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e).sort((a, b) => b.entry_date.localeCompare(a.entry_date)))
@@ -261,6 +270,17 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
                     onKeyDown={ev => handleEditKeyDown(ev, e.id)}
                   />
                   <input
+                    type="number"
+                    className="neg-note-date-input neg-milestone-amount-input"
+                    placeholder="Comisión %"
+                    value={editForm.commission_pct}
+                    onChange={ev => setEditForm(f => ({ ...f, commission_pct: ev.target.value }))}
+                    onKeyDown={ev => handleEditKeyDown(ev, e.id)}
+                    step="0.01"
+                    min="0"
+                    max="100"
+                  />
+                  <input
                     type="text"
                     className="neg-note-input neg-milestone-timing-input"
                     placeholder="Motivo del cambio..."
@@ -278,6 +298,9 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
                 <span className="neg-task-date">{new Date(e.entry_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}</span>
                 <span className="neg-milestone-amount">
                   {formatAmount(e.value)}{currency ? ` ${currency}` : ''}{unit ? `/${unit}` : ''}
+                  {e.commission_pct !== null && e.commission_pct !== undefined && (
+                    <span className="neg-milestone-timing-inline">Comisión {formatAmount(e.commission_pct)}%</span>
+                  )}
                 </span>
                 <div className="neg-task-body">
                   <span className="neg-task-title">
@@ -338,6 +361,7 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
                   <span className="price-history-staged-value">
                     {formatAmount(l.value)}{currency ? ` ${currency}` : ''}{unit ? `/${unit}` : ''}
                     {showQuantity && l.quantity ? ` · desde ${formatAmount(l.quantity)} ${unit || ''}` : ''}
+                    {l.commissionPct !== null && l.commissionPct !== undefined ? ` · Comisión ${formatAmount(l.commissionPct)}%` : ''}
                   </span>
                   <button type="button" className="neg-milestone-delete" onClick={() => removeLine(idx)} title="Quitar">✕</button>
                 </div>
@@ -374,6 +398,17 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
               value={linePresentation}
               onChange={e => setLinePresentation(e.target.value)}
               onKeyDown={handleLineKeyDown}
+            />
+            <input
+              type="number"
+              className="neg-note-date-input neg-milestone-amount-input"
+              placeholder="Comisión % (opcional)"
+              value={lineCommission}
+              onChange={e => setLineCommission(e.target.value)}
+              onKeyDown={handleLineKeyDown}
+              step="0.01"
+              min="0"
+              max="100"
             />
             <datalist id="price-history-presentations">
               {presentationSuggestions.map(p => <option key={p} value={p} />)}

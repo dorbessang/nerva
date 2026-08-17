@@ -19,7 +19,7 @@ El SQL exacto de cada una está en la sección "Modal de Producto — Panorama c
 
 **Conexión a Supabase**: en esta sesión apareció una integración de Supabase (herramientas `mcp__Supabase__*`) pero se desconectó repetidas veces y nunca quedó estable — todo el SQL de esta sesión se le pasó al usuario para correr a mano en el editor de Supabase, no se corrió nada directo. Si en la sesión nueva la conexión está disponible y estable, usarla; si no, seguir con el flujo de siempre (pasar el SQL en el chat).
 
-**Decisión de producto sin cerrar — Comisión**: charlada en profundidad (ver sección "Modal de Producto" más abajo) pero nunca implementada. Recomendación ya acordada con el usuario si se retoma: un solo campo, expresado como % del precio ya cargado en cada entrada del historial, sin distinguir si contractualmente la absorbe el proveedor o el comprador (para el registro da igual, siempre es "cuánto te llevás vos"). Falta la confirmación final del usuario antes de tocar código.
+- **[x] Comisión (2026-08-14)**: implementado como se había acordado — campo `commission_pct` (numeric, nullable) en `negotiation_price_history`, un % opcional por entrada del historial de precio (no distingue proveedor/comprador). UI en `PriceHistory.jsx`: input en el alta (por línea/presentación), en la edición inline, y se muestra junto al precio cuando está cargado. **Pendiente, a pedido explícito del usuario**: pensar un panel de Settings puntual para el módulo Financiero (más personalizable) — se revisa una vez que esté todo lo demás deseado del módulo, no ahora.
 
 ## Auditoría de arquitectura (2026-08-11) — estado confirmado
 
@@ -38,13 +38,11 @@ Se hizo una auditoría completa de cruft/inconsistencias en el código (agente e
 
 Rediseño del modal de Producto: pestaña "Panorama comercial" (agrupa el historial de precio de todos los proyectos vinculados por presentación/moneda — mín/máx/último), pestaña "Bitácora" (mismo registro cronológico que Proyectos/Entidades, sin post-its por ahora), Resumen nuevo en la sidebar. Motivado por un caso real de farma: un mismo producto puede tener presentaciones distintas (ej. Ibupirac x20 comp vs x10 comp) con precios concurrentes dentro de la misma negociación — no son cotizaciones separadas en el tiempo, son SKUs distintos del mismo cierre. Se evaluó modelarlo como catálogo de SKU + jerarquías de familia (lo "correcto" a largo plazo, según el usuario) pero se decidió ir primero por la versión liviana (campo `presentation` de texto libre) porque migra limpio a SKUs reales el día que haga falta: por cada combinación (producto, presentación) ya cargada se puede crear el SKU nuevo, colgarlo de una familia, y re-vincular las filas existentes sin perder histórico.
 
-**Comisión**: charlado pero no implementado — quedó sin cerrar cuál de las dos partes (proveedor/comprador) la absorbe contractualmente, aunque la recomendación acordada es que no importa para el registro (siempre es "cuánto te llevás vos", ya sea descontado al proveedor o sumado al comprador) — un solo campo, % sobre el precio ya cargado, sin distinguir el lado. Falta confirmación final antes de sumarlo.
+**Comisión**: implementado 2026-08-14, ver nota arriba — `commission_pct` en `negotiation_price_history`, sin distinguir el lado que la absorbe.
 
-##### SQL pendiente de aplicar
-- [ ] `alter table public.negotiation_price_history add column if not exists product_id uuid references public.products(id) on delete set null;`
-- [ ] `alter table public.negotiation_price_history add column if not exists presentation text;`
-- [ ] `alter table public.negotiation_notes add column if not exists product_id uuid references public.products(id) on delete cascade;` (no hace falta tocar ningún constraint — `negotiation_notes` ya admite filas sin `negotiation_id` ni `entity_id`, ver más arriba en este archivo)
-- [ ] Sin cambios de RLS — ambas tablas ya filtran por `workspace_id`, agregar una columna nullable no cambia ninguna política existente
+##### SQL — ya aplicado (confirmado 2026-08-14, el archivo estaba desactualizado)
+- [x] `negotiation_price_history.product_id`, `.presentation`, `.commission_pct`
+- [x] `negotiation_notes.product_id`
 
 ## Crear entidades/productos al vuelo desde el proyecto + detección de similares (2026-08-11)
 
@@ -54,10 +52,8 @@ Buscador de Entidades (por tipo) y de Productos, dentro del modal de proyecto, s
 - Producto creado al vuelo se cuelga de un tipo `"Sin categorizar"` (se crea una sola vez por workspace, vía `ensureUncategorizedProductType()`, se reusa después)
 - Marcador `needs_review` en ambas tablas — cualquier entidad/producto creado por este atajo (o vía "crear de todos modos" del resolver de similares) queda tageado; Productos y Entidades suman un chip clickeable "Para completar (n)" que filtra por eso
 
-##### SQL pendiente de aplicar
-- [ ] `alter table public.entities add column if not exists needs_review boolean not null default false;`
-- [ ] `alter table public.products add column if not exists needs_review boolean not null default false;`
-- [ ] Sin cambios de RLS — ambas tablas ya filtran por `workspace_id`
+##### SQL — ya aplicado (confirmado 2026-08-14)
+- [x] `entities.needs_review`, `products.needs_review`
 
 ---
 
@@ -128,7 +124,7 @@ Esta sesión no tiene acceso de red a la Supabase real (confirmado, 403 de polí
 - [x] Siembra de NDA como campo "con seguimiento" (`key='nda'`, `underlying_type='select'`, choices = Enviado/En Revisión/Firmado, `trigger_mode='inactivity'`, 30 días) + backfill de los valores existentes de `negotiations.nda` — confirmado en Nerva Testing
 - [x] Siembra de "Tipo de empresa" como campo `select` en Entidades — corrida, no encontró ningún valor existente en `custom_fields.company_type` para migrar (nadie lo había cargado todavía en Nerva Testing), así que no se creó ninguna definición ni backfill. El campo se puede crear a mano desde Settings cuando se necesite
 - [x] `select notify_custom_field_alerts();` corrido manualmente una vez — sin resultados (esperable: recién sembrado, nada vencido todavía) antes de dejarlo en cron diario
-- [ ] Pendiente: borrar el `<select>` hardcodeado de NDA en `NegotiationModal` y el `<textarea>` de Tipo de empresa en `EntityModal` una vez que el cron muestre alertas reales funcionando en producción — quedan intactos por ahora, conviviendo con el campo custom nuevo sin conflicto
+- [x] **Confirmado 2026-08-14**: el `<select>` hardcodeado de NDA y el `<textarea>` de Tipo de empresa ya no existen en el código — se sacaron en el refactor "todo campo pasa a ser custom real" (ver más abajo). Si hace falta un campo de Tipo de empresa, se crea desde Settings como campo custom.
 
 #### Campos custom — 5 tipos nuevos + Dirección/WhatsApp fijos (a pedido del usuario, revisando comentarios que se habían perdido en una transición de plan mode)
 - [x] **País** (`field_type='country'`) — reusa el mismo `CountrySelector`/lista de países ya usada para "País de origen", cero datos nuevos. Configurable por campo, elegido una vez al crearlo: `multiple` (uno o varios países — cubre tanto "país de origen" como "países donde comercializa") y `show_flag` (banderita o solo texto en las vistas de lectura). Selector múltiple nuevo (`CountryMultiSelect` en `CustomFieldInput.jsx`) con chips + buscador, reusa los estilos del dropdown de `CountrySelector.css`. La bandera en modo lectura se resuelve como emoji Unicode (no `<img>`) para que `renderCustomFieldDisplay` siga devolviendo texto plano y funcione igual en tabla/tarjetas/Excel sin tratamiento especial
@@ -183,12 +179,10 @@ El usuario probó el reorder de "campos fijos" del punto anterior y se dio cuent
 - **`Fecha objetivo` (`target_date`)**: confirmado por el usuario que no debía venir precargado — sacado del seed. La columna real `negotiations.target_date` sigue existiendo (no se borra, no hay motivo), simplemente no se siembra ninguna definición para ella; si se necesita, se puede crear a mano desde Settings como campo tipo Fecha (quedaría en el jsonb `custom_fields`, no en la columna vieja)
 - **Participantes** (antes texto libre, ahora `user` múltiple con `user_id` real): si ya hay proyectos reales con participantes cargados como texto libre, esos valores no se migran (no hay forma automática de mapear un nombre tipeado a un usuario real del workspace) — quedarán invisibles hasta cargarse de nuevo desde el selector nuevo. Mismo criterio que NDA/Territorios: si esa data era de prueba, no hace falta hacer nada; si había datos reales, avisar para ver si conviene un mapeo manual.
 
-##### SQL pendiente de aplicar
-- [ ] `alter table public.custom_field_definitions add column storage_column text;`
-- [ ] `alter table public.custom_field_definitions add column is_structural boolean not null default false;`
-- [ ] Ampliar el check de `field_type` con `entity_type`, `status`, `entities_link`, `financial`, `contacts`
-- [ ] `alter table public.negotiations drop column territories; alter table public.negotiations drop column nda;` (sin migrar datos, a pedido explícito del usuario)
-- [ ] Seed de los 14 presets (estructurales + regulares) para los workspaces existentes — script completo entregado al usuario en el chat (sin `Fecha objetivo`: a pedido del usuario no viene precargado, se puede crear a mano como campo tipo Fecha si se necesita)
+##### SQL — ya aplicado (confirmado 2026-08-14, el archivo estaba desactualizado)
+- [x] `custom_field_definitions.storage_column`, `.is_structural` — existen
+- [x] `negotiations.territories`, `.nda` — confirmado borrados (no existen)
+- [x] Seed de los 14 presets — la app funciona con normalidad usando este modelo
 
 #### Estados de Proyectos — label editable
 El usuario preguntó si los Estados (Settings → Estados) se pueden renombrar, ya que hoy solo se pueden agregar/borrar — cada workspace maneja un flujo distinto y el set inicial no le sirve a todos igual.
@@ -212,9 +206,8 @@ Tras probar el import con planillas de prueba, dos pedidos: que la plantilla de 
 - [x] Nuevo componente `CustomFieldFilter` (en `CustomFieldInput.jsx`) — un `<select>` (múltiple si el campo lo es) con las opciones que correspondan según el tipo. Quedan como casos especiales sin generalizar: "Proveedor" (Proyectos) y "Actividad" (`activity_status`, calculado, no es un campo custom)
 - [x] Probado con Playwright: import con campos select/tracked/país múltiple/contacto principal resolviendo y guardando bien en ambas páginas; checkbox de filtro visible solo en tipos compatibles, filtro aparece en la toolbar apenas se activa desde Settings, y filtrado real funcionando en Proyectos (Estado) y Entidades (Tipo de empresa)
 
-##### SQL pendiente de aplicar
-- [ ] `alter table public.custom_field_definitions add column if not exists filterable boolean not null default false;`
-- [ ] `update public.custom_field_definitions set filterable = true where field_type = 'status';` (para no perder el filtro de Estado que ya existía)
+##### SQL — ya aplicado (confirmado 2026-08-14)
+- [x] `custom_field_definitions.filterable` — existe (nota: quedó como dead code, ver auditoría más arriba — el filtrado real es 100% por `field_type`)
 
 ### Feedback del primer cliente real
 Tras dar de alta al primer cliente pagador y que empezara a usar la app, surgieron cosas que para el uso propio de Gervasio pasaban desapercibidas pero no son genéricas para un SaaS con clientes reales.
@@ -231,6 +224,13 @@ Tras dar de alta al primer cliente pagador y que empezara a usar la app, surgier
    - [x] Selector de orden en vista Tarjetas (ambas páginas) — mismo estado (`sortKey`/`sortDir`) que la Tabla, así cambiar de vista no pierde el orden elegido
    - [ ] Sin probar con Playwright todavía (esta sesión sigue sin acceso de red a la Supabase real) — verificado por build + lectura de código, pendiente de confirmación manual del usuario
 6. **Confirmación aparte, sin cambios de código**: Estados de Proyectos ya funciona exactamente como se pidió — el campo `status` es estructural (obligatorio, columna real `negotiations.status`, no se puede sacar), pero sus opciones (`custom_states`) son 100% configurables por cada owner desde Configuración → Estados — agregar/renombrar/borrar libremente, salvo "Completado" que queda protegido por las comparaciones hardcodeadas que dependen de ese string exacto en varios lugares de la app
+
+### Filtro "Con tareas pendientes" en Proyectos y Entidades (2026-08-14)
+Pedido explícito: poder identificar rápido, a nivel equipo, dónde quedan cosas por hacer.
+- [x] Botón toggle nuevo en el toolbar de ambas páginas (`.pending-tasks-toggle-btn`, definido una sola vez en `Negotiations.css`, reusado en Entidades vía el bundle global de CSS — mismo patrón que `.neg-stat-card`/`.clear-filters-btn`)
+- [x] Proyectos: `has_pending_tasks` calculado en `fetchAll()` — trae `tasks.negotiation_id` con `status in ('pending','in_progress')` para los proyectos cargados
+- [x] Entidades: `has_pending_tasks` cuenta tanto tareas propias de la entidad (`tasks.entity_id`) como tareas de cualquier proyecto vinculado — mismo criterio "entidad como hub" que ya usa el timeline de actividad
+- [ ] Sin probar con Playwright — verificado por build y lectura de código, pendiente de confirmación manual del usuario
 
 ### Invitar cliente nuevo — solo para Staff
 Hasta ahora, dar de alta a un cliente nuevo (workspace de equipo + esa persona como owner) se hacía a mano por SQL en el editor de Supabase. Se pidió una opción en la UI, distinta de "Invitar usuario" (que suma a alguien a un workspace ya existente y ya existía), disponible solo para cuentas con `is_staff = true`.

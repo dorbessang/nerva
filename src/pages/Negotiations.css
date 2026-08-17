@@ -1941,6 +1941,21 @@
 }
 .clear-filters-btn:hover { background: #FEF2F2; border-color: #FCA5A5; }
 
+.pending-tasks-toggle-btn {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.pending-tasks-toggle-btn:hover { background: #F9FAFB; }
+.pending-tasks-toggle-btn.active { background: #0B1F3A; border-color: #0B1F3A; color: #ffffff; }
+
 .entity-dropdown {
   position: absolute;
   top: calc(100% + 4px);

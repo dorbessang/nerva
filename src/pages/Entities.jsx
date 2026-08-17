@@ -81,13 +81,15 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [fieldOrder, setFieldOrder] = useState(null)
   const [customFilterValues, setCustomFilterValues] = useState({})
   const [onlyNeedsReview, setOnlyNeedsReview] = useState(false)
+  const [onlyPendingTasks, setOnlyPendingTasks] = useState(false)
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState(null)
-  const hasActiveFilters = search.trim() !== '' || onlyNeedsReview
+  const hasActiveFilters = search.trim() !== '' || onlyNeedsReview || onlyPendingTasks
     || Object.values(customFilterValues).some(v => Array.isArray(v) ? v.length > 0 : !!v)
   function clearAllFilters() {
     setSearch('')
     setOnlyNeedsReview(false)
+    setOnlyPendingTasks(false)
     setCustomFilterValues({})
   }
   // Solo aplica en modo unificado (sin entityTypeId) — solapa activa entre
@@ -244,12 +246,30 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
       negsData = data || []
     }
 
-    const combined = entitiesData.map(entity => ({
-      ...entity,
-      negotiation_entities: (negEntities || [])
+    // Para el filtro "Con tareas pendientes" — una entidad cuenta como tal
+    // si tiene una tarea propia (entity_id) sin terminar, O si alguno de sus
+    // proyectos vinculados la tiene — mismo criterio "entidad como hub" que
+    // ya usa el timeline de actividad (agrega la de todos sus proyectos).
+    const [{ data: entityTasks }, { data: negTasksForEntities }] = await Promise.all([
+      supabase.from('tasks').select('entity_id').in('entity_id', entityIds).in('status', ['pending', 'in_progress']),
+      negIds.length > 0
+        ? supabase.from('tasks').select('negotiation_id').in('negotiation_id', negIds).in('status', ['pending', 'in_progress'])
+        : Promise.resolve({ data: [] }),
+    ])
+    const entityIdsWithPendingTasks = new Set((entityTasks || []).map(t => t.entity_id))
+    const negIdsWithPendingTasks = new Set((negTasksForEntities || []).map(t => t.negotiation_id))
+
+    const combined = entitiesData.map(entity => {
+      const linkedNegs = (negEntities || [])
         .filter(ne => ne.entity_id === entity.id)
         .map(ne => ({ ...ne, negotiation: negsData.find(n => n.id === ne.negotiation_id) || null }))
-    }))
+      return {
+        ...entity,
+        negotiation_entities: linkedNegs,
+        has_pending_tasks: entityIdsWithPendingTasks.has(entity.id)
+          || linkedNegs.some(ne => negIdsWithPendingTasks.has(ne.negotiation_id)),
+      }
+    })
 
     setEntities(naturalSortByName(combined))
     setLoading(false)
@@ -291,6 +311,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   function matchesAllEntityFilters(e, { excludeDefKey } = {}) {
     if (!e.name.toLowerCase().includes(search.toLowerCase())) return false
     if (onlyNeedsReview && !e.needs_review) return false
+    if (onlyPendingTasks && !e.has_pending_tasks) return false
     return matchesAllFieldFilters(filterableEntityDefs, e, customFilterValues, excludeDefKey)
   }
   function entityFacetRows(excludeDefKey) {
@@ -429,6 +450,14 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           />
         </div>
         <FiltersPanelButton groups={filterPanelGroups} />
+        <button
+          type="button"
+          className={`pending-tasks-toggle-btn ${onlyPendingTasks ? 'active' : ''}`}
+          onClick={() => setOnlyPendingTasks(v => !v)}
+          title="Mostrar solo entidades con tareas pendientes (propias o de sus proyectos)"
+        >
+          📋 Con tareas pendientes
+        </button>
         {hasActiveFilters && (
           <button type="button" className="clear-filters-btn" onClick={clearAllFilters}>✕ Limpiar filtros</button>
         )}
