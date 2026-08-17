@@ -14,6 +14,9 @@ const TYPE_ICONS = {
   deal_value_updated: '💱',
   document_uploaded: '📎',
   price_updated: '📈',
+  commission_approval_requested: '⏳',
+  commission_approval_resolved: '⚖️',
+  email_logged: '✉️',
 }
 
 // Timeline cronológico de todo lo que pasó con un proyecto o con una
