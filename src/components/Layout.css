@@ -407,6 +407,22 @@ body {
   text-overflow: ellipsis;
 }
 
+.nav-flyout {
+  position: fixed;
+  transform: translateY(-50%);
+  background-color: #0B1F3A;
+  color: #ffffff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.12);
+  z-index: 300;
+  pointer-events: none;
+}
+
 .nav-divider {
   height: 1px;
   background-color: rgba(255,255,255,0.1);

@@ -43,6 +43,7 @@ export default function Layout({ children }) {
   const wsDropdownRef = useRef(null);
   const [alertProjects, setAlertProjects] = useState([]);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [navFlyout, setNavFlyout] = useState(null);
   const [inactiveProjects, setInactiveProjects] = useState([]);
   const [inactiveBannerDismissed, setInactiveBannerDismissed] = useState(false);
 
@@ -171,6 +172,15 @@ export default function Layout({ children }) {
   const sidebarWidth = isMobile ? 0 : collapsed ? 64 : 220;
   const asideWidth = isMobile ? 220 : sidebarWidth;
   const showLabels = isMobile || !collapsed;
+
+  function handleNavMouseEnter(e, label) {
+    if (!collapsed || isMobile) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setNavFlyout({ label, top: rect.top + rect.height / 2 });
+  }
+  function handleNavMouseLeave() {
+    setNavFlyout(null);
+  }
 
   return (
     <div className="layout-container">
@@ -318,7 +328,8 @@ export default function Layout({ children }) {
                 key={item.path}
                 onClick={() => navigate(item.path)}
                 className={`nav-item ${location.pathname === item.path ? "active" : ""}`}
-                title={showLabels ? "" : item.label}
+                onMouseEnter={(e) => handleNavMouseEnter(e, item.label)}
+                onMouseLeave={handleNavMouseLeave}
               >
                 <span className="nav-icon">{item.icon}</span>
                 {showLabels && <span className="nav-label">{item.label}</span>}
@@ -331,7 +342,8 @@ export default function Layout({ children }) {
                 <button
                   onClick={() => navigate("/entities")}
                   className={`nav-item ${location.pathname === "/entities" ? "active" : ""}`}
-                  title={showLabels ? "" : "Todas las entidades"}
+                  onMouseEnter={(e) => handleNavMouseEnter(e, "Todas las entidades")}
+                  onMouseLeave={handleNavMouseLeave}
                 >
                   <span className="nav-icon"><LucideIcons.Layers size={18} /></span>
                   {showLabels && <span className="nav-label">Todas las entidades</span>}
@@ -344,7 +356,8 @@ export default function Layout({ children }) {
                 key={et.id}
                 onClick={() => navigate(`/entities/${et.id}`)}
                 className={`nav-item ${location.pathname === `/entities/${et.id}` ? "active" : ""}`}
-                title={showLabels ? "" : et.name}
+                onMouseEnter={(e) => handleNavMouseEnter(e, et.plural || (et.name.endsWith('s') ? et.name : et.name.endsWith('r') ? et.name + 'es' : et.name + 's'))}
+                onMouseLeave={handleNavMouseLeave}
               >
                 <span className="nav-icon">
                   {et.icon
@@ -366,7 +379,8 @@ export default function Layout({ children }) {
                 <button
                   onClick={() => navigate("/products")}
                   className={`nav-item ${location.pathname === "/products" ? "active" : ""}`}
-                  title={showLabels ? "" : "Productos"}
+                  onMouseEnter={(e) => handleNavMouseEnter(e, "Productos")}
+                  onMouseLeave={handleNavMouseLeave}
                 >
                   <span className="nav-icon"><LucideIcons.Package size={18} /></span>
                   {showLabels && <span className="nav-label">Productos</span>}
@@ -379,7 +393,8 @@ export default function Layout({ children }) {
             <button
               onClick={() => navigate("/profile")}
               className={`nav-item ${location.pathname === "/profile" ? "active" : ""}`}
-              title={showLabels ? "" : "Mi perfil"}
+              onMouseEnter={(e) => handleNavMouseEnter(e, "Mi perfil")}
+              onMouseLeave={handleNavMouseLeave}
             >
               <span className="nav-icon"><LucideIcons.User size={18} /></span>
               {showLabels && <span className="nav-label">Mi perfil</span>}
@@ -387,7 +402,8 @@ export default function Layout({ children }) {
             <button
               onClick={() => navigate("/settings")}
               className={`nav-item ${location.pathname === "/settings" ? "active" : ""}`}
-              title={showLabels ? "" : "Configuración"}
+              onMouseEnter={(e) => handleNavMouseEnter(e, "Configuración")}
+              onMouseLeave={handleNavMouseLeave}
             >
               <span className="nav-icon">
                 <LucideIcons.Settings size={18} />
@@ -396,6 +412,12 @@ export default function Layout({ children }) {
             </button>
           </div>
         </aside>
+
+        {navFlyout && (
+          <div className="nav-flyout" style={{ top: navFlyout.top, left: sidebarWidth + 8 }}>
+            {navFlyout.label}
+          </div>
+        )}
 
         <main
           className="layout-main"
