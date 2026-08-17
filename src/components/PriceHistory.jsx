@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { logActivity } from '../lib/activity'
 import { notifyTaskAssigned } from '../lib/tasks'
+import { getApprovalRule, isApprover as isApproverFor } from '../lib/approvals'
 import SearchableSelect from './SearchableSelect'
 // Mismo patrón que DealMilestones.jsx — reusa .neg-note-input/.neg-milestone-*
 // ya definidas en Negotiations.css.
@@ -24,10 +25,11 @@ function formatAmount(n) {
 // vs "x10 comp" de Ibupirac), no una fecha distinta.
 export default function PriceHistory({ negotiationId, workspaceId, negotiationTitle, currency, unit, showQuantity, products = [], canEdit, onChanged }) {
   const { user, activeWorkspace } = useAuth()
-  const approvalThreshold = activeWorkspace?.commission_approval_threshold_pct
-  const approverId = activeWorkspace?.commission_approver_id
-  const approvalEnabled = approvalThreshold !== null && approvalThreshold !== undefined && !!approverId
-  const isApprover = user?.id === approverId
+  const commissionRule = getApprovalRule(activeWorkspace, 'commission')
+  const approvalThreshold = commissionRule?.threshold_numeric
+  const approverId = commissionRule?.approver_id
+  const approvalEnabled = !!(commissionRule?.enabled && approvalThreshold !== null && approvalThreshold !== undefined && approverId)
+  const isApprover = isApproverFor(activeWorkspace, 'commission', user?.id)
   const [entries, setEntries] = useState([])
   // Fecha/producto/motivo son compartidos por toda la cotización — una
   // misma cotización puede traer varias presentaciones (líneas) del mismo

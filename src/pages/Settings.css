@@ -675,6 +675,39 @@
   align-items: flex-end;
 }
 
+.approval-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.approval-rule-row {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.approval-rule-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  cursor: pointer;
+}
+.approval-rule-toggle input { width: 16px; height: 16px; cursor: pointer; }
+
+.approval-rule-config {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f2f5;
+}
+
 /* ==================== Mobile (<=860px) ==================== */
 @media (max-width: 860px) {
   .settings-container {

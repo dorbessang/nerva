@@ -9,6 +9,7 @@ import { computeFieldOrder, isCardFilterable } from '../lib/customFields'
 import { extractFunctionError } from '../lib/edgeFunctionError'
 import { FINANCIAL_FEATURES, resolveFinancialConfig } from '../lib/financialConfig'
 import { isOwner as isOwnerRole, isPrivileged } from '../lib/roles'
+import { APPROVAL_RULE_TYPES } from '../lib/approvals'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 
@@ -1664,16 +1665,16 @@ function TabWorkspace({ workspaceId, isOwner }) {
   const [savingActivity, setSavingActivity] = useState(false)
   const [savedActivity, setSavedActivity] = useState(false)
 
-  const [commissionThreshold, setCommissionThreshold] = useState('')
-  const [commissionApproverId, setCommissionApproverId] = useState('')
   const [members, setMembers] = useState([])
-  const [commissionError, setCommissionError] = useState('')
-  const [savingCommission, setSavingCommission] = useState(false)
-  const [savedCommission, setSavedCommission] = useState(false)
+  const [rules, setRules] = useState([])
+  const [rulesError, setRulesError] = useState('')
+  const [savingRules, setSavingRules] = useState(false)
+  const [savedRules, setSavedRules] = useState(false)
 
   useEffect(() => {
     fetchWorkspace()
     fetchMembers()
+    fetchRules()
   }, [workspaceId])
 
   async function fetchWorkspace() {
@@ -1687,8 +1688,6 @@ function TabWorkspace({ workspaceId, isOwner }) {
       setName(data.name)
       setAlertDays(String(data.low_activity_alert_days ?? 90))
       setInactiveDays(String(data.low_activity_inactive_days ?? 120))
-      setCommissionThreshold(data.commission_approval_threshold_pct !== null && data.commission_approval_threshold_pct !== undefined ? String(data.commission_approval_threshold_pct) : '')
-      setCommissionApproverId(data.commission_approver_id || '')
     }
   }
 
@@ -1701,27 +1700,50 @@ function TabWorkspace({ workspaceId, isOwner }) {
     if (data) setMembers(data)
   }
 
-  async function handleSaveCommissionApproval() {
-    setCommissionError('')
-    const thresholdRaw = commissionThreshold.trim()
-    const threshold = thresholdRaw ? parseFloat(thresholdRaw) : null
-    if (thresholdRaw && (Number.isNaN(threshold) || threshold < 0 || threshold > 100)) {
-      setCommissionError('El umbral tiene que ser un número entre 0 y 100')
-      return
-    }
-    setSavingCommission(true)
-    const { error } = await supabase
-      .from('workspaces')
-      .update({
-        commission_approval_threshold_pct: threshold,
-        commission_approver_id: commissionApproverId || null,
+  async function fetchRules() {
+    const { data } = await supabase.from('approval_rules').select('*').eq('workspace_id', workspaceId)
+    setRules(
+      APPROVAL_RULE_TYPES.map(t => {
+        const existing = (data ?? []).find(r => r.rule_type === t.key)
+        return {
+          rule_type: t.key,
+          enabled: existing?.enabled ?? false,
+          approver_id: existing?.approver_id ?? '',
+          threshold_numeric: existing?.threshold_numeric !== null && existing?.threshold_numeric !== undefined ? String(existing.threshold_numeric) : '',
+        }
       })
-      .eq('id', workspaceId)
-    setSavingCommission(false)
-    if (error) { setCommissionError('No se pudo guardar. Intentá de nuevo.'); return }
-    setSavedCommission(true)
+    )
+  }
+
+  function updateRule(ruleType, patch) {
+    setRules(prev => prev.map(r => r.rule_type === ruleType ? { ...r, ...patch } : r))
+  }
+
+  async function handleSaveRules() {
+    setRulesError('')
+    for (const r of rules) {
+      if (r.enabled && !r.approver_id) {
+        setRulesError(`"${APPROVAL_RULE_TYPES.find(t => t.key === r.rule_type)?.label}" necesita un aprobador para poder activarse`)
+        return
+      }
+    }
+    setSavingRules(true)
+    const { error } = await supabase.from('approval_rules').upsert(
+      rules.map(r => ({
+        workspace_id: workspaceId,
+        rule_type: r.rule_type,
+        enabled: r.enabled,
+        approver_id: r.approver_id || null,
+        threshold_numeric: r.threshold_numeric.trim() ? parseFloat(r.threshold_numeric) : null,
+        updated_at: new Date().toISOString(),
+      })),
+      { onConflict: 'workspace_id,rule_type' }
+    )
+    setSavingRules(false)
+    if (error) { setRulesError('No se pudo guardar. Intentá de nuevo.'); return }
+    setSavedRules(true)
     await refreshWorkspaces()
-    setTimeout(() => setSavedCommission(false), 2000)
+    setTimeout(() => setSavedRules(false), 2000)
   }
 
   async function handleSave() {
@@ -1801,28 +1823,54 @@ function TabWorkspace({ workspaceId, isOwner }) {
 
       {isOwner && (
         <div className="settings-block">
-          <h2 className="settings-block-title">Aprobación de comisión</h2>
+          <h2 className="settings-block-title">Reglas de autorización</h2>
           <p className="settings-hint">
-            Si una comisión cargada en el historial de precio supera este umbral, queda pendiente de aprobación y se le crea una tarea a la persona designada — no se descuenta ni se bloquea el proyecto, solo queda marcada hasta que la apruebe o la rechace. Dejando el umbral o la persona vacíos, el chequeo queda apagado. Solo el owner puede cambiar esto.
+            Cada regla es independiente — activá solo las que te sirvan. Ninguna bloquea el trabajo del equipo: cuando algo queda pendiente, se marca y se le avisa a la persona designada, pero se puede seguir usando con normalidad mientras se resuelve. Sin aprobador designado, la regla no se puede activar. Solo el owner puede cambiar esto.
           </p>
-          <div className="form-row">
-            <div className="form-group" style={{ maxWidth: 180 }}>
-              <label>UMBRAL (%)</label>
-              <input type="number" min="0" max="100" step="0.01" placeholder="Ej: 15" value={commissionThreshold} onChange={e => setCommissionThreshold(e.target.value)} />
-            </div>
-            <div className="form-group" style={{ maxWidth: 260 }}>
-              <label>APROBADOR</label>
-              <select value={commissionApproverId} onChange={e => setCommissionApproverId(e.target.value)}>
-                <option value="">Sin designar</option>
-                {members.map(m => (
-                  <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || 'Sin nombre'}</option>
-                ))}
-              </select>
-            </div>
+          <div className="approval-rules-list">
+            {rules.map(r => {
+              const def = APPROVAL_RULE_TYPES.find(t => t.key === r.rule_type)
+              if (!def) return null
+              return (
+                <div key={r.rule_type} className="approval-rule-row">
+                  <label className="approval-rule-toggle">
+                    <input
+                      type="checkbox"
+                      checked={r.enabled}
+                      onChange={e => updateRule(r.rule_type, { enabled: e.target.checked })}
+                    />
+                    <span>{def.label}</span>
+                  </label>
+                  {r.enabled && (
+                    <div className="approval-rule-config">
+                      <div className="form-group" style={{ maxWidth: 240 }}>
+                        <label>APROBADOR</label>
+                        <select value={r.approver_id} onChange={e => updateRule(r.rule_type, { approver_id: e.target.value })}>
+                          <option value="">Sin designar</option>
+                          {members.map(m => (
+                            <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || 'Sin nombre'}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {def.hasThreshold && (
+                        <div className="form-group" style={{ maxWidth: 260 }}>
+                          <label>{def.thresholdLabel}</label>
+                          <input
+                            type="number" min="0" max={def.thresholdMax || undefined} step="0.01"
+                            value={r.threshold_numeric}
+                            onChange={e => updateRule(r.rule_type, { threshold_numeric: e.target.value })}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
-          {commissionError && <p className="form-error">{commissionError}</p>}
-          <button className="settings-btn-primary" onClick={handleSaveCommissionApproval} disabled={savingCommission}>
-            {savingCommission ? 'Guardando...' : savedCommission ? '✓ Guardado' : 'Guardar cambios'}
+          {rulesError && <p className="form-error">{rulesError}</p>}
+          <button className="settings-btn-primary" onClick={handleSaveRules} disabled={savingRules}>
+            {savingRules ? 'Guardando...' : savedRules ? '✓ Guardado' : 'Guardar cambios'}
           </button>
         </div>
       )}

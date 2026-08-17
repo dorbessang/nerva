@@ -52,7 +52,7 @@ export function AuthProvider({ children }) {
     const [membersRes, profileRes] = await Promise.all([
       supabase
         .from('workspace_members')
-        .select('role, workspace_id, workspace:workspace_id(id, name, type, onboarded, low_activity_alert_days, low_activity_inactive_days, commission_approval_threshold_pct, commission_approver_id)')
+        .select('role, workspace_id, workspace:workspace_id(id, name, type, onboarded, low_activity_alert_days, low_activity_inactive_days)')
         .eq('user_id', userId)
         .eq('status', 'active'),
       supabase
@@ -72,7 +72,14 @@ export function AuthProvider({ children }) {
       return
     }
 
-    const memberWorkspaces = data.map(m => ({ ...m.workspace, role: m.role }))
+    const workspaceIds = data.map(m => m.workspace_id)
+    const { data: rulesData } = await supabase.from('approval_rules').select('*').in('workspace_id', workspaceIds)
+
+    const memberWorkspaces = data.map(m => ({
+      ...m.workspace,
+      role: m.role,
+      approval_rules: (rulesData ?? []).filter(r => r.workspace_id === m.workspace_id),
+    }))
     setWorkspaces(memberWorkspaces)
 
     const savedId = localStorage.getItem('nerva_active_workspace')
