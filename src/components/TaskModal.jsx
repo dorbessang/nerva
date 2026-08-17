@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { createTask, fetchPredecessorCandidates } from '../lib/tasks'
+import { getApprovalRule, isApprovalRuleEnabled, shouldRequireTaskApproval } from '../lib/approvals'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import SearchableSelect from './SearchableSelect'
 import './TaskModal.css'
 
 export default function TaskModal({ onClose, onCreated }) {
-  const { user, workspaceId } = useAuth()
+  const { user, workspaceId, activeWorkspace } = useAuth()
   useEscapeToClose(onClose)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -16,11 +17,16 @@ export default function TaskModal({ onClose, onCreated }) {
   const [assignedTo, setAssignedTo] = useState('')
   const [negotiationId, setNegotiationId] = useState('')
   const [predecessorId, setPredecessorId] = useState('')
+  const [requiresApproval, setRequiresApproval] = useState(false)
+  const [amount, setAmount] = useState('')
   const [members, setMembers] = useState([])
   const [negotiations, setNegotiations] = useState([])
   const [negotiationTasks, setNegotiationTasks] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+
+  const taskApprovalRule = getApprovalRule(activeWorkspace, 'task')
+  const taskApprovalEnabled = isApprovalRuleEnabled(activeWorkspace, 'task')
 
   useEffect(() => {
     fetchMembers()
@@ -56,9 +62,13 @@ export default function TaskModal({ onClose, onCreated }) {
     setError(null)
     if (!title.trim()) { setError('El título es obligatorio'); return }
     setLoading(true)
+    const amountValue = amount.trim() ? parseFloat(amount) : null
+    const willRequireApproval = shouldRequireTaskApproval(taskApprovalRule, requiresApproval, amountValue)
     const { error } = await createTask(supabase, {
       workspaceId, title, description, priority, dueDate, assignedTo,
       negotiationId, predecessorId, createdBy: user.id, actorId: user.id,
+      approvalStatus: willRequireApproval ? 'pending' : null,
+      amount: amountValue, approverId: taskApprovalRule?.approver_id,
     })
     setLoading(false)
     if (error) { setError('Error al crear la tarea. Intentá de nuevo.'); return }
@@ -133,6 +143,23 @@ export default function TaskModal({ onClose, onCreated }) {
                   <option key={t.id} value={t.id}>{t.title}{t.status === 'done' ? ' (hecha)' : ''}</option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {taskApprovalEnabled && (
+            <div className="form-group">
+              <label className="approval-rule-toggle">
+                <input type="checkbox" checked={requiresApproval} onChange={e => setRequiresApproval(e.target.checked)} />
+                <span>Requiere autorización</span>
+              </label>
+              <input
+                type="number"
+                placeholder="Monto (opcional)"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                style={{ marginTop: 8 }}
+                step="0.01"
+              />
             </div>
           )}
 

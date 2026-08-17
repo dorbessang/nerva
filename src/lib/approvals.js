@@ -22,3 +22,12 @@ export function isApprover(workspace, ruleType, userId) {
   const rule = getApprovalRule(workspace, ruleType)
   return !!(rule?.enabled && rule?.approver_id && rule.approver_id === userId)
 }
+
+// Una tarea pide autorización si se tildó a mano, o si el monto cargado
+// supera el umbral configurado (cuando hay uno) — cualquiera de las dos
+// alcanza. Sin regla activa (rule === null/enabled === false), nunca.
+export function shouldRequireTaskApproval(rule, manuallyChecked, amount) {
+  if (!rule?.enabled || !rule?.approver_id) return false
+  if (manuallyChecked) return true
+  return rule.threshold_numeric != null && amount != null && amount > rule.threshold_numeric
+}

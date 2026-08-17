@@ -1892,6 +1892,8 @@ const NOTIF_TYPES = [
   { key: 'negotiation_inactive', label: 'Un proyecto con tareas mías se marca inactivo' },
   { key: 'custom_field_due', label: 'Un campo con seguimiento necesita atención' },
   { key: 'mentioned', label: 'Me mencionan con @ en una nota' },
+  { key: 'task_approval_requested', label: 'Soy aprobador y hay una tarea esperando mi autorización' },
+  { key: 'task_approval_resolved', label: 'Se resuelve la autorización de una tarea mía' },
 ]
 
 function TabNotificaciones({ workspaceId }) {

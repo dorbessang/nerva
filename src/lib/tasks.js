@@ -4,6 +4,7 @@ import { isNotificationEnabled } from './notifications'
 import { logActivity } from './activity'
 
 export function isTaskBlocked(task) {
+  if (task.approval_status === 'pending') return true
   return !!task.predecessor && task.predecessor.status !== 'done'
 }
 
@@ -136,6 +137,7 @@ export async function notifyTaskAssigned(supabase, { workspaceId, task, assigned
 export async function createTask(supabase, {
   workspaceId, title, description, priority = 'medium', dueDate, assignedTo,
   negotiationId, entityId, predecessorId, createdBy, actorId,
+  approvalStatus = null, amount = null, approverId = null,
 }) {
   const { data, error } = await supabase.from('tasks').insert({
     workspace_id: workspaceId,
@@ -149,6 +151,9 @@ export async function createTask(supabase, {
     predecessor_task_id: predecessorId || null,
     status: 'pending',
     created_by: createdBy || null,
+    requires_approval: approvalStatus === 'pending',
+    amount,
+    approval_status: approvalStatus,
   }).select('id, title').single()
 
   if (error) return { error }
@@ -160,7 +165,38 @@ export async function createTask(supabase, {
       title: `Tarea creada: "${data.title}"`, actorId,
     })
   }
+  if (approvalStatus === 'pending' && approverId) {
+    if (await isNotificationEnabled(supabase, { userId: approverId, workspaceId, type: 'task_approval_requested' })) {
+      await supabase.from('notifications').insert({
+        workspace_id: workspaceId,
+        user_id: approverId,
+        type: 'task_approval_requested',
+        title: 'Tarea pendiente de autorización',
+        body: `"${data.title}"${amount != null ? ` — ${amount}` : ''} necesita tu autorización.`,
+        task_id: data.id,
+      })
+    }
+    await logActivity(supabase, {
+      workspaceId, negotiationId, entityId, type: 'task_approval_requested',
+      title: `Tarea "${data.title}" pendiente de autorización`, actorId,
+    })
+  }
   return { data }
+}
+
+// Avisa al asignado de una tarea que su solicitud de autorización se
+// resolvió (aprobada o rechazada) — respeta notification_preferences.
+export async function notifyTaskApprovalResolved(supabase, { workspaceId, task, approved }) {
+  if (!task.assigned_to) return
+  if (!(await isNotificationEnabled(supabase, { userId: task.assigned_to, workspaceId, type: 'task_approval_resolved' }))) return
+  await supabase.from('notifications').insert({
+    workspace_id: workspaceId,
+    user_id: task.assigned_to,
+    type: 'task_approval_resolved',
+    title: approved ? 'Tarea autorizada' : 'Tarea rechazada',
+    body: `"${task.title}" ${approved ? 'fue autorizada — ya se puede completar.' : 'fue rechazada.'}`,
+    task_id: task.id,
+  })
 }
 
 // Si la tarea ya se resolvió (se completó, sin importar si fue desde la

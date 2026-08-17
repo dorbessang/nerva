@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { wouldCreateCycle, isTaskBlocked, notifyTaskAssigned, createTask, fetchPredecessorCandidates } from '../lib/tasks'
+import { wouldCreateCycle, isTaskBlocked, notifyTaskAssigned, notifyTaskApprovalResolved, createTask, fetchPredecessorCandidates } from '../lib/tasks'
+import { isNotificationEnabled } from '../lib/notifications'
+import { getApprovalRule, isApprovalRuleEnabled, isApprover as isApproverFor, shouldRequireTaskApproval } from '../lib/approvals'
+import { logActivity } from '../lib/activity'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './TaskDrawer.css'
 
 export default function TaskDrawer({ task, onClose, onUpdated }) {
-  const { user, workspaceId } = useAuth()
+  const { user, workspaceId, activeWorkspace } = useAuth()
   useEscapeToClose(onClose)
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description || '')
@@ -15,10 +18,16 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
   const [dueDate, setDueDate] = useState(task.due_date || '')
   const [assignedTo, setAssignedTo] = useState(task.assigned_to || '')
   const [predecessorId, setPredecessorId] = useState(task.predecessor_task_id || '')
+  const [requiresApproval, setRequiresApproval] = useState(task.requires_approval || false)
+  const [amount, setAmount] = useState(task.amount !== null && task.amount !== undefined ? String(task.amount) : '')
   const [members, setMembers] = useState([])
   const [siblingTasks, setSiblingTasks] = useState([])
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const taskApprovalRule = getApprovalRule(activeWorkspace, 'task')
+  const taskApprovalEnabled = isApprovalRuleEnabled(activeWorkspace, 'task')
+  const isTaskApprover = isApproverFor(activeWorkspace, 'task', user?.id)
   const [showSubtaskForm, setShowSubtaskForm] = useState(false)
   const [subtaskTitle, setSubtaskTitle] = useState('')
   const [subtaskAssignee, setSubtaskAssignee] = useState('')
@@ -74,6 +83,10 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
     setSaving(true)
     const newDueDate = dueDate || null
     const dueDateChanged = newDueDate !== (task.due_date || null)
+    const amountValue = amount.trim() ? parseFloat(amount) : null
+    const newRequiresApproval = shouldRequireTaskApproval(taskApprovalRule, requiresApproval, amountValue)
+    const wasPending = task.approval_status === 'pending'
+    const newApprovalStatus = newRequiresApproval ? 'pending' : null
     const { error } = await supabase
       .from('tasks')
       .update({
@@ -84,6 +97,10 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
         due_date: newDueDate,
         assigned_to: assignedTo || null,
         predecessor_task_id: predecessorId || null,
+        requires_approval: newRequiresApproval,
+        amount: amountValue,
+        approval_status: newApprovalStatus,
+        ...(newApprovalStatus !== 'pending' ? { approved_by: null, approved_at: null } : {}),
         // Si cambia la fecha límite, el aviso de "por vencer/vencida" tiene
         // que poder volver a dispararse para la nueva fecha
         ...(dueDateChanged ? { due_soon_notified_at: null, overdue_notified_at: null } : {}),
@@ -94,9 +111,47 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
       if (assignedTo && assignedTo !== task.assigned_to) {
         await notifyTaskAssigned(supabase, { workspaceId: task.workspace_id, task, assignedTo, actingUserId: user?.id })
       }
+      if (newApprovalStatus === 'pending' && !wasPending && taskApprovalRule?.approver_id) {
+        if (await isNotificationEnabled(supabase, { userId: taskApprovalRule.approver_id, workspaceId: task.workspace_id, type: 'task_approval_requested' })) {
+          await supabase.from('notifications').insert({
+            workspace_id: task.workspace_id,
+            user_id: taskApprovalRule.approver_id,
+            type: 'task_approval_requested',
+            title: 'Tarea pendiente de autorización',
+            body: `"${title.trim()}"${amountValue != null ? ` — ${amountValue}` : ''} necesita tu autorización.`,
+            task_id: task.id,
+          })
+        }
+        await logActivity(supabase, {
+          workspaceId: task.workspace_id, negotiationId: task.negotiation_id, entityId: task.entity_id,
+          type: 'task_approval_requested', title: `Tarea "${title.trim()}" pendiente de autorización`, actorId: user?.id,
+        })
+      }
       onUpdated()
       onClose()
     }
+  }
+
+  async function handleApproveTask() {
+    await supabase.from('tasks').update({ approval_status: 'approved', approved_by: user?.id, approved_at: new Date().toISOString() }).eq('id', task.id)
+    await notifyTaskApprovalResolved(supabase, { workspaceId: task.workspace_id, task, approved: true })
+    await logActivity(supabase, {
+      workspaceId: task.workspace_id, negotiationId: task.negotiation_id, entityId: task.entity_id,
+      type: 'task_approval_resolved', title: `Tarea "${task.title}" autorizada`, actorId: user?.id,
+    })
+    onUpdated()
+    onClose()
+  }
+
+  async function handleRejectTask() {
+    await supabase.from('tasks').update({ approval_status: 'rejected', approved_by: user?.id, approved_at: new Date().toISOString() }).eq('id', task.id)
+    await notifyTaskApprovalResolved(supabase, { workspaceId: task.workspace_id, task, approved: false })
+    await logActivity(supabase, {
+      workspaceId: task.workspace_id, negotiationId: task.negotiation_id, entityId: task.entity_id,
+      type: 'task_approval_resolved', title: `Tarea "${task.title}" rechazada`, actorId: user?.id,
+    })
+    onUpdated()
+    onClose()
   }
 
   async function handleDelete() {
@@ -194,9 +249,41 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
             </div>
           )}
 
-          {isTaskBlocked(task) && (
+          {taskApprovalEnabled && (
+            <div className="form-group">
+              <label className="approval-rule-toggle">
+                <input type="checkbox" checked={requiresApproval} onChange={e => setRequiresApproval(e.target.checked)} />
+                <span>Requiere autorización</span>
+              </label>
+              <input
+                type="number"
+                placeholder="Monto (opcional)"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                style={{ marginTop: 8 }}
+                step="0.01"
+              />
+            </div>
+          )}
+
+          {task.approval_status === 'pending' && (
             <p className="drawer-blocked-note">
-              🔒 Depende de "{task.predecessor.title}" — no se puede completar hasta que esa se marque como hecha.
+              ⏳ Pendiente de autorización{task.amount != null ? ` (${task.amount})` : ''} — no se puede completar hasta que se resuelva.
+            </p>
+          )}
+          {task.approval_status === 'approved' && <p className="drawer-blocked-note">✓ Autorizada</p>}
+          {task.approval_status === 'rejected' && <p className="drawer-blocked-note">✕ Rechazada</p>}
+
+          {isTaskApprover && task.approval_status === 'pending' && (
+            <div className="form-row">
+              <button type="button" className="btn-primary" onClick={handleApproveTask}>✓ Autorizar</button>
+              <button type="button" className="btn-delete" onClick={handleRejectTask}>✕ Rechazar</button>
+            </div>
+          )}
+
+          {isTaskBlocked(task) && task.approval_status !== 'pending' && (
+            <p className="drawer-blocked-note">
+              🔒 Depende de "{task.predecessor?.title}" — no se puede completar hasta que esa se marque como hecha.
             </p>
           )}
 

@@ -16,6 +16,8 @@ const TYPE_ICONS = {
   price_updated: '📈',
   commission_approval_requested: '⏳',
   commission_approval_resolved: '⚖️',
+  task_approval_requested: '⏳',
+  task_approval_resolved: '⚖️',
   email_logged: '✉️',
 }
 
