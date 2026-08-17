@@ -54,6 +54,18 @@ function TeamDashboard() {
   // Valor de pipeline — suma de hitos de pago de proyectos en curso, agrupado por moneda
   const [pipelineValue, setPipelineValue] = useState([]);
 
+  // Valor de pipeline desglosado por estado (no terminal), agrupado por moneda dentro de cada uno
+  const [pipelineByState, setPipelineByState] = useState({});
+
+  // Tiempo promedio (en días) que llevan en su estado actual los proyectos activos, por estado
+  const [avgDaysByState, setAvgDaysByState] = useState([]);
+
+  // Tasa de cierre por tipo de entidad vinculada — % de proyectos que llegaron a un estado final
+  const [closeRateByEntityType, setCloseRateByEntityType] = useState([]);
+
+  // % de todos los proyectos del workspace que llegaron a un estado final (cualquiera)
+  const [closeRateOverallPct, setCloseRateOverallPct] = useState(0);
+
   useEffect(() => {
     if (workspaceId) fetchAll();
   }, [workspaceId]);
@@ -68,7 +80,7 @@ function TeamDashboard() {
         // Todos los proyectos del workspace (para métricas)
         supabase
           .from("negotiations")
-          .select("id, status, activity_status, last_activity_at, currency")
+          .select("id, status, activity_status, last_activity_at, currency, created_at")
           .eq("workspace_id", workspaceId),
 
         // Todas las tareas (para contar pendientes y vencidas)
@@ -190,6 +202,90 @@ function TeamDashboard() {
       name: s.name,
       count: negotiations.filter(n => n.status === s.name).length,
     })));
+    setCloseRateOverallPct(
+      negotiations.length > 0
+        ? Math.round((negotiations.filter(n => terminalNames.has(n.status)).length / negotiations.length) * 100)
+        : 0
+    );
+
+    // Pipeline por etapa — mismo criterio que el total (sin conversión entre
+    // monedas), pero desglosado por cada estado no-terminal en curso.
+    const milestones = milestonesRes.data || [];
+    const pipelineByStateMap = {};
+    for (const s of (statesRes.data || []).filter(s => !s.is_terminal)) {
+      const idsInState = new Set(activeNegs.filter(n => n.status === s.name).map(n => n.id));
+      const value = sumMilestonesByCurrency(milestones.filter(m => idsInState.has(m.negotiation_id)), currencyByNegId);
+      if (value.length > 0) pipelineByStateMap[s.name] = value;
+    }
+    setPipelineByState(pipelineByStateMap);
+
+    // Tiempo en etapa actual — para cada proyecto activo, hace cuánto está en
+    // su estado actual (última vez que cambió de estado según activity_log;
+    // si nunca cambió, desde que se creó). Promediado por estado.
+    const allNegIds = negotiations.map(n => n.id);
+    let lastStatusChangeByNeg = {};
+    if (allNegIds.length > 0) {
+      const { data: statusChanges } = await supabase
+        .from("activity_log")
+        .select("negotiation_id, created_at")
+        .eq("workspace_id", workspaceId)
+        .eq("type", "status_changed")
+        .in("negotiation_id", allNegIds);
+      for (const row of statusChanges || []) {
+        const prev = lastStatusChangeByNeg[row.negotiation_id];
+        if (!prev || row.created_at > prev) lastStatusChangeByNeg[row.negotiation_id] = row.created_at;
+      }
+    }
+    const now = Date.now();
+    const daysByState = {};
+    for (const n of activeNegs) {
+      const since = lastStatusChangeByNeg[n.id] || n.created_at;
+      if (!since) continue;
+      const days = (now - new Date(since).getTime()) / (1000 * 60 * 60 * 24);
+      if (!daysByState[n.status]) daysByState[n.status] = [];
+      daysByState[n.status].push(days);
+    }
+    setAvgDaysByState(
+      (statesRes.data || [])
+        .filter(s => !s.is_terminal && daysByState[s.name]?.length)
+        .map(s => ({
+          name: s.name,
+          color: s.color,
+          avgDays: Math.round(daysByState[s.name].reduce((a, d) => a + d, 0) / daysByState[s.name].length),
+          count: daysByState[s.name].length,
+        }))
+    );
+
+    // Tasa de cierre por tipo de entidad vinculada — de los proyectos
+    // conectados a cada tipo, cuántos llegaron a algún estado final (no
+    // distingue Ganado/Perdido, la app no tiene ese dato estructurado hoy).
+    if (allNegIds.length > 0) {
+      const [{ data: negEntitiesAll }, { data: entityTypesData }] = await Promise.all([
+        supabase.from("negotiation_entities").select("negotiation_id, entity:entity_id ( entity_type_id )").in("negotiation_id", allNegIds),
+        supabase.from("entity_types").select("id, name, plural").eq("workspace_id", workspaceId),
+      ]);
+      const statusByNegId = Object.fromEntries(negotiations.map(n => [n.id, n.status]));
+      const typeStats = {};
+      for (const row of negEntitiesAll || []) {
+        const typeId = row.entity?.entity_type_id;
+        if (!typeId) continue;
+        if (!typeStats[typeId]) typeStats[typeId] = { total: 0, closed: 0 };
+        typeStats[typeId].total += 1;
+        if (terminalNames.has(statusByNegId[row.negotiation_id])) typeStats[typeId].closed += 1;
+      }
+      setCloseRateByEntityType(
+        (entityTypesData || [])
+          .filter(t => typeStats[t.id]?.total > 0)
+          .map(t => ({
+            name: t.plural || t.name,
+            total: typeStats[t.id].total,
+            closed: typeStats[t.id].closed,
+            pct: Math.round((typeStats[t.id].closed / typeStats[t.id].total) * 100),
+          }))
+      );
+    } else {
+      setCloseRateByEntityType([]);
+    }
 
     setMyTasks(myTasksRes.data || []);
 
@@ -353,6 +449,11 @@ function TeamDashboard() {
                     />
                   </div>
                   <span className="db-state-count">{s.count}</span>
+                  {pipelineByState[s.name] && (
+                    <span className="db-state-value">
+                      {pipelineByState[s.name].map(p => `${p.currency} ${p.total.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`).join(" · ")}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -444,6 +545,53 @@ function TeamDashboard() {
                     </span>
                   )}
                 </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Grid de 2 columnas: tiempo en etapa + tasa de cierre */}
+      <div className="db-grid2" style={{ marginTop: 16 }}>
+        <div className="db-section-card">
+          <p className="db-section-title">Tiempo en etapa actual</p>
+          {avgDaysByState.length === 0 ? (
+            <p className="db-empty">Sin datos suficientes todavía.</p>
+          ) : (
+            avgDaysByState.map((s) => (
+              <div key={s.name} className="db-state-row" onClick={() => navigate("/negotiations")}>
+                <span className="db-state-label">{s.name}</span>
+                <div className="db-state-bar-bg">
+                  <div
+                    className="db-state-bar-fill"
+                    style={{
+                      width: `${Math.min(100, (s.avgDays / Math.max(...avgDaysByState.map(x => x.avgDays), 1)) * 100)}%`,
+                      backgroundColor: s.color,
+                    }}
+                  />
+                </div>
+                <span className="db-state-count">{s.avgDays}d</span>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="db-section-card">
+          <p className="db-section-title">Tasa de cierre</p>
+          <p className="db-close-rate-total">
+            {closeRateOverallPct}%
+            <span className="db-close-rate-total-label">de los proyectos llegó a un estado final</span>
+          </p>
+          {closeRateByEntityType.length === 0 ? (
+            <p className="db-empty">Sin entidades vinculadas todavía.</p>
+          ) : (
+            closeRateByEntityType.map((t) => (
+              <div key={t.name} className="db-state-row" onClick={() => navigate("/entities")}>
+                <span className="db-state-label">{t.name}</span>
+                <div className="db-state-bar-bg">
+                  <div className="db-state-bar-fill" style={{ width: `${t.pct}%`, backgroundColor: "#0B1F3A" }} />
+                </div>
+                <span className="db-state-count">{t.pct}%</span>
               </div>
             ))
           )}
