@@ -1979,6 +1979,11 @@
 
 .entity-dropdown-option:hover { background: #f3f4f6; }
 
+.entity-dropdown-option-entity {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
 .entity-dropdown-empty {
   padding: 12px 14px;
   font-size: 13px;

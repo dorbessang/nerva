@@ -800,7 +800,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
   }
 
   async function fetchProducts() {
-    const { data } = await supabase.from('products').select('id, name').eq('workspace_id', workspaceId).order('name')
+    const { data } = await supabase.from('products').select('id, name, entity:entity_id(name)').eq('workspace_id', workspaceId).order('name')
     if (data) setProducts(naturalSortByName(data))
   }
 

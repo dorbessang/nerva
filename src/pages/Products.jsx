@@ -685,11 +685,13 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
   useEscapeToClose(onClose)
   const canDelete = isOwner(effectiveRole)
   const canNote = canEditContent(effectiveRole)
+  const canCreateProject = canEditContent(effectiveRole)
   const [showEditModal, setShowEditModal] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [selectedNeg, setSelectedNeg] = useState(null)
   const [editingNeg, setEditingNeg] = useState(null)
   const [showNegModal, setShowNegModal] = useState(false)
+  const [showCreateNegModal, setShowCreateNegModal] = useState(false)
   const [members, setMembers] = useState([])
   const [entities, setEntities] = useState([])
   const [entityTypes, setEntityTypes] = useState([])
@@ -742,7 +744,7 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
   }
 
   async function fetchAllProducts() {
-    const { data } = await supabase.from('products').select('id, name').eq('workspace_id', workspaceId).order('name')
+    const { data } = await supabase.from('products').select('id, name, entity:entity_id(name)').eq('workspace_id', workspaceId).order('name')
     if (data) setAllProducts(naturalSortByName(data))
   }
 
@@ -869,9 +871,15 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
             )}
 
             {activeTab === 'proyectos' && (
-              negs.length === 0 ? (
-                <p className="detail-empty">Sin proyectos vinculados todavía.</p>
-              ) : (
+              <>
+                {canCreateProject && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+                    <button className="entity-negs-new-btn" onClick={() => setShowCreateNegModal(true)}>+ Vincular a un proyecto</button>
+                  </div>
+                )}
+                {negs.length === 0 ? (
+                  <p className="detail-empty">Sin proyectos vinculados todavía.</p>
+                ) : (
                 <div className="entity-negs-list">
                   {negs.map(neg => {
                     const cfg = getStateConfig(neg.status)
@@ -893,7 +901,8 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
                     )
                   })}
                 </div>
-              )
+                )}
+              </>
             )}
 
             {activeTab === 'bitacora' && (
@@ -954,6 +963,26 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
             }
             onUpdated()
           }}
+          workspaceId={workspaceId}
+          userId={user?.id}
+        />
+      )}
+
+      {showCreateNegModal && (
+        <NegotiationModal
+          initial={{
+            negotiation_products: [{ product: { id: product.id, name: product.name } }],
+            primary_product_id: product.id,
+          }}
+          entities={entities}
+          entityTypes={entityTypes}
+          products={allProducts}
+          members={members}
+          customStates={negotiationStates}
+          customFieldDefs={negotiationFieldDefs}
+          onClose={() => setShowCreateNegModal(false)}
+          onCancel={() => setShowCreateNegModal(false)}
+          onSaved={() => { setShowCreateNegModal(false); onUpdated() }}
           workspaceId={workspaceId}
           userId={user?.id}
         />

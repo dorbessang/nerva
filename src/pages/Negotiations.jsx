@@ -263,7 +263,7 @@ export default function Negotiations() {
       supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code), primary_product:primary_product_id(id, name)').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
       supabase.from('entities').select('id, name, country_code, entity_type_id, secondary_entity_type_id').eq('workspace_id', workspaceId).order('name'),
       supabase.from('entity_types').select('id, name, plural').eq('workspace_id', workspaceId).order('sort_order'),
-      supabase.from('products').select('id, name').eq('workspace_id', workspaceId).order('name'),
+      supabase.from('products').select('id, name, entity:entity_id(name)').eq('workspace_id', workspaceId).order('name'),
       supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`).eq('workspace_id', workspaceId).eq('status', 'active'),
       supabase.from('custom_states').select('*').eq('workspace_id', workspaceId).eq('object_type', 'negotiation').order('sort_order'),
       supabase.from('deal_milestones').select('negotiation_id, amount').eq('workspace_id', workspaceId),
@@ -1547,6 +1547,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
                     }}
                   >
                     {p.name}
+                    {p.entity?.name && <span className="entity-dropdown-option-entity"> · {p.entity.name}</span>}
                   </div>
                 ))}
                 {matchingProducts.length === 0 && (
@@ -1571,7 +1572,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
               </p>
               {[...(productResolving.exact ? [{ candidate: productResolving.exact }] : []), ...productResolving.fuzzy].map(({ candidate }) => (
                 <button key={candidate.id} type="button" className="quick-create-resolver-option" onClick={() => selectExistingProduct(candidate)}>
-                  Usar "{candidate.name}"
+                  Usar "{candidate.name}"{candidate.entity?.name ? ` (${candidate.entity.name})` : ''}
                 </button>
               ))}
               <button type="button" className="quick-create-resolver-option" onClick={() => createProductQuick(productResolving.name)} disabled={creatingProduct}>
@@ -1598,7 +1599,10 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
                         onClick={() => set('product_ids', [p, ...form.product_ids.filter(x => x.id !== p.id)])}
                       >☆</button>
                     )}
-                    <span className="entity-selected-name">{prod?.name}</span>
+                    <span className="entity-selected-name">
+                      {prod?.name}
+                      {prod?.entity?.name && <span className="entity-dropdown-option-entity"> · {prod.entity.name}</span>}
+                    </span>
                     <button
                       type="button"
                       className="entity-remove-btn"
