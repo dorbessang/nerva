@@ -1894,6 +1894,7 @@ const NOTIF_TYPES = [
   { key: 'mentioned', label: 'Me mencionan con @ en una nota' },
   { key: 'task_approval_requested', label: 'Soy aprobador y hay una tarea esperando mi autorización' },
   { key: 'task_approval_resolved', label: 'Se resuelve la autorización de una tarea mía' },
+  { key: 'negotiation_close_requested', label: 'Soy aprobador y hay un cierre de proyecto esperando confirmación' },
 ]
 
 function TabNotificaciones({ workspaceId }) {

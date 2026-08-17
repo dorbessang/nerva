@@ -15,6 +15,7 @@ import Documents from '../components/Documents'
 import { isTaskBlocked, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask, createTask, fetchPredecessorCandidates } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
 import { logActivity } from '../lib/activity'
+import { requestNegotiationCloseApproval, isApprover as isApproverFor } from '../lib/approvals'
 import { getCustomFieldValue, renderCustomFieldDisplay, mergeCustomFieldValue, mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isCustomFieldValueEmpty, isWideCustomField, resolveMemberName, resolveMemberNames, isFieldFilterable, matchesAllFieldFilters, filterChoicesFor, describeFieldFilters, SPECIAL_FIELD_TYPES } from '../lib/customFields'
 import { CustomFieldInput, CustomFieldReadOnly } from '../components/CustomFieldInput'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
@@ -531,6 +532,10 @@ export default function Negotiations() {
       workspaceId: neg.workspace_id || workspaceId, negotiationId: negId, type: 'status_changed',
       title: `Estado cambió de "${prevStatus}" a "${newStatus}"`, actorId: user?.id,
     })
+    await requestNegotiationCloseApproval(supabase, {
+      workspace: activeWorkspace, workspaceId: neg.workspace_id || workspaceId, negotiation: neg,
+      prevStatus, newStatus, terminalNames, actorId: user?.id,
+    })
   }
 
   // Mismo efecto secundario que un cambio de estado individual
@@ -557,6 +562,10 @@ export default function Negotiations() {
       await logActivity(supabase, {
         workspaceId: neg.workspace_id || workspaceId, negotiationId: neg.id, type: 'status_changed',
         title: `Estado cambió de "${neg.status}" a "${newStatus}"`, actorId: user?.id,
+      })
+      await requestNegotiationCloseApproval(supabase, {
+        workspace: activeWorkspace, workspaceId: neg.workspace_id || workspaceId, negotiation: neg,
+        prevStatus: neg.status, newStatus, terminalNames, actorId: user?.id,
       })
     }))
     setBulkWorking(false)
@@ -1254,8 +1263,10 @@ function EntityTypeCombobox({ entityType, allEntities, workspaceId, value, onSel
 }
 
 export function NegotiationModal({ initial, presetEntity, entities, entityTypes = [], products = [], members, customStates, customFieldDefs = [], onClose, onCancel, onSaved, workspaceId, userId }) {
+  const { activeWorkspace } = useAuth()
   useEscapeToClose(onCancel || onClose)
   const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
+  const terminalNames = terminalStatusNames(customStates)
 
   const empty = {
     title: '', product: '', status: customStates[0]?.name || 'Contactado',
@@ -1426,6 +1437,10 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
         await logActivity(supabase, {
           workspaceId, negotiationId: initial.id, type: 'status_changed',
           title: `Estado cambió de "${initial.status}" a "${form.status}"`, actorId: userId,
+        })
+        await requestNegotiationCloseApproval(supabase, {
+          workspace: activeWorkspace, workspaceId, negotiation: { id: initial.id, product: row.product, title: row.title },
+          prevStatus: initial.status, newStatus: form.status, terminalNames, actorId: userId,
         })
       }
     } else {
@@ -1763,8 +1778,9 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
 }
 
 export function NegotiationDetail({ neg, entities, entityTypes = [], customStates, customFieldDefs = [], members = [], getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
-  const { effectiveRole, role, user, isStaff, workspaceId } = useAuth()
+  const { effectiveRole, role, user, isStaff, workspaceId, activeWorkspace } = useAuth()
   useEscapeToClose(onClose)
+  const negTerminalNames = terminalStatusNames(customStates)
   const canDelete = isOwner(effectiveRole)
   const canPause = isPrivilegedRole(effectiveRole)
   const canEdit = canEditContent(effectiveRole)
@@ -1787,6 +1803,8 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [activityRefresh, setActivityRefresh] = useState(0)
   const [activityStatus, setActivityStatus] = useState(neg.activity_status || 'active')
+  const [closeConfirmationStatus, setCloseConfirmationStatus] = useState(neg.close_confirmation_status || null)
+  const isCloseApprover = isApproverFor(activeWorkspace, 'negotiation_close', user?.id)
   const [inlineStatus, setInlineStatus] = useState(neg.status || '')
   const [inlineObs, setInlineObs] = useState(neg.observations || '')
   const [inlineCurrency, setInlineCurrency] = useState(neg.currency || 'USD')
@@ -1887,6 +1905,10 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
         workspaceId: neg.workspace_id || workspaceId, negotiationId: neg.id, type: 'status_changed',
         title: `Estado cambió de "${prevValue}" a "${value}"`, actorId: user?.id,
       })
+      await requestNegotiationCloseApproval(supabase, {
+        workspace: activeWorkspace, workspaceId: neg.workspace_id || workspaceId, negotiation: neg,
+        prevStatus: prevValue, newStatus: value, terminalNames: negTerminalNames, actorId: user?.id,
+      })
       setActivityRefresh(v => v + 1)
     }
     if (field === 'currency' && prevValue !== value) {
@@ -1903,6 +1925,33 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
     const next = activityStatus === 'paused' ? 'active' : 'paused'
     await supabase.from('negotiations').update({ activity_status: next }).eq('id', neg.id)
     setActivityStatus(next)
+    onActivityChanged?.()
+  }
+
+  async function handleConfirmClose() {
+    await supabase.from('negotiations').update({ close_confirmation_status: 'confirmed' }).eq('id', neg.id)
+    await logActivity(supabase, {
+      workspaceId: neg.workspace_id || workspaceId, negotiationId: neg.id, type: 'negotiation_close_resolved',
+      title: `Cierre a "${neg.status}" confirmado`, actorId: user?.id,
+    })
+    setCloseConfirmationStatus('confirmed')
+    setActivityRefresh(v => v + 1)
+    onActivityChanged?.()
+  }
+
+  async function handleRevertClose() {
+    const revertTo = neg.close_requested_from_status
+    if (!revertTo) return
+    await supabase.from('negotiations').update({
+      status: revertTo, close_confirmation_status: null, close_requested_from_status: null,
+    }).eq('id', neg.id)
+    await logActivity(supabase, {
+      workspaceId: neg.workspace_id || workspaceId, negotiationId: neg.id, type: 'negotiation_close_resolved',
+      title: `Cierre revertido — vuelve a "${revertTo}"`, actorId: user?.id,
+    })
+    setInlineStatus(revertTo)
+    setCloseConfirmationStatus(null)
+    setActivityRefresh(v => v + 1)
     onActivityChanged?.()
   }
 
@@ -1951,6 +2000,17 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
             <button className="modal-close" onClick={onClose}>✕</button>
           </div>
         </div>
+        {closeConfirmationStatus === 'pending' && (
+          <div className="neg-close-confirmation-banner">
+            <span>⏳ Cierre a "{neg.status}" pendiente de confirmación.</span>
+            {isCloseApprover && (
+              <div className="neg-close-confirmation-actions">
+                <button type="button" className="btn-edit" onClick={handleConfirmClose}>✓ Confirmar</button>
+                <button type="button" className="btn-delete" onClick={handleRevertClose}>↩ Revertir a "{neg.close_requested_from_status}"</button>
+              </div>
+            )}
+          </div>
+        )}
         <div className="neg-detail-body neg-detail-body--split">
           <aside className="neg-detail-sidebar">
             <div className="neg-detail-hero">

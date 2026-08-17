@@ -1996,6 +1996,24 @@
   font-size: 12px;
 }
 
+.neg-close-confirmation-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: #FEF3C7;
+  color: #92400E;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.neg-close-confirmation-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .entity-dropdown-empty {
   padding: 12px 14px;
   font-size: 13px;
