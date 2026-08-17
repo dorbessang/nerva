@@ -17,8 +17,8 @@
 ### Fase A — Cerrar lo abierto + cimientos baratos
 - [ ] Dashboard real: valor de pipeline por etapa, tiempo en etapa, forecast, tasa de cierre por tipo de entidad (hoy la pestaña Dashboard está desactualizada, ver "Pendientes estéticos" más abajo)
 - [ ] Capa de **Organización** a nivel de dato solamente: tabla `organizations` + `workspaces.organization_id` (nullable, aditivo) — sin UI todavía, para no migrar con dolor cuando llegue el dashboard unificado de la Fase D
-- [ ] Módulo de Productos — código ya construido, falta correr el SQL pendiente en la base real (ver sección "Módulo de Productos/Servicios" más abajo)
-- [ ] Decisión sobre las pestañas huérfanas de Estados en Entidades/Tareas (ver "Hallazgo pendiente de decisión" más abajo)
+- [x] Módulo de Productos — confirmado 2026-08-17 contra la base real: tablas, seeds y `primary_product_id` ya estaban aplicados en ambos workspaces de equipo (Testing y Conderco). La nota de "SQL pendiente" estaba desactualizada
+- [x] Pestañas huérfanas de Estados en Entidades/Tareas — confirmado 2026-08-17 que ya se habían resuelto (ver nota en la sección correspondiente más abajo), no había nada pendiente de decidir
 - [ ] Panel de Settings puntual para el módulo Financiero (mencionado al cerrar Comisión, deferred a propósito)
 
 ### Fase B — Actividad automática + el diferencial de gobernanza
@@ -247,11 +247,9 @@ El usuario preguntó si los Estados (Settings → Estados) se pueden renombrar, 
 - [x] **"Completado" queda sin botón Editar** (solo el badge "🔒 Protegido" de siempre) — su nombre está hardcodeado en varios lugares de la app (conteos de Dashboard, exports a PDF, filtro de actividad, el propio candado de protección) que comparan por el string literal `'Completado'`, no por ninguna referencia estable. Permitir renombrarlo rompería esas comparaciones silenciosamente. El color si se podría habilitar a futuro sin este riesgo, no se hizo esta ronda por acotar el cambio
 - [x] Probado con Playwright: "Completado" sin botón Editar, renombrar un estado regular actualiza tanto `custom_states` como los proyectos existentes que lo tenían asignado (confirmado con mock de datos)
 
-##### Hallazgo pendiente de decisión: pestañas "Entidades"/"Tareas" en Estados están huérfanas
-El usuario reportó que en Configuración → Estados no puede personalizar etiquetas, "vienen hardcodeadas" — investigado y confirmado: `TabEstados` tiene 3 sub-pestañas (Proyectos/Entidades/Tareas) pero **solo Proyectos está conectada a algo real** (`negotiations.status`). Las otras dos dejan crear/editar filas en `custom_states` (`object_type='entity'`/`'task'`) que nada en la app lee:
-- **Tareas**: `Tasks.jsx` usa un enum fijo en código (`pending`/`in_progress`/`done`/`cancelled`) con labels hardcodeadas (`statusLabel()`, línea ~150) — totalmente desconectado de `custom_states`
-- **Entidades**: `entities.status` se fija a `'active'` en el insert de `EntityModal.jsx` y nunca se expone para editar — no hay ningún selector de estado en el formulario de entidad
-- [ ] **Sin resolver, a la espera de que el usuario elija una opción**: (a) sacar las pestañas Entidades/Tareas de Configuración (dejar Estados solo para Proyectos, que es lo único que funciona), (b) conectar Tareas a `custom_states` de verdad (cambio grande: toca el enum de la columna, completar/bloquear tareas, notificaciones, Kanban de Agenda), o (c) dejarlo como está por ahora
+##### Hallazgo: pestañas "Entidades"/"Tareas" en Estados estaban huérfanas — RESUELTO
+El usuario reportó que en Configuración → Estados no puede personalizar etiquetas, "vienen hardcodeadas" — investigado y confirmado en su momento: `TabEstados` tenía 3 sub-pestañas (Proyectos/Entidades/Tareas) pero solo Proyectos estaba conectada a algo real (`negotiations.status`).
+- [x] **Resuelto en la reorganización de Configuración por módulo** (ver "Follow-up inmediato (10)" más abajo, en la sección de Productos): `TabEstados` perdió su selector, quedó exclusiva de Proyectos (`STATES_OBJECT_TYPE = 'negotiation'`, hardcodeado, sin sub-pestañas). Confirmado contra el código actual (2026-08-17) — no hay nada pendiente de decidir acá, la nota había quedado desactualizada tras resolverse más abajo en este mismo archivo.
 
 #### Import de Entidades/Proyectos data-driven + filtros configurables desde Settings
 Tras probar el import con planillas de prueba, dos pedidos: que la plantilla de import refleje los campos reales del workspace (no 4 columnas fijas), y que los filtros de las toolbars de Proyectos/Entidades salgan de Settings en vez de estar hardcodeados por campo.
