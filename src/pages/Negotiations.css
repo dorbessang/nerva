@@ -1659,6 +1659,18 @@
 
 .neg-milestone-amount { font-size: 13px; font-weight: 600; color: #059669; flex-shrink: 0; text-align: right; min-width: 90px; }
 .neg-milestone-timing-inline { font-size: 11px; color: #9ca3af; margin-left: 8px; font-weight: 400; }
+
+.commission-approval-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.commission-approval-badge--pending { background: #FEF3C7; color: #92400E; }
+.commission-approval-badge--approved { background: #DCFCE7; color: #166534; }
+.commission-approval-badge--rejected { background: #FEE2E2; color: #991B1B; }
 .neg-milestone-amount--negative { color: #DC2626; }
 
 .neg-milestone-delete {

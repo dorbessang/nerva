@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { logActivity } from '../lib/activity'
+import { notifyTaskAssigned } from '../lib/tasks'
 import SearchableSelect from './SearchableSelect'
 // Mismo patrón que DealMilestones.jsx — reusa .neg-note-input/.neg-milestone-*
 // ya definidas en Negotiations.css.
@@ -21,8 +22,12 @@ function formatAmount(n) {
 // producto). `presentation` es texto libre siempre disponible — variantes/
 // SKUs concurrentes del mismo producto en el mismo cierre (ej. "x20 comp"
 // vs "x10 comp" de Ibupirac), no una fecha distinta.
-export default function PriceHistory({ negotiationId, workspaceId, currency, unit, showQuantity, products = [], canEdit, onChanged }) {
-  const { user } = useAuth()
+export default function PriceHistory({ negotiationId, workspaceId, negotiationTitle, currency, unit, showQuantity, products = [], canEdit, onChanged }) {
+  const { user, activeWorkspace } = useAuth()
+  const approvalThreshold = activeWorkspace?.commission_approval_threshold_pct
+  const approverId = activeWorkspace?.commission_approver_id
+  const approvalEnabled = approvalThreshold !== null && approvalThreshold !== undefined && !!approverId
+  const isApprover = user?.id === approverId
   const [entries, setEntries] = useState([])
   // Fecha/producto/motivo son compartidos por toda la cotización — una
   // misma cotización puede traer varias presentaciones (líneas) del mismo
@@ -42,6 +47,57 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
   const presentationSuggestions = [...new Set(entries.map(e => e.presentation).filter(Boolean))]
 
   useEffect(() => { fetchEntries() }, [negotiationId])
+
+  function computeApprovalStatus(commissionPct) {
+    if (!approvalEnabled || commissionPct === null || commissionPct === undefined) return null
+    return commissionPct > approvalThreshold ? 'pending' : null
+  }
+
+  async function createApprovalTask(priceHistoryId, commissionPct) {
+    const { data: task } = await supabase.from('tasks')
+      .insert({
+        workspace_id: workspaceId,
+        negotiation_id: negotiationId,
+        price_history_id: priceHistoryId,
+        title: `Aprobar comisión ${formatAmount(commissionPct)}%${negotiationTitle ? ` — ${negotiationTitle}` : ''}`,
+        assigned_to: approverId,
+        status: 'pending',
+        priority: 'high',
+        created_by: user?.id,
+      })
+      .select('id, title, assigned_to').single()
+    if (task) await notifyTaskAssigned(supabase, { workspaceId, task, assignedTo: task.assigned_to, actingUserId: user?.id })
+    await logActivity(supabase, {
+      workspaceId, negotiationId, type: 'commission_approval_requested',
+      title: `Comisión ${formatAmount(commissionPct)}% pendiente de aprobación`, actorId: user?.id,
+    })
+  }
+
+  async function handleApprove(entry) {
+    await supabase.from('negotiation_price_history')
+      .update({ commission_approval_status: 'approved', commission_approved_by: user?.id, commission_approved_at: new Date().toISOString() })
+      .eq('id', entry.id)
+    await supabase.from('tasks').update({ status: 'done', completed_at: new Date().toISOString() }).eq('price_history_id', entry.id).eq('status', 'pending')
+    await logActivity(supabase, {
+      workspaceId, negotiationId, type: 'commission_approval_resolved',
+      title: `Comisión ${formatAmount(entry.commission_pct)}% aprobada`, actorId: user?.id,
+    })
+    setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, commission_approval_status: 'approved', commission_approved_by: user?.id } : e))
+    onChanged?.()
+  }
+
+  async function handleReject(entry) {
+    await supabase.from('negotiation_price_history')
+      .update({ commission_approval_status: 'rejected', commission_approved_by: user?.id, commission_approved_at: new Date().toISOString() })
+      .eq('id', entry.id)
+    await supabase.from('tasks').update({ status: 'done', completed_at: new Date().toISOString() }).eq('price_history_id', entry.id).eq('status', 'pending')
+    await logActivity(supabase, {
+      workspaceId, negotiationId, type: 'commission_approval_resolved',
+      title: `Comisión ${formatAmount(entry.commission_pct)}% rechazada`, actorId: user?.id,
+    })
+    setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, commission_approval_status: 'rejected', commission_approved_by: user?.id } : e))
+    onChanged?.()
+  }
 
   async function fetchEntries() {
     const { data, error } = await supabase.from('negotiation_price_history').select('*')
@@ -98,7 +154,7 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
     if (!newDate || lines.length === 0) return
     if (needsProductPicker && !newProductId) return
     setSaving(true)
-    const { error } = await supabase.from('negotiation_price_history').insert(lines.map(l => ({
+    const { data: inserted, error } = await supabase.from('negotiation_price_history').insert(lines.map(l => ({
       workspace_id: workspaceId,
       negotiation_id: negotiationId,
       entry_date: newDate,
@@ -108,8 +164,12 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
       product_id: newProductId || null,
       presentation: l.presentation,
       commission_pct: l.commissionPct,
-    })))
+      commission_approval_status: computeApprovalStatus(l.commissionPct),
+    }))).select('id, commission_pct, commission_approval_status')
     if (error) { console.error('addPriceHistory error:', error.message); setSaving(false); return }
+    for (const row of inserted || []) {
+      if (row.commission_approval_status === 'pending') await createApprovalTask(row.id, row.commission_pct)
+    }
     const title = lines.length === 1
       ? `Precio actualizado: ${formatAmount(lines[0].value)}${currency ? ` ${currency}` : ''}${unit ? `/${unit}` : ''}`
       : `Cotización actualizada: ${lines.length} presentaciones`
@@ -178,7 +238,20 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
       presentation: editForm.presentation.trim() || null,
       commission_pct: editForm.commission_pct ? parseFloat(editForm.commission_pct) : null,
     }
+    const previous = entries.find(e => e.id === id)
+    const newStatus = computeApprovalStatus(patch.commission_pct)
+    // Solo se re-evalúa si cambió el % — si ya estaba aprobada/rechazada y
+    // el % no se tocó, no hace falta pedir aprobación de nuevo por editar
+    // otro campo (fecha, nota, etc.)
+    if (previous && Number(previous.commission_pct) !== Number(patch.commission_pct)) {
+      patch.commission_approval_status = newStatus
+      patch.commission_approved_by = null
+      patch.commission_approved_at = null
+    }
     await supabase.from('negotiation_price_history').update(patch).eq('id', id)
+    if (patch.commission_approval_status === 'pending' && previous?.commission_approval_status !== 'pending') {
+      await createApprovalTask(id, patch.commission_pct)
+    }
     setEntries(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e).sort((a, b) => b.entry_date.localeCompare(a.entry_date)))
     setEditingId(null)
     setEditForm(null)
@@ -299,7 +372,12 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
                 <span className="neg-milestone-amount">
                   {formatAmount(e.value)}{currency ? ` ${currency}` : ''}{unit ? `/${unit}` : ''}
                   {e.commission_pct !== null && e.commission_pct !== undefined && (
-                    <span className="neg-milestone-timing-inline">Comisión {formatAmount(e.commission_pct)}%</span>
+                    <span className="neg-milestone-timing-inline">
+                      Comisión {formatAmount(e.commission_pct)}%
+                      {e.commission_approval_status === 'pending' && <span className="commission-approval-badge commission-approval-badge--pending">⏳ Pendiente de aprobación</span>}
+                      {e.commission_approval_status === 'approved' && <span className="commission-approval-badge commission-approval-badge--approved">✓ Aprobada</span>}
+                      {e.commission_approval_status === 'rejected' && <span className="commission-approval-badge commission-approval-badge--rejected">✕ Rechazada</span>}
+                    </span>
                   )}
                 </span>
                 <div className="neg-task-body">
@@ -308,6 +386,12 @@ export default function PriceHistory({ negotiationId, workspaceId, currency, uni
                     {showQuantity && e.quantity ? `A partir de ${formatAmount(e.quantity)} ${unit || ''} — ` : ''}{e.note || '—'}
                   </span>
                 </div>
+                {isApprover && e.commission_approval_status === 'pending' && (
+                  <>
+                    <button className="neg-milestone-edit" onClick={() => handleApprove(e)} title="Aprobar">✓ Aprobar</button>
+                    <button className="neg-milestone-delete" onClick={() => handleReject(e)} title="Rechazar">✕ Rechazar</button>
+                  </>
+                )}
                 {canEdit && (
                   <>
                     <button className="neg-milestone-edit" onClick={() => startEdit(e)} title="Editar">✏️</button>

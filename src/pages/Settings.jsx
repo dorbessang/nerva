@@ -1664,8 +1664,16 @@ function TabWorkspace({ workspaceId, isOwner }) {
   const [savingActivity, setSavingActivity] = useState(false)
   const [savedActivity, setSavedActivity] = useState(false)
 
+  const [commissionThreshold, setCommissionThreshold] = useState('')
+  const [commissionApproverId, setCommissionApproverId] = useState('')
+  const [members, setMembers] = useState([])
+  const [commissionError, setCommissionError] = useState('')
+  const [savingCommission, setSavingCommission] = useState(false)
+  const [savedCommission, setSavedCommission] = useState(false)
+
   useEffect(() => {
     fetchWorkspace()
+    fetchMembers()
   }, [workspaceId])
 
   async function fetchWorkspace() {
@@ -1679,7 +1687,41 @@ function TabWorkspace({ workspaceId, isOwner }) {
       setName(data.name)
       setAlertDays(String(data.low_activity_alert_days ?? 90))
       setInactiveDays(String(data.low_activity_inactive_days ?? 120))
+      setCommissionThreshold(data.commission_approval_threshold_pct !== null && data.commission_approval_threshold_pct !== undefined ? String(data.commission_approval_threshold_pct) : '')
+      setCommissionApproverId(data.commission_approver_id || '')
     }
+  }
+
+  async function fetchMembers() {
+    const { data } = await supabase
+      .from('workspace_members')
+      .select('user_id, profile:user_id ( full_name )')
+      .eq('workspace_id', workspaceId)
+      .eq('status', 'active')
+    if (data) setMembers(data)
+  }
+
+  async function handleSaveCommissionApproval() {
+    setCommissionError('')
+    const thresholdRaw = commissionThreshold.trim()
+    const threshold = thresholdRaw ? parseFloat(thresholdRaw) : null
+    if (thresholdRaw && (Number.isNaN(threshold) || threshold < 0 || threshold > 100)) {
+      setCommissionError('El umbral tiene que ser un número entre 0 y 100')
+      return
+    }
+    setSavingCommission(true)
+    const { error } = await supabase
+      .from('workspaces')
+      .update({
+        commission_approval_threshold_pct: threshold,
+        commission_approver_id: commissionApproverId || null,
+      })
+      .eq('id', workspaceId)
+    setSavingCommission(false)
+    if (error) { setCommissionError('No se pudo guardar. Intentá de nuevo.'); return }
+    setSavedCommission(true)
+    await refreshWorkspaces()
+    setTimeout(() => setSavedCommission(false), 2000)
   }
 
   async function handleSave() {
@@ -1753,6 +1795,34 @@ function TabWorkspace({ workspaceId, isOwner }) {
           {activityError && <p className="form-error">{activityError}</p>}
           <button className="settings-btn-primary" onClick={handleSaveActivityLimits} disabled={savingActivity}>
             {savingActivity ? 'Guardando...' : savedActivity ? '✓ Guardado' : 'Guardar cambios'}
+          </button>
+        </div>
+      )}
+
+      {isOwner && (
+        <div className="settings-block">
+          <h2 className="settings-block-title">Aprobación de comisión</h2>
+          <p className="settings-hint">
+            Si una comisión cargada en el historial de precio supera este umbral, queda pendiente de aprobación y se le crea una tarea a la persona designada — no se descuenta ni se bloquea el proyecto, solo queda marcada hasta que la apruebe o la rechace. Dejando el umbral o la persona vacíos, el chequeo queda apagado. Solo el owner puede cambiar esto.
+          </p>
+          <div className="form-row">
+            <div className="form-group" style={{ maxWidth: 180 }}>
+              <label>UMBRAL (%)</label>
+              <input type="number" min="0" max="100" step="0.01" placeholder="Ej: 15" value={commissionThreshold} onChange={e => setCommissionThreshold(e.target.value)} />
+            </div>
+            <div className="form-group" style={{ maxWidth: 260 }}>
+              <label>APROBADOR</label>
+              <select value={commissionApproverId} onChange={e => setCommissionApproverId(e.target.value)}>
+                <option value="">Sin designar</option>
+                {members.map(m => (
+                  <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || 'Sin nombre'}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {commissionError && <p className="form-error">{commissionError}</p>}
+          <button className="settings-btn-primary" onClick={handleSaveCommissionApproval} disabled={savingCommission}>
+            {savingCommission ? 'Guardando...' : savedCommission ? '✓ Guardado' : 'Guardar cambios'}
           </button>
         </div>
       )}

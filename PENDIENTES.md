@@ -22,8 +22,14 @@
 - [ ] Panel de Settings puntual para el módulo Financiero (mencionado al cerrar Comisión, deferred a propósito)
 
 ### Fase B — Actividad automática + el diferencial de gobernanza
-- [ ] **MVP de captura de actividad por mail**: dirección propia por usuario — reenviar/CCear un hilo ahí lo loguea contra la entidad o proyecto que matchea. Deliberadamente NO es el sync OAuth completo de Gmail/Outlook (ver "Qué dejamos afuera a propósito" abajo) — barato, buena parte del valor
-- [ ] **Motor de aprobaciones v1**, acotado a precio/comisión: extiende `negotiation_price_history`/`commission_pct` ya existente — una comisión o descuento fuera de rango genera una solicitud al rol correspondiente antes de confirmarse. Se apoya en la infraestructura de tareas dependientes (`predecessor_task_id`) que ya existe — una aprobación pendiente es, en el fondo, una tarea bloqueante con un aprobador
+- [ ] **MVP de captura de actividad por mail**: dirección propia por usuario — reenviar/CCear un hilo ahí lo loguea contra la entidad o proyecto que matchea. Deliberadamente NO es el sync OAuth completo de Gmail/Outlook (ver "Qué dejamos afuera a propósito" abajo) — barato, buena parte del valor. Decidido con el usuario (2026-08-17): arranca vía CC (no forward, matcheo más confiable por headers estructurados), dominio de recepción `log.gonerva.com` en Resend (separado del dominio de envío que ya funciona)
+- [x] **Motor de aprobaciones v1, acotado a comisión (2026-08-17)**: decidido con el usuario — aprobador designado explícito (no owner/admin genérico) elegido desde Settings → Workspace, umbral único en % por workspace. Si el umbral o el aprobador no están configurados, el chequeo queda apagado (sin cambio de comportamiento para nadie que no lo active). Implementado:
+  - `workspaces.commission_approval_threshold_pct` + `commission_approver_id`, owner-only vía trigger (mismo patrón que `enforce_low_activity_owner_only`)
+  - `negotiation_price_history.commission_approval_status` (`pending`/`approved`/`rejected`) + `commission_approved_by`/`commission_approved_at`
+  - `tasks.price_history_id` — al quedar pendiente, se crea una tarea real asignada al aprobador (notifica vía `notifyTaskAssigned`, mismo camino que cualquier asignación), que se marca `done` sola al aprobar o rechazar
+  - Settings → Workspace: bloque nuevo "Aprobación de comisión" (owner-only)
+  - `PriceHistory.jsx`: badge de estado junto al % de comisión, botones Aprobar/Rechazar visibles solo para el aprobador designado, re-evalúa el estado si se edita el % (sin re-pedir aprobación si se edita otra cosa)
+  - Deliberadamente sin bloquear el guardado del proyecto ni el uso del precio mientras está pendiente — solo queda marcado
 
 ### Fase C — IA aplicada (la escalera)
 Cada escalón reusa la misma pieza central (llamado a IA + pantalla de "revisar antes de guardar"), aplicada a un input distinto.

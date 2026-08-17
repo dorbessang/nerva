@@ -2146,6 +2146,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                     )}
                     <PriceHistory
                       negotiationId={neg.id}
+                      negotiationTitle={neg.product || neg.title}
                       workspaceId={neg.workspace_id || workspaceId}
                       currency={inlineCurrency}
                       unit={inlineUnit}
