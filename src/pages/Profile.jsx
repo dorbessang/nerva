@@ -9,6 +9,7 @@ import './Settings.css'
 
 export default function Profile() {
   const { user, profile, isStaff, refreshProfile } = useAuth()
+  const [activeTab, setActiveTab] = useState('perfil')
   const [fullName, setFullName] = useState('')
   const [savingName, setSavingName] = useState(false)
   const [nameSuccess, setNameSuccess] = useState(false)
@@ -129,6 +130,24 @@ export default function Profile() {
         <h1 className="settings-title">Mi perfil</h1>
       </div>
 
+      {isStaff && (
+        <div className="settings-tabs">
+          {[
+            { key: 'perfil', label: 'Mi perfil' },
+            { key: 'staff', label: 'Staff' },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              className={`settings-tab ${activeTab === tab.key ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'perfil' && (
       <div className="settings-section">
         <div className="settings-block">
           <h2 className="settings-block-title">Datos personales</h2>
@@ -176,10 +195,13 @@ export default function Profile() {
             {savingPassword ? 'Guardando...' : 'Cambiar contraseña'}
           </button>
         </div>
+      </div>
+      )}
 
-        {isStaff && (
+      {activeTab === 'staff' && isStaff && (
+      <div className="settings-section">
           <div className="settings-block">
-            <h2 className="settings-block-title">Panel de Staff — Dar de alta un cliente nuevo</h2>
+            <h2 className="settings-block-title">Dar de alta un cliente nuevo</h2>
             <p style={{ fontSize: 13, color: '#6b7280', marginTop: -8, marginBottom: 16 }}>
               Crea un workspace de equipo nuevo y a esa persona como su owner — distinto de "Invitar usuario",
               que suma a alguien a un workspace que ya existe (eso se hace desde Configuración → Miembros, dentro de ese workspace).
@@ -214,11 +236,9 @@ export default function Profile() {
               {creatingClient ? 'Creando...' : 'Crear cliente'}
             </button>
           </div>
-        )}
 
-        {isStaff && (
           <div className="settings-block">
-            <h2 className="settings-block-title">Panel de Staff — Eliminar cuenta de usuario</h2>
+            <h2 className="settings-block-title">Eliminar cuenta de usuario</h2>
             <p style={{ fontSize: 13, color: '#6b7280', marginTop: -8, marginBottom: 16 }}>
               Borra la cuenta por completo (no solo la saca de un workspace) — pierde acceso a todo, en todos
               los workspaces donde estaba. Es irreversible. Pensado para limpiar cuentas de prueba o pedidos
@@ -243,8 +263,8 @@ export default function Profile() {
               {deleting ? 'Eliminando...' : 'Eliminar cuenta'}
             </button>
           </div>
-        )}
       </div>
+      )}
 
       {confirmDelete && (
         <DeleteConfirmModal
