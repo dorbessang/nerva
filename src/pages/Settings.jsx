@@ -1729,11 +1729,73 @@ function TabWorkspace({ workspaceId, isOwner }) {
   const [savingRules, setSavingRules] = useState(false)
   const [savedRules, setSavedRules] = useState(false)
 
+  const [grants, setGrants] = useState([])
+  const [showGrantForm, setShowGrantForm] = useState(false)
+  const [grantRole, setGrantRole] = useState('admin')
+  const [grantDuration, setGrantDuration] = useState('24')
+  const [grantIsTicket, setGrantIsTicket] = useState(false)
+  const [grantProblem, setGrantProblem] = useState('')
+  const [creatingGrant, setCreatingGrant] = useState(false)
+  const [grantError, setGrantError] = useState('')
+  const [lastCode, setLastCode] = useState(null)
+
   useEffect(() => {
     fetchWorkspace()
     fetchMembers()
     fetchRules()
+    fetchGrants()
   }, [workspaceId])
+
+  async function fetchGrants() {
+    const { data } = await supabase
+      .from('access_grants')
+      .select('*, claimant:claimed_by ( full_name, email )')
+      .eq('workspace_id', workspaceId)
+      .order('created_at', { ascending: false })
+    if (data) setGrants(data)
+  }
+
+  async function handleCreateGrant() {
+    setGrantError('')
+    setCreatingGrant(true)
+    const { data, error } = await supabase.rpc('create_access_grant', {
+      p_workspace_id: workspaceId,
+      p_role: grantRole,
+      p_duration_hours: grantDuration === 'unlimited' ? null : parseInt(grantDuration, 10),
+      p_is_ticket: grantIsTicket,
+      p_problem_description: grantIsTicket ? grantProblem.trim() || null : null,
+    })
+    setCreatingGrant(false)
+    if (error) { setGrantError('No se pudo generar el código. Intentá de nuevo.'); return }
+    setLastCode(data.code)
+    setShowGrantForm(false)
+    setGrantProblem('')
+    fetchGrants()
+  }
+
+  async function handleConfirmGrant(id) {
+    const { error } = await supabase.rpc('confirm_access_grant', { p_grant_id: id })
+    if (!error) { fetchGrants(); fetchMembers() }
+  }
+
+  async function handleDeclineGrant(id) {
+    await supabase.rpc('decline_access_grant', { p_grant_id: id })
+    fetchGrants()
+  }
+
+  async function handleRevokeGrant(id) {
+    const { error } = await supabase.rpc('revoke_access_grant', { p_grant_id: id })
+    if (!error) { fetchGrants(); fetchMembers() }
+  }
+
+  async function handleCancelGrant(id) {
+    await supabase.rpc('cancel_access_grant', { p_grant_id: id })
+    fetchGrants()
+  }
+
+  async function handleCopyCode(code) {
+    await navigator.clipboard.writeText(code)
+  }
 
   async function fetchWorkspace() {
     const { data } = await supabase
@@ -1932,8 +1994,108 @@ function TabWorkspace({ workspaceId, isOwner }) {
           </button>
         </div>
       )}
+
+      {isOwner && (
+        <div className="settings-block">
+          <h2 className="settings-block-title">Acceso de soporte</h2>
+          <p className="settings-hint">
+            Le das acceso temporal a alguien del equipo de Nerva para que te ayude — siempre por código, y siempre con tu confirmación activa en el momento en que esa persona entra, aunque ya hayas generado el código antes. Podés mandarlo como ticket (aparece en la cola del staff, con el problema que cuentes) o pasarlo vos mismo directamente a alguien.
+          </p>
+
+          {lastCode && (
+            <div className="access-grant-code-box">
+              <span>Código generado:</span>
+              <strong className="access-grant-code">{lastCode}</strong>
+              <button className="settings-btn-secondary" onClick={() => handleCopyCode(lastCode)}>Copiar</button>
+            </div>
+          )}
+
+          {!showGrantForm ? (
+            <button className="settings-btn-primary" onClick={() => setShowGrantForm(true)}>+ Generar código de acceso</button>
+          ) : (
+            <div className="invite-form">
+              <div className="form-row">
+                <div className="form-group">
+                  <label>ROL</label>
+                  <select value={grantRole} onChange={e => setGrantRole(e.target.value)}>
+                    <option value="owner">Owner</option>
+                    <option value="admin">Admin</option>
+                    <option value="editor">Editor</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>DURACIÓN</label>
+                  <select value={grantDuration} onChange={e => setGrantDuration(e.target.value)}>
+                    <option value="24">24 horas</option>
+                    <option value="48">48 horas</option>
+                    <option value="72">72 horas</option>
+                    <option value="unlimited">Ilimitado (máximo 30 días)</option>
+                  </select>
+                </div>
+              </div>
+              <label className="approval-rule-toggle" style={{ marginTop: 8 }}>
+                <input type="checkbox" checked={grantIsTicket} onChange={e => setGrantIsTicket(e.target.checked)} />
+                <span>Mandar como ticket a la cola del staff (en vez de pasar el código yo mismo)</span>
+              </label>
+              {grantIsTicket && (
+                <div className="form-group" style={{ marginTop: 8 }}>
+                  <label>CONTANOS EL PROBLEMA</label>
+                  <textarea rows={3} value={grantProblem} onChange={e => setGrantProblem(e.target.value)} placeholder="¿Qué necesitás que revisemos?" />
+                </div>
+              )}
+              {grantError && <p className="form-error">{grantError}</p>}
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <button className="settings-btn-secondary" onClick={() => setShowGrantForm(false)}>Cancelar</button>
+                <button className="settings-btn-primary" onClick={handleCreateGrant} disabled={creatingGrant}>
+                  {creatingGrant ? 'Generando...' : 'Generar código'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {grants.length > 0 && (
+            <div className="settings-table" style={{ marginTop: 16 }}>
+              {grants.map(g => (
+                <div key={g.id} className="settings-row">
+                  <div className="settings-row-info">
+                    <div className="settings-row-text">
+                      <div className="settings-row-name">
+                        {roleLabelForGrant(g.role)} · {g.is_ticket ? 'Ticket' : 'Código directo'}
+                        {g.status === 'pending_confirmation' && <span className="settings-inactive-badge" style={{ background: '#FEF3C7', color: '#92400E' }}> Esperando tu confirmación</span>}
+                        {g.status === 'active' && <span className="settings-inactive-badge" style={{ background: '#DCFCE7', color: '#166534' }}> Activo</span>}
+                      </div>
+                      <div className="settings-row-email">
+                        {g.status === 'open' && `Código ${g.code} — sin tomar todavía`}
+                        {g.status === 'pending_confirmation' && `${g.claimant?.full_name || g.claimant?.email || 'Alguien del staff'} está esperando que confirmes`}
+                        {g.status === 'active' && `${g.claimant?.full_name || g.claimant?.email || ''} · vence ${g.expires_at ? new Date(g.expires_at).toLocaleString('es-AR') : '—'}`}
+                        {['expired', 'revoked', 'declined', 'cancelled'].includes(g.status) && `${g.status} · ${new Date(g.created_at).toLocaleDateString('es-AR')}`}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="settings-row-actions">
+                    {g.status === 'open' && <button className="settings-btn-danger" onClick={() => handleCancelGrant(g.id)}>Cancelar</button>}
+                    {g.status === 'pending_confirmation' && (
+                      <>
+                        <button className="settings-btn-primary" onClick={() => handleConfirmGrant(g.id)}>✓ Confirmar</button>
+                        <button className="settings-btn-danger" onClick={() => handleDeclineGrant(g.id)}>✕ Rechazar</button>
+                      </>
+                    )}
+                    {g.status === 'active' && <button className="settings-btn-danger" onClick={() => handleRevokeGrant(g.id)}>Revocar</button>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
+}
+
+function roleLabelForGrant(role) {
+  const map = { owner: 'Owner', admin: 'Admin', editor: 'Editor', viewer: 'Viewer' }
+  return map[role] || role
 }
 
 // ─── TAB NOTIFICACIONES ───────────────────────────────────────────────────────

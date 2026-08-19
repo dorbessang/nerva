@@ -34,9 +34,55 @@ export default function Profile() {
   const [deleteSuccess, setDeleteSuccess] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  const [accessCode, setAccessCode] = useState('')
+  const [claimingCode, setClamingCode] = useState(false)
+  const [codeError, setCodeError] = useState(null)
+  const [codeSuccess, setCodeSuccess] = useState(null)
+  const [openTickets, setOpenTickets] = useState([])
+  const [myClaims, setMyClaims] = useState([])
+
   useEffect(() => {
     setFullName(profile?.full_name || '')
   }, [profile])
+
+  useEffect(() => {
+    if (isStaff && activeTab === 'staff') fetchAccessQueue()
+  }, [isStaff, activeTab])
+
+  async function fetchAccessQueue() {
+    const { data: tickets } = await supabase
+      .from('access_grants')
+      .select('*, ws:workspace_id ( name )')
+      .eq('is_ticket', true)
+      .eq('status', 'open')
+      .order('created_at', { ascending: true })
+    setOpenTickets(tickets || [])
+
+    const { data: claims } = await supabase
+      .from('access_grants')
+      .select('*, ws:workspace_id ( name )')
+      .eq('claimed_by', user.id)
+      .in('status', ['pending_confirmation', 'active'])
+      .order('claimed_at', { ascending: false })
+    setMyClaims(claims || [])
+  }
+
+  async function claimCode(code) {
+    setCodeError(null)
+    setCodeSuccess(null)
+    setClamingCode(true)
+    const { data, error } = await supabase.rpc('claim_access_grant', { p_code: code })
+    setClamingCode(false)
+    if (error) { setCodeError(error.message?.includes('inválido') || error.message?.includes('usado') ? 'Código inválido o ya usado.' : 'No se pudo tomar el código. Intentá de nuevo.'); return }
+    setCodeSuccess('Código tomado — esperando que alguien del workspace confirme tu ingreso ahora.')
+    setAccessCode('')
+    fetchAccessQueue()
+  }
+
+  async function handleClaimTypedCode() {
+    if (!accessCode.trim()) return
+    await claimCode(accessCode.trim())
+  }
 
   async function handleSaveName() {
     setNameError(null)
@@ -200,6 +246,68 @@ export default function Profile() {
 
       {activeTab === 'staff' && isStaff && (
       <div className="settings-section">
+          <div className="settings-block">
+            <h2 className="settings-block-title">Acceso de soporte</h2>
+            <p style={{ fontSize: 13, color: '#6b7280', marginTop: -8, marginBottom: 16 }}>
+              Ingresá un código que te haya pasado directamente un owner/admin, o tomá un ticket de la cola de abajo. En los dos casos, tomar el código no te da acceso todavía — alguien del workspace tiene que confirmar tu ingreso en ese momento antes de que puedas entrar.
+            </p>
+            <div className="form-row">
+              <div className="form-group" style={{ maxWidth: 220 }}>
+                <label>CÓDIGO</label>
+                <input
+                  type="text"
+                  value={accessCode}
+                  onChange={e => setAccessCode(e.target.value.toUpperCase())}
+                  placeholder="Ej: A1B2C3D4"
+                  maxLength={8}
+                />
+              </div>
+              <button className="settings-btn-primary" style={{ alignSelf: 'flex-end', height: 38 }} onClick={handleClaimTypedCode} disabled={claimingCode || !accessCode.trim()}>
+                {claimingCode ? 'Tomando...' : 'Tomar código'}
+              </button>
+            </div>
+            {codeError && <p className="settings-error">{codeError}</p>}
+            {codeSuccess && <p className="settings-success">{codeSuccess}</p>}
+
+            {myClaims.length > 0 && (
+              <div className="settings-table" style={{ marginTop: 16 }}>
+                {myClaims.map(c => (
+                  <div key={c.id} className="settings-row">
+                    <div className="settings-row-info">
+                      <div className="settings-row-text">
+                        <div className="settings-row-name">{c.ws?.name || 'Workspace'}</div>
+                        <div className="settings-row-email">
+                          {c.status === 'pending_confirmation' ? 'Esperando confirmación del workspace...' : `Activo · vence ${c.expires_at ? new Date(c.expires_at).toLocaleString('es-AR') : '—'}`}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginTop: 20, marginBottom: 8 }}>Cola de tickets abiertos</h3>
+            {openTickets.length === 0 ? (
+              <p style={{ fontSize: 13, color: '#9ca3af' }}>No hay tickets esperando.</p>
+            ) : (
+              <div className="settings-table">
+                {openTickets.map(t => (
+                  <div key={t.id} className="settings-row">
+                    <div className="settings-row-info">
+                      <div className="settings-row-text">
+                        <div className="settings-row-name">{t.ws?.name || 'Workspace'}</div>
+                        <div className="settings-row-email">{t.problem_description || 'Sin descripción'}</div>
+                      </div>
+                    </div>
+                    <div className="settings-row-actions">
+                      <button className="settings-btn-primary" onClick={() => claimCode(t.code)} disabled={claimingCode}>Tomar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="settings-block">
             <h2 className="settings-block-title">Dar de alta un cliente nuevo</h2>
             <p style={{ fontSize: 13, color: '#6b7280', marginTop: -8, marginBottom: 16 }}>

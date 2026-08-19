@@ -364,6 +364,26 @@
   }
 }
 
+.access-grant-code-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #065f46;
+}
+
+.access-grant-code {
+  font-family: monospace;
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: #065f46;
+}
+
 /* Toggle de tipo de objeto */
 .settings-type-toggle {
   display: flex;
