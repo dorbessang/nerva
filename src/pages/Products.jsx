@@ -496,6 +496,7 @@ export default function Products() {
                 key={product.id}
                 avatarLabel={product.name}
                 title={product.name}
+                titlePrefix={<span className="card-tile-number">#{product.display_number}</span>}
                 titleBadge={product.product_type?.name && <span className="neg-chip neg-chip-blue entity-type-chip">{product.product_type.name}</span>}
                 subtitle={product.entity?.name ? `Vendedor: ${product.entity.name}` : 'Sin entidad vendedora'}
                 footer={
@@ -628,6 +629,7 @@ function ProductsGridTable({ products, allRows, getFacetRows, productFieldDefs, 
       allVisibleSelected={allVisibleSelected}
       onToggleSelectAll={onToggleSelectAll}
       onSelectRow={onSelect}
+      getNumber={product => product.display_number}
     />
   )
 }
@@ -783,7 +785,7 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
               {getInitials(product.name)}
             </div>
             <div style={{ minWidth: 0 }}>
-              <h2 className="modal-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.name}</h2>
+              <h2 className="modal-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><span className="card-tile-number">#{product.display_number}</span> {product.name}</h2>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>
                 {product.product_type?.name}
                 {product.entity?.name ? ` · ${product.entity.name}` : ''}

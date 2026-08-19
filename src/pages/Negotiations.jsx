@@ -974,6 +974,7 @@ function TableView({ negotiations, allRows, getFacetRows, getStateConfig, getEnt
       onToggleSelectAll={onToggleSelectAll}
       onSelectRow={onSelect}
       rowClassName={neg => neg.activity_status === 'paused' ? 'neg-row-paused' : neg.activity_status === 'inactive' ? 'neg-row-inactive' : ''}
+      getNumber={neg => neg.display_number}
     />
   )
 }
@@ -1068,7 +1069,10 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
             key={neg.id}
             avatarLabel={title}
             title={title}
-            titlePrefix={actIcon && <span className={`neg-paused-icon ${neg.activity_status === 'inactive' ? 'neg-icon-inactive' : 'neg-icon-paused'}`}>{actIcon}</span>}
+            titlePrefix={<>
+              <span className="card-tile-number">#{neg.display_number}</span>
+              {actIcon && <span className={`neg-paused-icon ${neg.activity_status === 'inactive' ? 'neg-icon-inactive' : 'neg-icon-paused'}`}>{actIcon}</span>}
+            </>}
             headerRight={<span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>}
             footer={fields.length > 0 ? fields : null}
             selected={selectedIds.has(neg.id)}
@@ -1123,6 +1127,7 @@ function KanbanView({ negotiations, customStates, getStateConfig, getEntityName,
                     onClick={() => onSelect(neg)}
                   >
                     <div className="neg-kanban-card-title">
+                      <span className="card-tile-number">#{neg.display_number}</span>
                       {actIcon && <span className="neg-kanban-card-icon">{actIcon}</span>}
                       {neg.product || neg.title}
                     </div>
@@ -1987,7 +1992,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
       <div className="neg-detail-card" onClick={e => e.stopPropagation()}>
         <div className="modal-header modal-header--sticky">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h2 className="modal-title">{neg.product || neg.title}</h2>
+            <h2 className="modal-title"><span className="card-tile-number">#{neg.display_number}</span> {neg.product || neg.title}</h2>
             {activityStatus === 'paused' && (
               <span className="neg-activity-badge paused">⏸ Pausado</span>
             )}

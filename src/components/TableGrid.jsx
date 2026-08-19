@@ -24,6 +24,7 @@ export default function TableGrid({
   onToggleSelectAll,
   onSelectRow,
   rowClassName,
+  getNumber,
 }) {
   const visibleCols = cols.filter(c => c.visible)
 
@@ -32,6 +33,7 @@ export default function TableGrid({
       <table className="neg-table">
         <thead>
           <tr>
+            {getNumber && <th className="neg-th-number">#</th>}
             {showCheckbox && (
               <th className="neg-th-check">
                 <input type="checkbox" checked={allVisibleSelected} onChange={onToggleSelectAll} title="Seleccionar todos los visibles" />
@@ -62,6 +64,7 @@ export default function TableGrid({
             const key = rowKey(row)
             return (
               <tr key={key} onClick={() => onSelectRow(row)} className={`neg-table-row ${rowClassName ? rowClassName(row) : ''}`}>
+                {getNumber && <td className="neg-td-number">{getNumber(row)}</td>}
                 {showCheckbox && (
                   <td className="neg-td-check" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedIds.has(key)} onChange={() => onToggleSelect(key)} />

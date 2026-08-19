@@ -140,6 +140,21 @@
 
 .neg-th-check, .neg-td-check { width: 32px; text-align: center; }
 
+.neg-th-number, .neg-td-number {
+  width: 36px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-tile-number {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-right: 4px;
+}
+
 .neg-stat-card {
   background: #ffffff;
   border: 1px solid #e5e7eb;

@@ -104,8 +104,13 @@ Modelo de datos: una sola tabla de tickets/grants con estados (`pending_staff` �
 - **Siempre oculto, sin importar la configuración**: datos de contacto (personas/teléfono/mail de encargados, ni en proyectos ni en entidades) y documentos cargados. Sin excepción.
 - [ ] **Fase B de esto (deferida, "la pensamos bien más adelante")**: cuando una categoría está oculta, en vez de desaparecer del todo, mostrar el registro "redactado" — número visible, nombre/detalle tapado (tipo contraseña con asteriscos), pero con algo de contexto técnico/estructural (estado, fechas, si tiene tareas pendientes) para que el staff pueda diagnosticar sin ver el contenido real del cliente. Circular por definir campo por campo qué queda "identidad" (se tapa) vs. "estructural" (se ve). **No arrancar esto sin numeración ya construida** (ver abajo, es la base).
 
-### Numeración — el primer paso a construir (arranca ahora)
-Pedido explícito del usuario para arrancar por acá, "que es más sencilla" — y además es útil por sí sola, no solo para el tema staff: cada Proyecto/Entidad/Producto tiene un número secuencial, estable, por workspace (tipo fila de Excel), visible en **todas las vistas** (tabla, mosaico, kanban) para **todos los roles**, no solo para cuando hay un acceso de staff restringido.
+### Numeración — [x] construido (2026-08-18)
+Pedido explícito del usuario para arrancar por acá, "que es más sencilla" — y además es útil por sí sola, no solo para el tema staff: cada Proyecto/Entidad/Producto tiene un número secuencial, estable, por workspace (tipo fila de Excel), visible en **todas las vistas** (tabla, mosaico, kanban, detalle) para **todos los roles**, no solo para cuando hay un acceso de staff restringido.
+- `workspace_counters` (workspace_id, counter_name, current_value) + `next_workspace_counter()` — atómico vía UPDATE con lock de fila, seguro con inserts concurrentes (a diferencia de un simple `max()+1`)
+- Un solo trigger (`set_display_number`, usa `TG_TABLE_NAME` como nombre del contador) reusado en `negotiations`/`entities`/`products` — asigna el número en el insert, nunca se reasigna ni se recicla
+- Backfill de lo ya existente en orden de `created_at`, contador de cada workspace dejado en el máximo asignado
+- Frontend: columna "#" fija (no ocultable) en `TableGrid` (compartida por las 3 páginas), badge `#N` en `CardTile`/Kanban, y en el header de cada detalle (Proyecto/Entidad/Producto)
+- **Pendiente, deferida a propósito**: la vista "redactada" (parte B del acceso de staff) que usa esta numeración para referenciar un registro sin mostrar su contenido — se decide más adelante
 
 ---
 

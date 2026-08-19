@@ -582,7 +582,10 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
                 key={entity.id}
                 avatarLabel={entity.name}
                 title={entity.name}
-                titlePrefix={entity.country_code && <img src={getFlagUrl(entity.country_code)} alt="" className="entity-flag" />}
+                titlePrefix={<>
+                  <span className="card-tile-number">#{entity.display_number}</span>
+                  {entity.country_code && <img src={getFlagUrl(entity.country_code)} alt="" className="entity-flag" />}
+                </>}
                 titleBadge={!entityTypeId && entity.entity_type?.name && (
                   <span className="neg-chip neg-chip-blue entity-type-chip">
                     {entity.entity_type.name}{entity.secondary_entity_type?.name ? ` · ${entity.secondary_entity_type.name}` : ''}
@@ -733,6 +736,7 @@ function EntitiesGridTable({ entities, allRows, getFacetRows, entityFieldDefs, c
       allVisibleSelected={allVisibleSelected}
       onToggleSelectAll={onToggleSelectAll}
       onSelectRow={onSelect}
+      getNumber={entity => entity.display_number}
     />
   )
 }
@@ -898,6 +902,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
             </div>
             <div style={{ minWidth: 0 }}>
               <h2 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <span className="card-tile-number">#{entity.display_number}</span>
                 {entity.country_code && <img src={getFlagUrl(entity.country_code)} alt="" style={{ width: 18, borderRadius: 2, flexShrink: 0 }} />}
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{entity.name}</span>
               </h2>
