@@ -194,11 +194,24 @@ function TabUsuarios({ workspaceId }) {
   const [inviteSuccess, setInviteSuccess] = useState(null)
   const [inviteLink, setInviteLink] = useState(null)
   const [confirmRemove, setConfirmRemove] = useState(null) // miembro a eliminar
+  const [membershipLog, setMembershipLog] = useState([])
+  const [showLog, setShowLog] = useState(false)
 
   useEffect(() => {
     fetchMembers()
     fetchInvitations()
+    fetchMembershipLog()
   }, [workspaceId])
+
+  async function fetchMembershipLog() {
+    const { data } = await supabase
+      .from('workspace_membership_log')
+      .select('id, action, old_role, new_role, created_at, member:user_id ( full_name, email ), actor:performed_by ( full_name )')
+      .eq('workspace_id', workspaceId)
+      .order('created_at', { ascending: false })
+      .limit(100)
+    if (data) setMembershipLog(data)
+  }
 
   async function fetchMembers() {
     const { data } = await supabase
@@ -227,6 +240,7 @@ function TabUsuarios({ workspaceId }) {
       .eq('user_id', userId)
     await notifyRoleChanged(supabase, { workspaceId, userId, newRoleLabel: roleLabel(newRole), actingUserId: currentUser?.id })
     fetchMembers()
+    fetchMembershipLog()
   }
 
   async function handleToggleStatus(member) {
@@ -237,6 +251,7 @@ function TabUsuarios({ workspaceId }) {
       .eq('workspace_id', workspaceId)
       .eq('user_id', member.user_id)
     fetchMembers()
+    fetchMembershipLog()
   }
 
   async function handleRemoveMember() {
@@ -248,6 +263,7 @@ function TabUsuarios({ workspaceId }) {
       .eq('user_id', confirmRemove.user_id)
     setConfirmRemove(null)
     fetchMembers()
+    fetchMembershipLog()
   }
 
   async function handleInvite() {
@@ -297,6 +313,18 @@ function TabUsuarios({ workspaceId }) {
   function roleLabel(role) {
     const map = { owner: 'Owner', admin: 'Admin', editor: 'Editor', viewer: 'Viewer' }
     return map[role] || role
+  }
+
+  function membershipLogLabel(l) {
+    const name = l.member?.full_name || l.member?.email || 'Usuario eliminado'
+    switch (l.action) {
+      case 'joined': return `${name} se sumó al workspace como ${roleLabel(l.new_role)}`
+      case 'role_changed': return `${name} pasó de ${roleLabel(l.old_role)} a ${roleLabel(l.new_role)}`
+      case 'deactivated': return `${name} fue desactivado`
+      case 'reactivated': return `${name} fue reactivado`
+      case 'removed': return `${name} fue eliminado del workspace (era ${roleLabel(l.old_role)})`
+      default: return `${name} — ${l.action}`
+    }
   }
 
   if (loading) return <div className="settings-loading">Cargando...</div>
@@ -420,6 +448,36 @@ function TabUsuarios({ workspaceId }) {
           </div>
         </div>
       )}
+
+      {/* Historial de accesos — entradas/salidas de CUALQUIER miembro, no
+          solo staff. Colapsado por default, no es algo que se mire seguido. */}
+      <div className="settings-block">
+        <div className="settings-block-header" style={{ cursor: 'pointer' }} onClick={() => setShowLog(v => !v)}>
+          <h2 className="settings-block-title">Historial de accesos {showLog ? '▾' : '▸'}</h2>
+        </div>
+        {showLog && (
+          membershipLog.length === 0 ? (
+            <p className="settings-hint">Sin movimientos registrados todavía.</p>
+          ) : (
+            <div className="settings-table">
+              {membershipLog.map(l => (
+                <div key={l.id} className="settings-row">
+                  <div className="settings-row-info">
+                    <div className="settings-row-text">
+                      <div className="settings-row-name">
+                        {membershipLogLabel(l)}
+                      </div>
+                      <div className="settings-row-email">
+                        {l.actor?.full_name ? `Por ${l.actor.full_name} · ` : ''}{new Date(l.created_at).toLocaleString('es-AR')}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
 
       {confirmRemove && (
         <DeleteConfirmModal
