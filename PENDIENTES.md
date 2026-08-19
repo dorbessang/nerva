@@ -73,6 +73,42 @@ Ya diseñado en detalle más abajo (ver "ETAPA 2" y "FASE 2" — planes, Stripe,
 
 ---
 
+## 🛡️ ACCESO DE SOPORTE PARA STAFF (2026-08-18) — diseño cerrado, sin implementar todavía
+
+Reemplaza el hack manual de SQL que se venía usando para que el staff (Gervasio, `is_staff=true`) entre a un workspace de un cliente a ayudar. No encaja en ninguna Fase A–F del roadmap (es herramienta interna, no producto de cliente) — queda como iniciativa propia. Diseñado en varias vueltas de conversación con el usuario; acá el diseño final acordado, para no perderlo.
+
+### El problema con la versión anterior
+Acceso manual vía SQL directo en Supabase — sin registro, sin vencimiento, sin que el cliente supiera ni consintiera activamente.
+
+### Flujo de acceso — una sola forma, dos puntos de entrada
+Siempre termina en lo mismo: **un código que identifica al workspace + una aceptación activa, en el momento, de alguien presente del lado del cliente.** Nunca se entra sin que alguien confirme ahí mismo, aunque ya haya un pedido previo.
+
+1. **Cliente arma un ticket** desde una "ventana de ayuda" nueva en la UI (visible a todos los roles; la sección de pedir acceso solo a admin/owner): cuenta el problema, y configura de antemano rol / duración / qué esconder. El ticket queda en un estado especial ("esperando que el staff lo tome") — llega al staff igual que llegaría un mail hoy, pero ya no depende de que alguien lea una casilla y después pida un código a mano.
+2. Un miembro del staff **toma el ticket** de la cola (Profile → Staff). Esto NO da acceso todavía — pasa a "esperando confirmación del cliente".
+3. **Alguien del workspace tiene que confirmar activamente, en ese momento**, que ese miembro del staff entra ahora (como abrir la puerta cuando tocan timbre). Recién ahí se crea la membership real.
+4. Vencimiento automático — la duración es editable (24h/48h/72h/ilimitado), pero **el sistema le pone un techo duro de 30 días siempre**, incluso si se eligió "ilimitado". Pasado el vencimiento, se saca solo de `workspace_members`.
+5. El owner puede revocar en cualquier momento (sacarlo como a cualquier miembro).
+6. Rol asignable: cualquiera de los 4 existentes, **incluido owner temporal** (ej: para una tarea puntual que requiere ese nivel).
+
+Modelo de datos: una sola tabla de tickets/grants con estados (`pending_staff` → `pending_client_confirmation` → `active` → `expired`/`revoked`/`declined`), que sirve de cola para el staff y de bitácora de todo el ciclo a la vez.
+
+### Bitácora
+- **No hay "deshacer" de nada** — decisión explícita del usuario, esto no es un sistema de undo.
+- Sí: registrar **quién entra y sale de cada workspace** (staff o no), con fecha/hora/quién lo autorizó — tabla de auditoría de membership nueva, no existe hoy.
+- Sí: identificar en la bitácora de actividad que YA EXISTE (Proyectos/Entidades) qué acciones hizo el staff, en el mismo lugar donde ya se mira (no un panel aparte) — usando el flag `profiles.is_staff` que ya existe, mostrando algo tipo "🛡️ Staff" al lado del actor en `ActivityTimeline`. Casi gratis, no hace falta columna nueva.
+- **Gap encontrado, a confirmar antes de dar por completo**: Productos no tiene timeline de actividad todavía (su pestaña "Bitácora" hoy es solo las notas post-it) — si se quiere la misma visibilidad ahí, hay que sumarle `ActivityTimeline` primero, calco de Proyectos/Entidades.
+- Tampoco confirmado que el 100% de las acciones posibles generen hoy una entrada en `activity_log` (ej. editar un campo custom no está claro que loguee) — revisar antes de prometer cobertura completa para las acciones del staff.
+
+### Qué puede ver el staff
+- Toggle independiente por categoría: Proyectos / Entidades / Productos (no solo Financiero, que es más fino — ocultar Financiero es una restricción DENTRO de Proyectos, no reemplaza al toggle de categoría).
+- **Siempre oculto, sin importar la configuración**: datos de contacto (personas/teléfono/mail de encargados, ni en proyectos ni en entidades) y documentos cargados. Sin excepción.
+- [ ] **Fase B de esto (deferida, "la pensamos bien más adelante")**: cuando una categoría está oculta, en vez de desaparecer del todo, mostrar el registro "redactado" — número visible, nombre/detalle tapado (tipo contraseña con asteriscos), pero con algo de contexto técnico/estructural (estado, fechas, si tiene tareas pendientes) para que el staff pueda diagnosticar sin ver el contenido real del cliente. Circular por definir campo por campo qué queda "identidad" (se tapa) vs. "estructural" (se ve). **No arrancar esto sin numeración ya construida** (ver abajo, es la base).
+
+### Numeración — el primer paso a construir (arranca ahora)
+Pedido explícito del usuario para arrancar por acá, "que es más sencilla" — y además es útil por sí sola, no solo para el tema staff: cada Proyecto/Entidad/Producto tiene un número secuencial, estable, por workspace (tipo fila de Excel), visible en **todas las vistas** (tabla, mosaico, kanban) para **todos los roles**, no solo para cuando hay un acceso de staff restringido.
+
+---
+
 ## 📍 Para la próxima sesión — empezar por acá (cierre de la sesión larga del 2026-08-11)
 
 Sesión larga de rediseño de Proyectos/Productos/Entidades. Todo el código quedó commiteado y pusheado a `claude/session-status-check-4r6t8e` (no mergeado a `main` — el último merge+deploy a producción fue a mitad de esta sesión, commit `f4176cb`; hay commits nuevos arriba de eso sin mergear todavía, esperar a que el usuario pida el próximo merge). Ver `CHANGELOG.md` para el detalle completo, entradas del `(9)` al `(25)` del `2026-08-11`.
