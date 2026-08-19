@@ -73,36 +73,42 @@ Ya diseñado en detalle más abajo (ver "ETAPA 2" y "FASE 2" — planes, Stripe,
 
 ---
 
-## 🛡️ ACCESO DE SOPORTE PARA STAFF (2026-08-18) — diseño cerrado, sin implementar todavía
+## 🛡️ ACCESO DE SOPORTE PARA STAFF (2026-08-18/19) — núcleo construido, falta la ventana de ayuda y la vista redactada
 
 Reemplaza el hack manual de SQL que se venía usando para que el staff (Gervasio, `is_staff=true`) entre a un workspace de un cliente a ayudar. No encaja en ninguna Fase A–F del roadmap (es herramienta interna, no producto de cliente) — queda como iniciativa propia. Diseñado en varias vueltas de conversación con el usuario; acá el diseño final acordado, para no perderlo.
 
 ### El problema con la versión anterior
 Acceso manual vía SQL directo en Supabase — sin registro, sin vencimiento, sin que el cliente supiera ni consintiera activamente.
 
-### Flujo de acceso — una sola forma, dos puntos de entrada
-Siempre termina en lo mismo: **un código que identifica al workspace + una aceptación activa, en el momento, de alguien presente del lado del cliente.** Nunca se entra sin que alguien confirme ahí mismo, aunque ya haya un pedido previo.
+### Flujo de acceso — [x] construido (2026-08-18/19)
+Siempre es lo mismo, sin importar cómo llegó el código: **un código que identifica al workspace + una aceptación activa, en el momento, de alguien presente del lado del cliente.** Nunca se entra sin que alguien confirme ahí mismo, aunque el código ya se haya generado antes. Dos formas de que el código llegue al staff (no dos flujos de acceso distintos — el resto es idéntico):
+- **Vía ticket**: desde una "ventana de ayuda" (todavía sin construir, ver más abajo) el owner/admin cuenta el problema; el ticket cae en la cola compartida del staff (`Profile → Staff`) y cualquiera lo puede tomar.
+- **Vía código directo**: el owner/admin genera el código desde `Configuración → Workspace → Acceso de soporte` y se lo pasa a mano a un miembro puntual del staff, por fuera de la app (mensaje, llamada, lo que sea).
 
-1. **Cliente arma un ticket** desde una "ventana de ayuda" nueva en la UI (visible a todos los roles; la sección de pedir acceso solo a admin/owner): cuenta el problema, y configura de antemano rol / duración / qué esconder. El ticket queda en un estado especial ("esperando que el staff lo tome") — llega al staff igual que llegaría un mail hoy, pero ya no depende de que alguien lea una casilla y después pida un código a mano.
-2. Un miembro del staff **toma el ticket** de la cola (Profile → Staff). Esto NO da acceso todavía — pasa a "esperando confirmación del cliente".
-3. **Alguien del workspace tiene que confirmar activamente, en ese momento**, que ese miembro del staff entra ahora (como abrir la puerta cuando tocan timbre). Recién ahí se crea la membership real.
-4. Vencimiento automático — la duración es editable (24h/48h/72h/ilimitado), pero **el sistema le pone un techo duro de 30 días siempre**, incluso si se eligió "ilimitado". Pasado el vencimiento, se saca solo de `workspace_members`.
-5. El owner puede revocar en cualquier momento (sacarlo como a cualquier miembro).
-6. Rol asignable: cualquiera de los 4 existentes, **incluido owner temporal** (ej: para una tarea puntual que requiere ese nivel).
+1. El código se genera (ticket o directo) — tabla `access_grants`, estado `open`.
+2. Un miembro del staff **toma el código** (tipeándolo en `Profile → Staff`, o tomando un ticket de la cola). Esto NO da acceso todavía — pasa a `pending_confirmation` y le llega una notificación al creador del grant.
+3. **Alguien del workspace (owner/admin) tiene que confirmar activamente, en ese momento**, desde `Configuración → Workspace → Acceso de soporte` — recién ahí se crea la membership real (`workspace_members`).
+4. Vencimiento automático — duración elegible (24h/48h/72h/ilimitado), pero **el sistema le pone un techo duro de 30 días siempre**, incluso si se eligió "ilimitado". Barrido por cron cada hora (`expire_access_grants`) que saca solo de `workspace_members` lo vencido.
+5. El owner puede revocar en cualquier momento (mismo botón, saca de `workspace_members` al toque).
+6. Rol asignable: cualquiera de los 4 existentes, **incluido owner temporal**.
 
-Modelo de datos: una sola tabla de tickets/grants con estados (`pending_staff` → `pending_client_confirmation` → `active` → `expired`/`revoked`/`declined`), que sirve de cola para el staff y de bitácora de todo el ciclo a la vez.
+Modelo de datos: `access_grants` (una sola tabla) con estados `open → pending_confirmation → active → expired/revoked/declined/cancelled`, todas las transiciones vía funciones `SECURITY DEFINER` (`create_access_grant`, `claim_access_grant`, `confirm_access_grant`, `decline_access_grant`, `revoke_access_grant`, `cancel_access_grant`, `expire_access_grants`) — sin policies de insert/update directas, ver `supabase/migrations/20260818140000_staff_access_grants.sql`.
+
+UI: bloque "Acceso de soporte" en `Configuración → Workspace` (owner-only: generar código, ver estado de los grants del workspace, confirmar/rechazar/revocar) y bloque "Acceso de soporte" en `Perfil → Staff` (ingresar código a mano, ver cola de tickets abiertos de cualquier workspace y tomarlos, ver mis accesos en curso).
 
 ### Bitácora
 - **No hay "deshacer" de nada** — decisión explícita del usuario, esto no es un sistema de undo.
-- Sí: registrar **quién entra y sale de cada workspace** (staff o no), con fecha/hora/quién lo autorizó — tabla de auditoría de membership nueva, no existe hoy.
-- Sí: identificar en la bitácora de actividad que YA EXISTE (Proyectos/Entidades) qué acciones hizo el staff, en el mismo lugar donde ya se mira (no un panel aparte) — usando el flag `profiles.is_staff` que ya existe, mostrando algo tipo "🛡️ Staff" al lado del actor en `ActivityTimeline`. Casi gratis, no hace falta columna nueva.
+- [x] **construido (2026-08-18)**: `workspace_membership_log`, quién entra y sale de cada workspace (staff o no), con fecha/hora/quién lo autorizó — trigger sobre `workspace_members` (`log_membership_change`), no hace falta que ningún camino del código se acuerde de loguear a mano. UI: bloque "Historial de accesos" en `Configuración → Usuarios`.
+- [ ] Sigue pendiente: identificar en la bitácora de actividad que YA EXISTE (Proyectos/Entidades) qué acciones hizo el staff, en el mismo lugar donde ya se mira (no un panel aparte) — usando el flag `profiles.is_staff` que ya existe, mostrando algo tipo "🛡️ Staff" al lado del actor en `ActivityTimeline`. Casi gratis, no hace falta columna nueva.
 - **Gap encontrado, a confirmar antes de dar por completo**: Productos no tiene timeline de actividad todavía (su pestaña "Bitácora" hoy es solo las notas post-it) — si se quiere la misma visibilidad ahí, hay que sumarle `ActivityTimeline` primero, calco de Proyectos/Entidades.
 - Tampoco confirmado que el 100% de las acciones posibles generen hoy una entrada en `activity_log` (ej. editar un campo custom no está claro que loguee) — revisar antes de prometer cobertura completa para las acciones del staff.
 
 ### Qué puede ver el staff
 - Toggle independiente por categoría: Proyectos / Entidades / Productos (no solo Financiero, que es más fino — ocultar Financiero es una restricción DENTRO de Proyectos, no reemplaza al toggle de categoría).
 - **Siempre oculto, sin importar la configuración**: datos de contacto (personas/teléfono/mail de encargados, ni en proyectos ni en entidades) y documentos cargados. Sin excepción.
-- [ ] **Fase B de esto (deferida, "la pensamos bien más adelante")**: cuando una categoría está oculta, en vez de desaparecer del todo, mostrar el registro "redactado" — número visible, nombre/detalle tapado (tipo contraseña con asteriscos), pero con algo de contexto técnico/estructural (estado, fechas, si tiene tareas pendientes) para que el staff pueda diagnosticar sin ver el contenido real del cliente. Circular por definir campo por campo qué queda "identidad" (se tapa) vs. "estructural" (se ve). **No arrancar esto sin numeración ya construida** (ver abajo, es la base).
+- [ ] **No construido todavía** — hoy `access_grants` guarda el rol pero no hay enforcement de visibilidad por categoría ni el toggle en la UI. Falta antes de dar el sistema por completo.
+- [ ] **Fase B de esto (deferida, "la pensamos bien más adelante")**: cuando una categoría está oculta, en vez de desaparecer del todo, mostrar el registro "redactado" — número visible, nombre/detalle tapado (tipo contraseña con asteriscos), pero con algo de contexto técnico/estructural (estado, fechas, si tiene tareas pendientes) para que el staff pueda diagnosticar sin ver el contenido real del cliente. Circular por definir campo por campo qué queda "identidad" (se tapa) vs. "estructural" (se ve).
+- [ ] **Ventana de ayuda — no construida todavía**: página nueva, visible a todos los roles, con FAQ/asistente y la sección "Solicitar asistencia" (solo admin/owner) desde donde armar el ticket contando el problema. Hoy generar un código (directo o como ticket, con el checkbox "Mandar como ticket") solo se puede desde `Configuración → Workspace → Acceso de soporte` — funciona, pero no es la experiencia pensada para un cliente que busca ayuda; falta esta página dedicada con FAQ/asistente antes de dar el flujo de ticket por completo.
 
 ### Numeración — [x] construido (2026-08-18)
 Pedido explícito del usuario para arrancar por acá, "que es más sencilla" — y además es útil por sí sola, no solo para el tema staff: cada Proyecto/Entidad/Producto tiene un número secuencial, estable, por workspace (tipo fila de Excel), visible en **todas las vistas** (tabla, mosaico, kanban, detalle) para **todos los roles**, no solo para cuando hay un acceso de staff restringido.
