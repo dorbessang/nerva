@@ -36,12 +36,13 @@
   - **Cierre de proyecto** (nueva): NO bloquea el cambio de estado — se aplica normal y queda marcado `negotiations.close_confirmation_status = 'pending'` (con `close_requested_from_status` para poder revertir) hasta que el aprobador lo confirme o lo revierta. Enganchado en los 4 lugares que cambian `negotiations.status` (inline, modal completo, Kanban, cambio en lote) vía un único helper compartido. Banner en el detalle del proyecto con Confirmar/Revertir, visible al aprobador
   - Deliberadamente ninguna regla bloquea nada mientras está pendiente (mismo criterio "poco intrusivo" en las 3) — se marca y se notifica, se puede seguir trabajando
 
-### Fase C — IA aplicada (la escalera)
-Cada escalón reusa la misma pieza central (llamado a IA + pantalla de "revisar antes de guardar"), aplicada a un input distinto.
-- [ ] **Extracción de documentos → alta semi-automática**: subir una propuesta comercial/PDF, la IA prellena un borrador de Entidad/Proyecto/Producto usando el esquema real de `custom_field_definitions` del workspace — nunca se guarda solo, el usuario confirma
-- [ ] Mismo motor, otro input: notas de una reunión → tareas sugeridas (con dependencias si corresponde)
+### Fase C — IA aplicada — **salteada por ahora (2026-08-20), retomar cuando el usuario lo pida**
+El usuario no quiere entrar en gastos de IA todavía por la extracción de documentos ("que lo hagan a mano, la configuración de campos no es algo de todos los días") — esa idea queda descartada, no solo pausada, salvo que la retome explícitamente. En cambio, cuando se retome esta fase, **el punto de entrada no es la extracción de documentos — es un chatbot interno** (ver diseño abajo), pedido explícito del usuario.
+- [ ] **Chatbot interno sobre los datos del workspace** (idea nueva del usuario, 2026-08-20, no implementado — bloqueado en conseguir API key de Anthropic): responde preguntas en lenguaje natural sobre los datos de negocio del WS activo ("cuántos proyectos tengo con tal proveedor") y **nada de fuera de ese workspace**. Diseño acordado: nunca SQL libre ni acceso directo a la base — un set chico de herramientas concretas (contar/buscar/sumar con filtros) que la IA elige y arma, pero cada una corre como una consulta normal de Supabase **autenticada como el usuario que pregunta**, así que el aislamiento por workspace lo garantiza el mismo RLS de siempre, no el prompt. Falta decidir: ubicación en la UI (panel flotante vs. pestaña nueva) y si conviene un límite diario/mensual de uso por workspace como salvavidas de costo.
+- [ ] Extracción de documentos → alta semi-automática (descartado por costo, ver arriba — no retomar sin que el usuario lo pida de nuevo)
+- [ ] Notas de una reunión → tareas sugeridas (con dependencias si corresponde)
 - [ ] Resumir un hilo de mail largo en una nota de bitácora (depende de que exista la Fase B)
-- [ ] Búsqueda en lenguaje natural ("qué proyectos con X están parados hace 20 días") — más barata de construir una vez que el Dashboard de la Fase A tenga la capa de reportes resuelta
+- [ ] Búsqueda en lenguaje natural sobre reportes ("qué proyectos con X están parados hace 20 días") — probablemente se resuelve con el mismo chatbot de arriba en vez de ser un escalón aparte
 
 ### Fase D — Mirar hacia afuera + Organización completa
 - [ ] Portal de solo lectura para la contraparte (deal room): estado del deal, documentos, cronograma — reusa datos existentes, sin modelo nuevo
