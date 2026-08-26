@@ -11,25 +11,48 @@ import { AVATAR_PRESETS } from '../lib/avatarPresets'
 import './Settings.css'
 import './Profile.css'
 
+const PROFILE_TAB_KEYS = ['perfil', 'seguridad', 'staff']
+
 export default function Profile() {
   const { user, profile, isStaff, refreshProfile } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  // La pestaña activa vive en la URL (?tab=staff), no solo en un useState
+  // La pestaña activa vive en la URL (?tab=...), no solo en un useState
   // -- así sobrevive a cualquier remount del componente (cambio de sesión,
   // el navegador descartando la pestaña en segundo plano, etc.), no solo
   // al caso puntual de TOKEN_REFRESHED que ya se arregló en AuthContext.
-  const initialTab = new URLSearchParams(location.search).get('tab') === 'staff' ? 'staff' : 'perfil'
-  const [activeTab, setActiveTabState] = useState(initialTab)
+  // Mismo patrón de nav agrupada que Configuración (2026-08-25): esta
+  // página creció (foto, datos personales ampliados, seguridad, staff) y
+  // ya no entra cómoda en una tira de 2 pestañas.
+  const urlTab = new URLSearchParams(location.search).get('tab')
+  const [activeTab, setActiveTabState] = useState(PROFILE_TAB_KEYS.includes(urlTab) ? urlTab : 'perfil')
 
   function setActiveTab(tab) {
     setActiveTabState(tab)
-    navigate(`/profile${tab === 'staff' ? '?tab=staff' : ''}`, { replace: true })
+    navigate(`/profile?tab=${tab}`, { replace: true })
   }
+
+  useEffect(() => {
+    if (activeTab === 'staff' && !isStaff) setActiveTab('perfil')
+  }, [activeTab, isStaff])
+
   const [fullName, setFullName] = useState('')
   const [savingName, setSavingName] = useState(false)
   const [nameSuccess, setNameSuccess] = useState(false)
   const [nameError, setNameError] = useState(null)
+
+  const [phone, setPhone] = useState('')
+  const [jobTitle, setJobTitle] = useState('')
+  const [department, setDepartment] = useState('')
+  const [birthday, setBirthday] = useState('')
+  const [city, setCity] = useState('')
+  const [timezone, setTimezone] = useState('')
+  const [linkedinUrl, setLinkedinUrl] = useState('')
+  const [bio, setBio] = useState('')
+  const [language, setLanguage] = useState('es')
+  const [savingExtended, setSavingExtended] = useState(false)
+  const [extendedSuccess, setExtendedSuccess] = useState(false)
+  const [extendedError, setExtendedError] = useState(null)
 
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [avatarError, setAvatarError] = useState(null)
@@ -67,6 +90,15 @@ export default function Profile() {
 
   useEffect(() => {
     setFullName(profile?.full_name || '')
+    setPhone(profile?.phone || '')
+    setJobTitle(profile?.job_title || '')
+    setDepartment(profile?.department || '')
+    setBirthday(profile?.birthday || '')
+    setCity(profile?.city || '')
+    setTimezone(profile?.timezone || '')
+    setLinkedinUrl(profile?.linkedin_url || '')
+    setBio(profile?.bio || '')
+    setLanguage(profile?.language || 'es')
   }, [profile])
 
   // Se trae en cualquier pestaña (no solo "staff") para que el número de
@@ -161,6 +193,31 @@ export default function Profile() {
     setNameSuccess(true)
     await refreshProfile()
     setTimeout(() => setNameSuccess(false), 2000)
+  }
+
+  async function handleSaveExtended() {
+    setExtendedError(null)
+    setExtendedSuccess(false)
+    setSavingExtended(true)
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        phone: phone.trim() || null,
+        job_title: jobTitle.trim() || null,
+        department: department.trim() || null,
+        birthday: birthday || null,
+        city: city.trim() || null,
+        timezone: timezone.trim() || null,
+        linkedin_url: linkedinUrl.trim() || null,
+        bio: bio.trim() || null,
+        language,
+      })
+      .eq('id', user.id)
+    setSavingExtended(false)
+    if (error) { setExtendedError('No se pudo guardar. Intentá de nuevo.'); return }
+    setExtendedSuccess(true)
+    await refreshProfile()
+    setTimeout(() => setExtendedSuccess(false), 2000)
   }
 
   async function handleUploadAvatar(file) {
@@ -279,29 +336,46 @@ export default function Profile() {
     setDeleteEmail('')
   }
 
+  const NAV_GROUPS = [
+    {
+      label: 'Tu cuenta', items: [
+        { key: 'perfil', label: 'Perfil' },
+        { key: 'seguridad', label: 'Seguridad' },
+      ]
+    },
+    ...(isStaff ? [{
+      label: 'Staff', items: [
+        { key: 'staff', label: 'Staff', badge: openTickets.length },
+      ]
+    }] : []),
+  ]
+
   return (
     <div className="settings-container">
       <div className="settings-header">
         <h1 className="settings-title">Mi perfil</h1>
       </div>
 
-      {isStaff && (
-        <div className="settings-tabs">
-          {[
-            { key: 'perfil', label: 'Mi perfil' },
-            { key: 'staff', label: 'Staff', badge: openTickets.length },
-          ].map(tab => (
-            <button
-              key={tab.key}
-              className={`settings-tab ${activeTab === tab.key ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              {tab.label}
-              {tab.badge > 0 && <span className="settings-tab-badge">{tab.badge > 9 ? '9+' : tab.badge}</span>}
-            </button>
+      <div className="settings-shell">
+        <nav className="settings-subnav">
+          {NAV_GROUPS.map(group => (
+            <div className="settings-subnav-group" key={group.label}>
+              <div className="settings-subnav-label">{group.label}</div>
+              {group.items.map(item => (
+                <button
+                  key={item.key}
+                  className={`settings-subnav-item ${activeTab === item.key ? 'active' : ''}`}
+                  onClick={() => setActiveTab(item.key)}
+                >
+                  <span>{item.label}</span>
+                  {item.badge > 0 && <span className="settings-tab-badge">{item.badge > 9 ? '9+' : item.badge}</span>}
+                </button>
+              ))}
+            </div>
           ))}
-        </div>
-      )}
+        </nav>
+
+        <div className="settings-content">
 
       {activeTab === 'perfil' && (
       <div className="settings-section">
@@ -369,6 +443,71 @@ export default function Profile() {
           </button>
         </div>
 
+        <div className="settings-block">
+          <h2 className="settings-block-title">Perfil personal</h2>
+          <p className="settings-hint">
+            Nada de esto es obligatorio ni se comparte fuera de tu equipo — es para tener un perfil más completo
+            de cara al resto (y para funciones que vamos a ir sumando más adelante: cumpleaños, directorio por
+            área, horarios según zona, etc.).
+          </p>
+          <div className="form-row">
+            <div className="form-group" style={{ maxWidth: 240 }}>
+              <label>TELÉFONO</label>
+              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+54 9 11 ..." />
+            </div>
+            <div className="form-group" style={{ maxWidth: 240 }}>
+              <label>CARGO / PUESTO</label>
+              <input type="text" value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="Ej: Gerente de Ventas" />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group" style={{ maxWidth: 240 }}>
+              <label>ÁREA / DEPARTAMENTO</label>
+              <input type="text" value={department} onChange={e => setDepartment(e.target.value)} placeholder="Ej: Business Development" />
+            </div>
+            <div className="form-group" style={{ maxWidth: 240 }}>
+              <label>CUMPLEAÑOS</label>
+              <input type="date" value={birthday} onChange={e => setBirthday(e.target.value)} />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group" style={{ maxWidth: 240 }}>
+              <label>CIUDAD</label>
+              <input type="text" value={city} onChange={e => setCity(e.target.value)} placeholder="Ej: Buenos Aires" />
+            </div>
+            <div className="form-group" style={{ maxWidth: 240 }}>
+              <label>ZONA HORARIA</label>
+              <input type="text" value={timezone} onChange={e => setTimezone(e.target.value)} placeholder="Ej: GMT-3" />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group" style={{ maxWidth: 400 }}>
+              <label>LINKEDIN</label>
+              <input type="url" value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/..." />
+            </div>
+            <div className="form-group" style={{ maxWidth: 200 }}>
+              <label>IDIOMA PREFERIDO</label>
+              <select value={language} onChange={e => setLanguage(e.target.value)}>
+                <option value="es">Español</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+          </div>
+          <div className="form-group">
+            <label>SOBRE VOS</label>
+            <textarea rows={3} value={bio} onChange={e => setBio(e.target.value)} placeholder="Una descripción corta, lo que quieras contar." />
+          </div>
+          {extendedError && <p className="settings-error">{extendedError}</p>}
+          {extendedSuccess && <p className="settings-success">Guardado.</p>}
+          <button className="settings-btn-primary" onClick={handleSaveExtended} disabled={savingExtended}>
+            {savingExtended ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
+      </div>
+      )}
+
+      {activeTab === 'seguridad' && (
+      <div className="settings-section">
         <div className="settings-block">
           <h2 className="settings-block-title">Cambiar contraseña</h2>
           <div className="form-group" style={{ maxWidth: 400 }}>
@@ -573,6 +712,9 @@ export default function Profile() {
           </div>
       </div>
       )}
+
+        </div>
+      </div>
 
       {confirmDelete && (
         <DeleteConfirmModal

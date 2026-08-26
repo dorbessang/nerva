@@ -66,7 +66,7 @@ export function AuthProvider({ children }) {
         .eq('status', 'active'),
       supabase
         .from('profiles')
-        .select('full_name, is_staff, avatar_url, avatar_preset')
+        .select('full_name, is_staff, avatar_url, avatar_preset, phone, job_title, department, birthday, city, timezone, linkedin_url, bio, language')
         .eq('id', userId)
         .single(),
     ])
@@ -136,7 +136,7 @@ export function AuthProvider({ children }) {
     if (!user) return
     const { data } = await supabase
       .from('profiles')
-      .select('full_name, is_staff, avatar_url, avatar_preset')
+      .select('full_name, is_staff, avatar_url, avatar_preset, phone, job_title, department, birthday, city, timezone, linkedin_url, bio, language')
       .eq('id', user.id)
       .single()
     setProfile(data ?? null)
