@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import Avatar from '../components/Avatar'
 import { notifyRoleChanged } from '../lib/notifications'
 import { computeFieldOrder, isCardFilterable } from '../lib/customFields'
 import { extractFunctionError } from '../lib/edgeFunctionError'
@@ -283,7 +284,7 @@ function TabUsuarios({ workspaceId, canManage }) {
   async function fetchMembers() {
     const { data } = await supabase
       .from('workspace_members')
-      .select(`user_id, role, status, profile:user_id ( full_name, email )`)
+      .select(`user_id, role, status, profile:user_id ( full_name, email, avatar_url, avatar_preset )`)
       .eq('workspace_id', workspaceId)
       .order('role')
     if (data) setMembers(data)
@@ -475,9 +476,7 @@ function TabUsuarios({ workspaceId, canManage }) {
             return (
               <div key={m.user_id} className={`settings-row ${m.status === 'inactive' ? 'settings-row--inactive' : ''}`}>
                 <div className="settings-row-info">
-                  <div className="settings-avatar">
-                    {(m.profile?.full_name || m.profile?.email || '?')[0].toUpperCase()}
-                  </div>
+                  <Avatar profile={m.profile} size={36} />
                   <div className="settings-row-text">
                     <div className="settings-row-name">
                       {m.profile?.full_name || 'Sin nombre'}

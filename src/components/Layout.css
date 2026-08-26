@@ -243,6 +243,9 @@ body {
 }
 
 .nerva-header-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: none;
   border: none;
   padding: 0;
@@ -250,7 +253,10 @@ body {
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  max-width: 160px;
+  max-width: 200px;
+}
+
+.nerva-header-user-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

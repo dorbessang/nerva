@@ -6,7 +6,10 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { extractFunctionError } from '../lib/edgeFunctionError'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import Avatar from '../components/Avatar'
+import { AVATAR_PRESETS } from '../lib/avatarPresets'
 import './Settings.css'
+import './Profile.css'
 
 export default function Profile() {
   const { user, profile, isStaff, refreshProfile } = useAuth()
@@ -27,6 +30,10 @@ export default function Profile() {
   const [savingName, setSavingName] = useState(false)
   const [nameSuccess, setNameSuccess] = useState(false)
   const [nameError, setNameError] = useState(null)
+
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarError, setAvatarError] = useState(null)
+  const [showAvatarGallery, setShowAvatarGallery] = useState(false)
 
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -156,6 +163,52 @@ export default function Profile() {
     setTimeout(() => setNameSuccess(false), 2000)
   }
 
+  async function handleUploadAvatar(file) {
+    if (!file) return
+    setAvatarError(null)
+    if (!file.type.startsWith('image/')) { setAvatarError('Elegí un archivo de imagen'); return }
+    if (file.size > 5 * 1024 * 1024) { setAvatarError('La imagen no puede superar 5MB'); return }
+    setUploadingAvatar(true)
+    const path = `${user.id}/${Date.now()}-${file.name}`
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+    if (uploadError) {
+      setUploadingAvatar(false)
+      setAvatarError('No se pudo subir la imagen. Intentá de nuevo.')
+      return
+    }
+    const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ avatar_url: pub.publicUrl, avatar_preset: null })
+      .eq('id', user.id)
+    setUploadingAvatar(false)
+    if (error) { setAvatarError('No se pudo guardar. Intentá de nuevo.'); return }
+    setShowAvatarGallery(false)
+    await refreshProfile()
+  }
+
+  async function handlePickPreset(key) {
+    setAvatarError(null)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ avatar_preset: key, avatar_url: null })
+      .eq('id', user.id)
+    if (error) { setAvatarError('No se pudo guardar. Intentá de nuevo.'); return }
+    setShowAvatarGallery(false)
+    await refreshProfile()
+  }
+
+  async function handleUseInitials() {
+    setAvatarError(null)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ avatar_preset: null, avatar_url: null })
+      .eq('id', user.id)
+    if (error) { setAvatarError('No se pudo guardar. Intentá de nuevo.'); return }
+    setShowAvatarGallery(false)
+    await refreshProfile()
+  }
+
   async function handleChangePassword() {
     setPasswordError(null)
     setPasswordSuccess(false)
@@ -252,6 +305,49 @@ export default function Profile() {
 
       {activeTab === 'perfil' && (
       <div className="settings-section">
+        <div className="settings-block">
+          <h2 className="settings-block-title">Foto de perfil</h2>
+          <div className="profile-avatar-row">
+            <Avatar profile={profile} size={72} />
+            <div className="profile-avatar-actions">
+              <label className="settings-btn-primary profile-avatar-upload-btn">
+                {uploadingAvatar ? 'Subiendo...' : 'Subir foto'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  disabled={uploadingAvatar}
+                  onChange={e => handleUploadAvatar(e.target.files?.[0])}
+                />
+              </label>
+              <button className="settings-btn-secondary" onClick={() => setShowAvatarGallery(v => !v)}>
+                Elegir un ícono
+              </button>
+              {(profile?.avatar_url || profile?.avatar_preset) && (
+                <button className="settings-btn-secondary" onClick={handleUseInitials}>
+                  Usar inicial
+                </button>
+              )}
+            </div>
+          </div>
+          {avatarError && <p className="settings-error">{avatarError}</p>}
+          {showAvatarGallery && (
+            <div className="profile-avatar-gallery">
+              {AVATAR_PRESETS.map(p => (
+                <button
+                  key={p.key}
+                  className={`profile-avatar-preset-btn ${profile?.avatar_preset === p.key ? 'active' : ''}`}
+                  style={{ background: p.bg }}
+                  onClick={() => handlePickPreset(p.key)}
+                  title={p.key}
+                >
+                  {p.emoji}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="settings-block">
           <h2 className="settings-block-title">Datos personales</h2>
           <div className="form-group" style={{ maxWidth: 400 }}>

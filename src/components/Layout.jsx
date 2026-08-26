@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import * as LucideIcons from "lucide-react";
 import RoleImpersonator from "./RoleImpersonator";
 import NotificationBell from "./NotificationBell";
+import Avatar from "./Avatar";
 import GlobalSearch from "./GlobalSearch";
 import WelcomeSetup from "../pages/WelcomeSetup";
 import { isOwner } from "../lib/roles";
@@ -277,7 +278,8 @@ export default function Layout({ children }) {
           <span className="nerva-header-divider">·</span>
           <NotificationBell />
           <button className="nerva-header-user" onClick={() => navigate('/profile')}>
-            {profile?.full_name || user?.email}
+            <Avatar profile={profile} size={22} />
+            <span className="nerva-header-user-name">{profile?.full_name || user?.email}</span>
           </button>
           <button onClick={handleSignOut} className="nerva-header-signout">
             Cerrar sesión
