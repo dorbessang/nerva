@@ -15,7 +15,7 @@ import { withOwnerApproval } from '../lib/staffActions'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 
-const SETTINGS_TAB_KEYS = ['usuarios', 'proyectos', 'entidades', 'productos', 'workspace', 'notificaciones']
+const SETTINGS_TAB_KEYS = ['usuarios', 'proyectos', 'entidades', 'productos', 'general', 'automatizaciones', 'soporte', 'notificaciones']
 
 export default function Settings() {
   const { workspaceId, effectiveRole, activeWorkspace } = useAuth()
@@ -64,9 +64,42 @@ export default function Settings() {
 
   useEffect(() => {
     if (activeTab === 'usuarios' && !canViewUsuarios) setActiveTab(showModuleTabs ? 'proyectos' : 'notificaciones')
-    if (['proyectos', 'entidades', 'productos'].includes(activeTab) && !showModuleTabs) setActiveTab(isAdminOrOwner ? 'workspace' : 'notificaciones')
-    if (activeTab === 'workspace' && !isAdminOrOwner) setActiveTab('notificaciones')
+    if (['proyectos', 'entidades', 'productos'].includes(activeTab) && !showModuleTabs) setActiveTab(isAdminOrOwner ? 'general' : 'notificaciones')
+    if (['general', 'automatizaciones', 'soporte'].includes(activeTab) && !isAdminOrOwner) setActiveTab('notificaciones')
   }, [canViewUsuarios, showModuleTabs, isAdminOrOwner, activeTab])
+
+  // Navegación agrupada por dominio (Workspace / Equipo / Módulos / Tu
+  // cuenta) en vez de una sola tira de pestañas — reordenado 2026-08-23:
+  // "Workspace" se había vuelto un cajón de sastre (nombre, alertas,
+  // reglas de autorización, soporte de staff, todo junto en una pestaña).
+  // Cada grupo vacío se omite entero (ej. en un workspace personal solo
+  // queda "Tu cuenta").
+  const NAV_GROUPS = [
+    {
+      label: 'Workspace', items: [
+        ...(isAdminOrOwner ? [{ key: 'general', label: 'General' }] : []),
+        ...(isAdminOrOwner ? [{ key: 'automatizaciones', label: 'Automatizaciones' }] : []),
+      ]
+    },
+    {
+      label: 'Equipo', items: [
+        ...(canViewUsuarios ? [{ key: 'usuarios', label: 'Usuarios' }] : []),
+        ...(isAdminOrOwner ? [{ key: 'soporte', label: 'Soporte', badge: pendingWorkspaceCount }] : []),
+      ]
+    },
+    {
+      label: 'Módulos', items: [
+        ...(showModuleTabs ? [{ key: 'proyectos', label: 'Proyectos' }] : []),
+        ...(showModuleTabs ? [{ key: 'entidades', label: 'Entidades' }] : []),
+        ...(showModuleTabs ? [{ key: 'productos', label: 'Productos' }] : []),
+      ]
+    },
+    {
+      label: 'Tu cuenta', items: [
+        { key: 'notificaciones', label: 'Notificaciones' },
+      ]
+    },
+  ].filter(g => g.items.length > 0)
 
   return (
     <div className="settings-container">
@@ -74,42 +107,36 @@ export default function Settings() {
         <h1 className="settings-title">Configuración</h1>
       </div>
 
-      {/* Tabs de navegación interna — en un workspace personal (de un solo
-          usuario, sin proyectos/entidades) no tiene sentido invitar gente ni
-          configurar estados/tipos de entidad. Cada módulo (Proyectos/
-          Entidades/Productos) agrupa todo lo que le corresponde — antes
-          estaba repartido entre "Estados", "Tipos de X" y "Campos
-          personalizados" (esta última con un selector interno de a qué
-          objeto aplicaba), forzando a saltar de pestaña para terminar de
-          configurar un solo tipo de dato. */}
-      <div className="settings-tabs">
-        {[
-          ...(canViewUsuarios ? [{ key: 'usuarios', label: 'Usuarios' }] : []),
-          ...(showModuleTabs ? [{ key: 'proyectos', label: 'Proyectos' }] : []),
-          ...(showModuleTabs ? [{ key: 'entidades', label: 'Entidades' }] : []),
-          ...(showModuleTabs ? [{ key: 'productos', label: 'Productos' }] : []),
-          ...(isAdminOrOwner ? [{ key: 'workspace', label: 'Workspace', badge: pendingWorkspaceCount }] : []),
-          { key: 'notificaciones', label: 'Notificaciones' },
-        ].map(tab => (
-          <button
-            key={tab.key}
-            className={`settings-tab ${activeTab === tab.key ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.label}
-            {tab.badge > 0 && <span className="settings-tab-badge">{tab.badge > 9 ? '9+' : tab.badge}</span>}
-          </button>
-        ))}
-      </div>
+      <div className="settings-shell">
+        <nav className="settings-subnav">
+          {NAV_GROUPS.map(group => (
+            <div className="settings-subnav-group" key={group.label}>
+              <div className="settings-subnav-label">{group.label}</div>
+              {group.items.map(item => (
+                <button
+                  key={item.key}
+                  className={`settings-subnav-item ${activeTab === item.key ? 'active' : ''}`}
+                  onClick={() => setActiveTab(item.key)}
+                >
+                  <span>{item.label}</span>
+                  {item.badge > 0 && <span className="settings-tab-badge">{item.badge > 9 ? '9+' : item.badge}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
 
-      {/* Contenido según tab activo */}
-      <div className="settings-content">
-        {activeTab === 'usuarios' && canViewUsuarios && <TabUsuarios workspaceId={workspaceId} canManage={isOwner} />}
-        {activeTab === 'proyectos' && showModuleTabs && <ModuloProyectos workspaceId={workspaceId} />}
-        {activeTab === 'entidades' && showModuleTabs && <ModuloEntidades workspaceId={workspaceId} />}
-        {activeTab === 'productos' && showModuleTabs && <ModuloProductos workspaceId={workspaceId} />}
-        {activeTab === 'workspace' && isAdminOrOwner && <TabWorkspace workspaceId={workspaceId} isOwner={isOwner} />}
-        {activeTab === 'notificaciones' && <TabNotificaciones workspaceId={workspaceId} />}
+        {/* Contenido según tab activo */}
+        <div className="settings-content">
+          {activeTab === 'usuarios' && canViewUsuarios && <TabUsuarios workspaceId={workspaceId} canManage={isOwner} />}
+          {activeTab === 'proyectos' && showModuleTabs && <ModuloProyectos workspaceId={workspaceId} />}
+          {activeTab === 'entidades' && showModuleTabs && <ModuloEntidades workspaceId={workspaceId} />}
+          {activeTab === 'productos' && showModuleTabs && <ModuloProductos workspaceId={workspaceId} />}
+          {activeTab === 'general' && isAdminOrOwner && <TabGeneral workspaceId={workspaceId} isOwner={isOwner} />}
+          {activeTab === 'automatizaciones' && isAdminOrOwner && <TabAutomatizaciones workspaceId={workspaceId} isOwner={isOwner} />}
+          {activeTab === 'soporte' && isAdminOrOwner && <TabSoporte workspaceId={workspaceId} isOwner={isOwner} />}
+          {activeTab === 'notificaciones' && <TabNotificaciones workspaceId={workspaceId} />}
+        </div>
       </div>
     </div>
   )
@@ -1776,9 +1803,13 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
   )
 }
 
-// ─── TAB WORKSPACE ────────────────────────────────────────────────────────────
+// ─── TAB GENERAL ──────────────────────────────────────────────────────────────
+// Lo básico del workspace: nombre + alertas de inactividad. Antes vivía
+// junto con reglas de autorización y todo lo de soporte en una sola
+// pestaña "Workspace" que se había vuelto un cajón de sastre — separado
+// a pedido del usuario (2026-08-23).
 
-function TabWorkspace({ workspaceId, isOwner }) {
+function TabGeneral({ workspaceId, isOwner }) {
   const { refreshWorkspaces, isStaff, role } = useAuth()
   const [workspace, setWorkspace] = useState(null)
   const [name, setName] = useState('')
@@ -1790,119 +1821,11 @@ function TabWorkspace({ workspaceId, isOwner }) {
   const [activityError, setActivityError] = useState('')
   const [savingActivity, setSavingActivity] = useState(false)
   const [savedActivity, setSavedActivity] = useState(false)
-
-  const [members, setMembers] = useState([])
-  const [rules, setRules] = useState([])
-  const [rulesError, setRulesError] = useState('')
-  const [savingRules, setSavingRules] = useState(false)
-  const [savedRules, setSavedRules] = useState(false)
-
-  const [grants, setGrants] = useState([])
-  const [showGrantForm, setShowGrantForm] = useState(false)
-  const [grantRole, setGrantRole] = useState('admin')
-  const [grantDuration, setGrantDuration] = useState('24')
-  const [grantIsTicket, setGrantIsTicket] = useState(false)
-  const [grantProblem, setGrantProblem] = useState('')
-  const [creatingGrant, setCreatingGrant] = useState(false)
-  const [grantError, setGrantError] = useState('')
-  const [lastCode, setLastCode] = useState(null)
-  const [revokingGrantId, setRevokingGrantId] = useState(null)
-  const [revokeMessage, setRevokeMessage] = useState('')
-  const [staffRequests, setStaffRequests] = useState([])
   const [requestNotice, setRequestNotice] = useState(null)
-  const [rejectingRequestId, setRejectingRequestId] = useState(null)
-  const [rejectMessage, setRejectMessage] = useState('')
 
   useEffect(() => {
     fetchWorkspace()
-    fetchMembers()
-    fetchRules()
-    fetchGrants()
-    if (isOwner) fetchStaffRequests()
-  }, [workspaceId, isOwner])
-
-  async function fetchStaffRequests() {
-    const { data } = await supabase
-      .from('staff_action_requests')
-      .select('*, requester:requested_by ( full_name, email )')
-      .eq('workspace_id', workspaceId)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: true })
-    if (data) setStaffRequests(data)
-  }
-
-  async function handleApproveRequest(req) {
-    if (req.action_type === 'invite_member') {
-      const { data, error } = await supabase.functions.invoke('invite-user', {
-        body: { action: 'approve_staff_invite', requestId: req.id },
-      })
-      if (error || data?.error) { setRequestNotice(data?.error || 'No se pudo aprobar la invitación.'); return }
-    } else {
-      const { error } = await supabase.rpc('approve_staff_action', { p_request_id: req.id })
-      if (error) { setRequestNotice('No se pudo aprobar la solicitud.'); return }
-    }
-    fetchStaffRequests()
-    fetchMembers()
-  }
-
-  async function handleRejectRequest(id, message) {
-    const { error } = await supabase.rpc('reject_staff_action', { p_request_id: id, p_message: message?.trim() || null })
-    if (error) { setRequestNotice('No se pudo rechazar la solicitud.'); return }
-    setRejectingRequestId(null)
-    setRejectMessage('')
-    fetchStaffRequests()
-  }
-
-  async function fetchGrants() {
-    const { data } = await supabase
-      .from('access_grants')
-      .select('*, claimant:claimed_by ( full_name, email )')
-      .eq('workspace_id', workspaceId)
-      .order('created_at', { ascending: false })
-    if (data) setGrants(data)
-  }
-
-  async function handleCreateGrant() {
-    setGrantError('')
-    setCreatingGrant(true)
-    const { data, error } = await supabase.rpc('create_access_grant', {
-      p_workspace_id: workspaceId,
-      p_role: grantRole,
-      p_duration_hours: grantDuration === 'unlimited' ? null : parseInt(grantDuration, 10),
-      p_is_ticket: grantIsTicket,
-      p_problem_description: grantIsTicket ? grantProblem.trim() || null : null,
-    })
-    setCreatingGrant(false)
-    if (error) { setGrantError('No se pudo generar el código. Intentá de nuevo.'); return }
-    setLastCode(data.code)
-    setShowGrantForm(false)
-    setGrantProblem('')
-    fetchGrants()
-  }
-
-  async function handleConfirmGrant(id) {
-    const { error } = await supabase.rpc('confirm_access_grant', { p_grant_id: id })
-    if (!error) { fetchGrants(); fetchMembers() }
-  }
-
-  async function handleDeclineGrant(id) {
-    await supabase.rpc('decline_access_grant', { p_grant_id: id })
-    fetchGrants()
-  }
-
-  async function handleRevokeGrant(id, message) {
-    const { error } = await supabase.rpc('revoke_access_grant', { p_grant_id: id, p_message: message?.trim() || null })
-    if (!error) { fetchGrants(); fetchMembers(); setRevokingGrantId(null); setRevokeMessage('') }
-  }
-
-  async function handleCancelGrant(id) {
-    await supabase.rpc('cancel_access_grant', { p_grant_id: id })
-    fetchGrants()
-  }
-
-  async function handleCopyCode(code) {
-    await navigator.clipboard.writeText(code)
-  }
+  }, [workspaceId])
 
   async function fetchWorkspace() {
     const { data } = await supabase
@@ -1916,77 +1839,6 @@ function TabWorkspace({ workspaceId, isOwner }) {
       setAlertDays(String(data.low_activity_alert_days ?? 90))
       setInactiveDays(String(data.low_activity_inactive_days ?? 120))
     }
-  }
-
-  async function fetchMembers() {
-    const { data } = await supabase
-      .from('workspace_members')
-      .select('user_id, profile:user_id ( full_name )')
-      .eq('workspace_id', workspaceId)
-      .eq('status', 'active')
-    if (data) setMembers(data)
-  }
-
-  async function fetchRules() {
-    const { data } = await supabase.from('approval_rules').select('*').eq('workspace_id', workspaceId)
-    setRules(
-      APPROVAL_RULE_TYPES.map(t => {
-        const existing = (data ?? []).find(r => r.rule_type === t.key)
-        return {
-          rule_type: t.key,
-          enabled: existing?.enabled ?? false,
-          approver_id: existing?.approver_id ?? '',
-          threshold_numeric: existing?.threshold_numeric !== null && existing?.threshold_numeric !== undefined ? String(existing.threshold_numeric) : '',
-        }
-      })
-    )
-  }
-
-  function updateRule(ruleType, patch) {
-    setRules(prev => prev.map(r => r.rule_type === ruleType ? { ...r, ...patch } : r))
-  }
-
-  async function handleSaveRules() {
-    setRulesError('')
-    for (const r of rules) {
-      if (r.enabled && !r.approver_id) {
-        setRulesError(`"${APPROVAL_RULE_TYPES.find(t => t.key === r.rule_type)?.label}" necesita un aprobador para poder activarse`)
-        return
-      }
-    }
-    setSavingRules(true)
-    let saveError = null
-    const { requested } = await withOwnerApproval(supabase, {
-      isStaff, role, workspaceId, actionType: 'update_approval_rules',
-      payload: {
-        rules: rules.map(r => ({
-          rule_type: r.rule_type,
-          enabled: r.enabled,
-          approver_id: r.approver_id || null,
-          threshold_numeric: r.threshold_numeric.trim() ? parseFloat(r.threshold_numeric) : null,
-        })),
-        description: 'Actualizar reglas de autorización',
-      },
-    }, async () => {
-      const { error } = await supabase.from('approval_rules').upsert(
-        rules.map(r => ({
-          workspace_id: workspaceId,
-          rule_type: r.rule_type,
-          enabled: r.enabled,
-          approver_id: r.approver_id || null,
-          threshold_numeric: r.threshold_numeric.trim() ? parseFloat(r.threshold_numeric) : null,
-          updated_at: new Date().toISOString(),
-        })),
-        { onConflict: 'workspace_id,rule_type' }
-      )
-      saveError = error
-    })
-    setSavingRules(false)
-    if (requested) { setRequestNotice('Se mandó la solicitud al owner del workspace para que la apruebe.'); return }
-    if (saveError) { setRulesError('No se pudo guardar. Intentá de nuevo.'); return }
-    setSavedRules(true)
-    await refreshWorkspaces()
-    setTimeout(() => setSavedRules(false), 2000)
   }
 
   async function handleSave() {
@@ -2065,13 +1917,112 @@ function TabWorkspace({ workspaceId, isOwner }) {
               <input type="number" min="1" value={inactiveDays} onChange={e => setInactiveDays(e.target.value)} />
             </div>
           </div>
+          {requestNotice && <p className="settings-success">{requestNotice}</p>}
           {activityError && <p className="form-error">{activityError}</p>}
           <button className="settings-btn-primary" onClick={handleSaveActivityLimits} disabled={savingActivity}>
             {savingActivity ? 'Guardando...' : savedActivity ? '✓ Guardado' : 'Guardar cambios'}
           </button>
         </div>
       )}
+    </div>
+  )
+}
 
+// ─── TAB AUTOMATIZACIONES ─────────────────────────────────────────────────────
+// Gobernanza de negocio — hoy solo reglas de autorización, pensada para
+// que sea donde vaya cayendo lo que se sume en esa línea más adelante.
+
+function TabAutomatizaciones({ workspaceId, isOwner }) {
+  const { refreshWorkspaces, isStaff, role } = useAuth()
+  const [members, setMembers] = useState([])
+  const [rules, setRules] = useState([])
+  const [rulesError, setRulesError] = useState('')
+  const [savingRules, setSavingRules] = useState(false)
+  const [savedRules, setSavedRules] = useState(false)
+  const [requestNotice, setRequestNotice] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchMembers()
+    fetchRules()
+  }, [workspaceId])
+
+  async function fetchMembers() {
+    const { data } = await supabase
+      .from('workspace_members')
+      .select('user_id, profile:user_id ( full_name )')
+      .eq('workspace_id', workspaceId)
+      .eq('status', 'active')
+    if (data) setMembers(data)
+  }
+
+  async function fetchRules() {
+    const { data } = await supabase.from('approval_rules').select('*').eq('workspace_id', workspaceId)
+    setRules(
+      APPROVAL_RULE_TYPES.map(t => {
+        const existing = (data ?? []).find(r => r.rule_type === t.key)
+        return {
+          rule_type: t.key,
+          enabled: existing?.enabled ?? false,
+          approver_id: existing?.approver_id ?? '',
+          threshold_numeric: existing?.threshold_numeric !== null && existing?.threshold_numeric !== undefined ? String(existing.threshold_numeric) : '',
+        }
+      })
+    )
+    setLoading(false)
+  }
+
+  function updateRule(ruleType, patch) {
+    setRules(prev => prev.map(r => r.rule_type === ruleType ? { ...r, ...patch } : r))
+  }
+
+  async function handleSaveRules() {
+    setRulesError('')
+    for (const r of rules) {
+      if (r.enabled && !r.approver_id) {
+        setRulesError(`"${APPROVAL_RULE_TYPES.find(t => t.key === r.rule_type)?.label}" necesita un aprobador para poder activarse`)
+        return
+      }
+    }
+    setSavingRules(true)
+    let saveError = null
+    const { requested } = await withOwnerApproval(supabase, {
+      isStaff, role, workspaceId, actionType: 'update_approval_rules',
+      payload: {
+        rules: rules.map(r => ({
+          rule_type: r.rule_type,
+          enabled: r.enabled,
+          approver_id: r.approver_id || null,
+          threshold_numeric: r.threshold_numeric.trim() ? parseFloat(r.threshold_numeric) : null,
+        })),
+        description: 'Actualizar reglas de autorización',
+      },
+    }, async () => {
+      const { error } = await supabase.from('approval_rules').upsert(
+        rules.map(r => ({
+          workspace_id: workspaceId,
+          rule_type: r.rule_type,
+          enabled: r.enabled,
+          approver_id: r.approver_id || null,
+          threshold_numeric: r.threshold_numeric.trim() ? parseFloat(r.threshold_numeric) : null,
+          updated_at: new Date().toISOString(),
+        })),
+        { onConflict: 'workspace_id,rule_type' }
+      )
+      saveError = error
+    })
+    setSavingRules(false)
+    if (requested) { setRequestNotice('Se mandó la solicitud al owner del workspace para que la apruebe.'); return }
+    if (saveError) { setRulesError('No se pudo guardar. Intentá de nuevo.'); return }
+    setSavedRules(true)
+    await refreshWorkspaces()
+    setTimeout(() => setSavedRules(false), 2000)
+  }
+
+  if (loading) return <div className="settings-loading">Cargando...</div>
+
+  return (
+    <div className="settings-section">
       {isOwner && (
         <div className="settings-block">
           <h2 className="settings-block-title">Reglas de autorización</h2>
@@ -2119,13 +2070,129 @@ function TabWorkspace({ workspaceId, isOwner }) {
               )
             })}
           </div>
+          {requestNotice && <p className="settings-success">{requestNotice}</p>}
           {rulesError && <p className="form-error">{rulesError}</p>}
           <button className="settings-btn-primary" onClick={handleSaveRules} disabled={savingRules}>
             {savingRules ? 'Guardando...' : savedRules ? '✓ Guardado' : 'Guardar cambios'}
           </button>
         </div>
       )}
+    </div>
+  )
+}
 
+// ─── TAB SOPORTE ──────────────────────────────────────────────────────────────
+// Todo lo que involucra al equipo de Nerva: solicitudes de staff
+// pendientes de aprobar + acceso de soporte. Antes mezclado con lo demás
+// en "Workspace" — separado porque es un tipo de acción distinto (no es
+// configuración del negocio, es dejar entrar a alguien de afuera).
+
+function TabSoporte({ workspaceId, isOwner }) {
+  const [grants, setGrants] = useState([])
+  const [showGrantForm, setShowGrantForm] = useState(false)
+  const [grantRole, setGrantRole] = useState('admin')
+  const [grantDuration, setGrantDuration] = useState('24')
+  const [grantIsTicket, setGrantIsTicket] = useState(false)
+  const [grantProblem, setGrantProblem] = useState('')
+  const [creatingGrant, setCreatingGrant] = useState(false)
+  const [grantError, setGrantError] = useState('')
+  const [lastCode, setLastCode] = useState(null)
+  const [revokingGrantId, setRevokingGrantId] = useState(null)
+  const [revokeMessage, setRevokeMessage] = useState('')
+  const [staffRequests, setStaffRequests] = useState([])
+  const [requestNotice, setRequestNotice] = useState(null)
+  const [rejectingRequestId, setRejectingRequestId] = useState(null)
+  const [rejectMessage, setRejectMessage] = useState('')
+
+  useEffect(() => {
+    fetchGrants()
+    if (isOwner) fetchStaffRequests()
+  }, [workspaceId, isOwner])
+
+  async function fetchStaffRequests() {
+    const { data } = await supabase
+      .from('staff_action_requests')
+      .select('*, requester:requested_by ( full_name, email )')
+      .eq('workspace_id', workspaceId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+    if (data) setStaffRequests(data)
+  }
+
+  async function handleApproveRequest(req) {
+    if (req.action_type === 'invite_member') {
+      const { data, error } = await supabase.functions.invoke('invite-user', {
+        body: { action: 'approve_staff_invite', requestId: req.id },
+      })
+      if (error || data?.error) { setRequestNotice(data?.error || 'No se pudo aprobar la invitación.'); return }
+    } else {
+      const { error } = await supabase.rpc('approve_staff_action', { p_request_id: req.id })
+      if (error) { setRequestNotice('No se pudo aprobar la solicitud.'); return }
+    }
+    fetchStaffRequests()
+  }
+
+  async function handleRejectRequest(id, message) {
+    const { error } = await supabase.rpc('reject_staff_action', { p_request_id: id, p_message: message?.trim() || null })
+    if (error) { setRequestNotice('No se pudo rechazar la solicitud.'); return }
+    setRejectingRequestId(null)
+    setRejectMessage('')
+    fetchStaffRequests()
+  }
+
+  async function fetchGrants() {
+    const { data } = await supabase
+      .from('access_grants')
+      .select('*, claimant:claimed_by ( full_name, email )')
+      .eq('workspace_id', workspaceId)
+      .order('created_at', { ascending: false })
+    if (data) setGrants(data)
+  }
+
+  async function handleCreateGrant() {
+    setGrantError('')
+    setCreatingGrant(true)
+    const { data, error } = await supabase.rpc('create_access_grant', {
+      p_workspace_id: workspaceId,
+      p_role: grantRole,
+      p_duration_hours: grantDuration === 'unlimited' ? null : parseInt(grantDuration, 10),
+      p_is_ticket: grantIsTicket,
+      p_problem_description: grantIsTicket ? grantProblem.trim() || null : null,
+    })
+    setCreatingGrant(false)
+    if (error) { setGrantError('No se pudo generar el código. Intentá de nuevo.'); return }
+    setLastCode(data.code)
+    setShowGrantForm(false)
+    setGrantProblem('')
+    fetchGrants()
+  }
+
+  async function handleConfirmGrant(id) {
+    const { error } = await supabase.rpc('confirm_access_grant', { p_grant_id: id })
+    if (!error) fetchGrants()
+  }
+
+  async function handleDeclineGrant(id) {
+    await supabase.rpc('decline_access_grant', { p_grant_id: id })
+    fetchGrants()
+  }
+
+  async function handleRevokeGrant(id, message) {
+    const { error } = await supabase.rpc('revoke_access_grant', { p_grant_id: id, p_message: message?.trim() || null })
+    if (!error) { fetchGrants(); setRevokingGrantId(null); setRevokeMessage('') }
+  }
+
+  async function handleCancelGrant(id) {
+    await supabase.rpc('cancel_access_grant', { p_grant_id: id })
+    fetchGrants()
+  }
+
+  async function handleCopyCode(code) {
+    await navigator.clipboard.writeText(code)
+  }
+
+  return (
+    <div className="settings-section">
       {isOwner && staffRequests.length > 0 && (
         <div className="settings-block">
           <h2 className="settings-block-title">Solicitudes de staff pendientes</h2>

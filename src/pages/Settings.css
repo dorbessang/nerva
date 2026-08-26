@@ -60,8 +60,58 @@
   line-height: 1;
 }
 
+/* Nav lateral agrupada de Configuración (Workspace/Equipo/Módulos/Tu
+   cuenta) — reemplaza la tira horizontal de pestañas para esta página.
+   Perfil sigue usando .settings-tabs/.settings-tab tal cual (esa página
+   solo tiene 2 pestañas, no necesita esto). */
+.settings-shell {
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+}
+
+.settings-subnav {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  position: sticky;
+  top: 40px;
+}
+
+.settings-subnav-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  padding: 0 10px;
+  margin-bottom: 6px;
+}
+
+.settings-subnav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  color: #374151;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.settings-subnav-item:hover { background: #e5e7eb; }
+.settings-subnav-item.active { background: #0B1F3A; color: #fff; font-weight: 600; }
+
 /* Contenido */
-.settings-content { width: 100%; }
+.settings-content { width: 100%; min-width: 0; }
 .settings-section { display: flex; flex-direction: column; gap: 20px; }
 
 .settings-block {
@@ -765,6 +815,31 @@
   .settings-tab {
     padding: 10px 14px;
     flex-shrink: 0;
+  }
+
+  /* La nav lateral agrupada pasa a una tira horizontal scrolleable — cada
+     grupo queda como una columna propia adentro del scroll, así se
+     conserva la agrupación (el rótulo) en vez de aplanar todo. */
+  .settings-shell {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .settings-subnav {
+    position: static;
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 24px;
+    padding-bottom: 6px;
+  }
+
+  .settings-subnav-group {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 140px;
   }
 
   .settings-block {
