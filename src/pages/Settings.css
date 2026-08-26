@@ -44,6 +44,22 @@
 .settings-tab:hover { color: #0B1F3A; }
 .settings-tab.active { color: #0B1F3A; border-bottom-color: #0B1F3A; font-weight: 700; }
 
+.settings-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin-left: 6px;
+  background: #DC2626;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 999px;
+  line-height: 1;
+}
+
 /* Contenido */
 .settings-content { width: 100%; }
 .settings-section { display: flex; flex-direction: column; gap: 20px; }

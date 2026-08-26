@@ -407,6 +407,28 @@ body {
   text-overflow: ellipsis;
 }
 
+.nav-icon--with-badge {
+  position: relative;
+}
+
+.nav-item-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  background: #DC2626;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 .nav-flyout {
   position: fixed;
   transform: translateY(-50%);

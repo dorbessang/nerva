@@ -31,7 +31,7 @@ function useIsMobile(breakpoint = 860) {
 }
 
 export default function Layout({ children }) {
-  const { user, profile, workspaces, workspaceId, activeWorkspace, setActiveWorkspace } = useAuth();
+  const { user, profile, isStaff, workspaces, workspaceId, activeWorkspace, setActiveWorkspace } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -46,6 +46,7 @@ export default function Layout({ children }) {
   const [navFlyout, setNavFlyout] = useState(null);
   const [inactiveProjects, setInactiveProjects] = useState([]);
   const [inactiveBannerDismissed, setInactiveBannerDismissed] = useState(false);
+  const [openTicketCount, setOpenTicketCount] = useState(0);
 
   const isPersonalWorkspace = activeWorkspace?.type === 'personal';
   const needsOnboarding = activeWorkspace && activeWorkspace.type !== 'personal' && activeWorkspace.onboarded === false;
@@ -63,6 +64,25 @@ export default function Layout({ children }) {
   useEffect(() => {
     if (workspaceId) fetchLowActivityBanners();
   }, [workspaceId, activeWorkspace?.low_activity_alert_days, activeWorkspace?.low_activity_inactive_days]);
+
+  // Burbuja de "tickets abiertos" para el staff, visible desde cualquier
+  // pantalla (no solo dentro de Perfil → Staff) — se refresca cada 60s,
+  // no hay infraestructura de realtime en la app todavía.
+  useEffect(() => {
+    if (!isStaff) return;
+    fetchOpenTicketCount();
+    const interval = setInterval(fetchOpenTicketCount, 60000);
+    return () => clearInterval(interval);
+  }, [isStaff]);
+
+  async function fetchOpenTicketCount() {
+    const { count } = await supabase
+      .from('access_grants')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_ticket', true)
+      .eq('status', 'open');
+    setOpenTicketCount(count || 0);
+  }
 
   // Trae los estados marcados "final" del workspace (is_terminal) y con eso
   // arma los dos banners — antes se excluía directo por SQL comparando
@@ -396,7 +416,12 @@ export default function Layout({ children }) {
               onMouseEnter={(e) => handleNavMouseEnter(e, "Mi perfil")}
               onMouseLeave={handleNavMouseLeave}
             >
-              <span className="nav-icon"><LucideIcons.User size={18} /></span>
+              <span className="nav-icon nav-icon--with-badge">
+                <LucideIcons.User size={18} />
+                {isStaff && openTicketCount > 0 && (
+                  <span className="nav-item-badge">{openTicketCount > 9 ? '9+' : openTicketCount}</span>
+                )}
+              </span>
               {showLabels && <span className="nav-label">Mi perfil</span>}
             </button>
             <button

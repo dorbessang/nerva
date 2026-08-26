@@ -40,14 +40,20 @@ export default function Profile() {
   const [codeSuccess, setCodeSuccess] = useState(null)
   const [openTickets, setOpenTickets] = useState([])
   const [myClaims, setMyClaims] = useState([])
+  const [closingId, setClosingId] = useState(null)
+  const [closeMessage, setCloseMessage] = useState('')
+  const [closingBusy, setClosingBusy] = useState(false)
 
   useEffect(() => {
     setFullName(profile?.full_name || '')
   }, [profile])
 
+  // Se trae en cualquier pestaña (no solo "staff") para que el número de
+  // tickets abiertos esté disponible para el badge de la solapa apenas
+  // entra a Perfil, sin tener que cambiar de pestaña primero.
   useEffect(() => {
-    if (isStaff && activeTab === 'staff') fetchAccessQueue()
-  }, [isStaff, activeTab])
+    if (isStaff) fetchAccessQueue()
+  }, [isStaff])
 
   async function fetchAccessQueue() {
     const { data: tickets } = await supabase
@@ -82,6 +88,19 @@ export default function Profile() {
   async function handleClaimTypedCode() {
     if (!accessCode.trim()) return
     await claimCode(accessCode.trim())
+  }
+
+  async function handleCloseAccess(id) {
+    setClosingBusy(true)
+    const { error } = await supabase.rpc('revoke_access_grant', {
+      p_grant_id: id,
+      p_message: closeMessage.trim() || null,
+    })
+    setClosingBusy(false)
+    if (error) return
+    setClosingId(null)
+    setCloseMessage('')
+    fetchAccessQueue()
   }
 
   async function handleSaveName() {
@@ -180,7 +199,7 @@ export default function Profile() {
         <div className="settings-tabs">
           {[
             { key: 'perfil', label: 'Mi perfil' },
-            { key: 'staff', label: 'Staff' },
+            { key: 'staff', label: 'Staff', badge: openTickets.length },
           ].map(tab => (
             <button
               key={tab.key}
@@ -188,6 +207,7 @@ export default function Profile() {
               onClick={() => setActiveTab(tab.key)}
             >
               {tab.label}
+              {tab.badge > 0 && <span className="settings-tab-badge">{tab.badge > 9 ? '9+' : tab.badge}</span>}
             </button>
           ))}
         </div>
@@ -272,15 +292,36 @@ export default function Profile() {
             {myClaims.length > 0 && (
               <div className="settings-table" style={{ marginTop: 16 }}>
                 {myClaims.map(c => (
-                  <div key={c.id} className="settings-row">
-                    <div className="settings-row-info">
-                      <div className="settings-row-text">
-                        <div className="settings-row-name">{c.ws?.name || 'Workspace'}</div>
-                        <div className="settings-row-email">
-                          {c.status === 'pending_confirmation' ? 'Esperando confirmación del workspace...' : `Activo · vence ${c.expires_at ? new Date(c.expires_at).toLocaleString('es-AR') : '—'}`}
+                  <div key={c.id} className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                      <div className="settings-row-info">
+                        <div className="settings-row-text">
+                          <div className="settings-row-name">Ticket #{c.ticket_number} · {c.ws?.name || 'Workspace'}</div>
+                          <div className="settings-row-email">
+                            {c.status === 'pending_confirmation' ? 'Esperando confirmación del workspace...' : `Activo · vence ${c.expires_at ? new Date(c.expires_at).toLocaleString('es-AR') : '—'}`}
+                          </div>
                         </div>
                       </div>
+                      {c.status === 'active' && (
+                        <div className="settings-row-actions">
+                          <button className="settings-btn-danger" onClick={() => { setClosingId(c.id); setCloseMessage('') }}>Finalizar acceso</button>
+                        </div>
+                      )}
                     </div>
+                    {closingId === c.id && (
+                      <div style={{ marginTop: 10 }}>
+                        <div className="form-group">
+                          <label>MENSAJE PARA EL WORKSPACE (OPCIONAL)</label>
+                          <textarea rows={2} value={closeMessage} onChange={e => setCloseMessage(e.target.value)} placeholder="Ej: Ya quedó resuelto el problema de X." />
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                          <button className="settings-btn-secondary" onClick={() => setClosingId(null)}>Cancelar</button>
+                          <button className="settings-btn-primary" onClick={() => handleCloseAccess(c.id)} disabled={closingBusy}>
+                            {closingBusy ? 'Finalizando...' : 'Confirmar y salir'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -295,7 +336,7 @@ export default function Profile() {
                   <div key={t.id} className="settings-row">
                     <div className="settings-row-info">
                       <div className="settings-row-text">
-                        <div className="settings-row-name">{t.ws?.name || 'Workspace'}</div>
+                        <div className="settings-row-name">Ticket #{t.ticket_number} · {t.ws?.name || 'Workspace'}</div>
                         <div className="settings-row-email">{t.problem_description || 'Sin descripción'}</div>
                       </div>
                     </div>

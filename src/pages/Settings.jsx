@@ -1738,6 +1738,8 @@ function TabWorkspace({ workspaceId, isOwner }) {
   const [creatingGrant, setCreatingGrant] = useState(false)
   const [grantError, setGrantError] = useState('')
   const [lastCode, setLastCode] = useState(null)
+  const [revokingGrantId, setRevokingGrantId] = useState(null)
+  const [revokeMessage, setRevokeMessage] = useState('')
 
   useEffect(() => {
     fetchWorkspace()
@@ -1783,9 +1785,9 @@ function TabWorkspace({ workspaceId, isOwner }) {
     fetchGrants()
   }
 
-  async function handleRevokeGrant(id) {
-    const { error } = await supabase.rpc('revoke_access_grant', { p_grant_id: id })
-    if (!error) { fetchGrants(); fetchMembers() }
+  async function handleRevokeGrant(id, message) {
+    const { error } = await supabase.rpc('revoke_access_grant', { p_grant_id: id, p_message: message?.trim() || null })
+    if (!error) { fetchGrants(); fetchMembers(); setRevokingGrantId(null); setRevokeMessage('') }
   }
 
   async function handleCancelGrant(id) {
@@ -2057,32 +2059,49 @@ function TabWorkspace({ workspaceId, isOwner }) {
           {grants.length > 0 && (
             <div className="settings-table" style={{ marginTop: 16 }}>
               {grants.map(g => (
-                <div key={g.id} className="settings-row">
-                  <div className="settings-row-info">
-                    <div className="settings-row-text">
-                      <div className="settings-row-name">
-                        {roleLabelForGrant(g.role)} · {g.is_ticket ? 'Ticket' : 'Código directo'}
-                        {g.status === 'pending_confirmation' && <span className="settings-inactive-badge" style={{ background: '#FEF3C7', color: '#92400E' }}> Esperando tu confirmación</span>}
-                        {g.status === 'active' && <span className="settings-inactive-badge" style={{ background: '#DCFCE7', color: '#166534' }}> Activo</span>}
-                      </div>
-                      <div className="settings-row-email">
-                        {g.status === 'open' && `Código ${g.code} — sin tomar todavía`}
-                        {g.status === 'pending_confirmation' && `${g.claimant?.full_name || g.claimant?.email || 'Alguien del staff'} está esperando que confirmes`}
-                        {g.status === 'active' && `${g.claimant?.full_name || g.claimant?.email || ''} · vence ${g.expires_at ? new Date(g.expires_at).toLocaleString('es-AR') : '—'}`}
-                        {['expired', 'revoked', 'declined', 'cancelled'].includes(g.status) && `${g.status} · ${new Date(g.created_at).toLocaleDateString('es-AR')}`}
+                <div key={g.id} className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                    <div className="settings-row-info">
+                      <div className="settings-row-text">
+                        <div className="settings-row-name">
+                          Ticket #{g.ticket_number} · {roleLabelForGrant(g.role)} · {g.is_ticket ? 'Ticket' : 'Código directo'}
+                          {g.status === 'pending_confirmation' && <span className="settings-inactive-badge" style={{ background: '#FEF3C7', color: '#92400E' }}> Esperando tu confirmación</span>}
+                          {g.status === 'active' && <span className="settings-inactive-badge" style={{ background: '#DCFCE7', color: '#166534' }}> Activo</span>}
+                        </div>
+                        <div className="settings-row-email">
+                          {g.status === 'open' && `Código ${g.code} — sin tomar todavía`}
+                          {g.status === 'pending_confirmation' && `${g.claimant?.full_name || g.claimant?.email || 'Alguien del staff'} está esperando que confirmes`}
+                          {g.status === 'active' && `${g.claimant?.full_name || g.claimant?.email || ''} · vence ${g.expires_at ? new Date(g.expires_at).toLocaleString('es-AR') : '—'}`}
+                          {['expired', 'revoked', 'declined', 'cancelled'].includes(g.status) && `${g.status} · ${new Date(g.created_at).toLocaleDateString('es-AR')}`}
+                        </div>
+                        {g.status === 'revoked' && g.resolution_message && (
+                          <div className="settings-row-email" style={{ marginTop: 4, fontStyle: 'italic' }}>"{g.resolution_message}"</div>
+                        )}
                       </div>
                     </div>
+                    <div className="settings-row-actions">
+                      {g.status === 'open' && <button className="settings-btn-danger" onClick={() => handleCancelGrant(g.id)}>Cancelar</button>}
+                      {g.status === 'pending_confirmation' && (
+                        <>
+                          <button className="settings-btn-primary" onClick={() => handleConfirmGrant(g.id)}>✓ Confirmar</button>
+                          <button className="settings-btn-danger" onClick={() => handleDeclineGrant(g.id)}>✕ Rechazar</button>
+                        </>
+                      )}
+                      {g.status === 'active' && <button className="settings-btn-danger" onClick={() => { setRevokingGrantId(g.id); setRevokeMessage('') }}>Revocar</button>}
+                    </div>
                   </div>
-                  <div className="settings-row-actions">
-                    {g.status === 'open' && <button className="settings-btn-danger" onClick={() => handleCancelGrant(g.id)}>Cancelar</button>}
-                    {g.status === 'pending_confirmation' && (
-                      <>
-                        <button className="settings-btn-primary" onClick={() => handleConfirmGrant(g.id)}>✓ Confirmar</button>
-                        <button className="settings-btn-danger" onClick={() => handleDeclineGrant(g.id)}>✕ Rechazar</button>
-                      </>
-                    )}
-                    {g.status === 'active' && <button className="settings-btn-danger" onClick={() => handleRevokeGrant(g.id)}>Revocar</button>}
-                  </div>
+                  {revokingGrantId === g.id && (
+                    <div style={{ marginTop: 10 }}>
+                      <div className="form-group">
+                        <label>MENSAJE PARA EL STAFF (OPCIONAL)</label>
+                        <textarea rows={2} value={revokeMessage} onChange={e => setRevokeMessage(e.target.value)} placeholder="Ej: Ya no hace falta, gracias." />
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                        <button className="settings-btn-secondary" onClick={() => setRevokingGrantId(null)}>Cancelar</button>
+                        <button className="settings-btn-danger" onClick={() => handleRevokeGrant(g.id, revokeMessage)}>Confirmar revocación</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
