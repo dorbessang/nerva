@@ -22,6 +22,7 @@ import { useEscapeToClose } from '../lib/useEscapeToClose'
 import { fetchFullNegotiation } from '../lib/negotiations'
 import { resolveStateConfig } from '../lib/customStates'
 import { isOwner, canEditContent } from '../lib/roles'
+import { withOwnerApproval } from '../lib/staffActions'
 import './Entities.css'
 
 // Columnas que no son un campo custom configurable — calculada a partir de
@@ -78,7 +79,7 @@ async function exportProductsXlsx(products, cols, allColumns, productFieldDefs, 
 }
 
 export default function Products() {
-  const { user, workspaceId, effectiveRole } = useAuth()
+  const { user, workspaceId, effectiveRole, isStaff, role } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const canBulkDelete = isOwner(effectiveRole)
@@ -98,6 +99,7 @@ export default function Products() {
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [bulkWorking, setBulkWorking] = useState(false)
+  const [bulkRequestNotice, setBulkRequestNotice] = useState(null)
   const [members, setMembers] = useState([])
   const [fieldOrder, setFieldOrder] = useState(null)
   const [customFilterValues, setCustomFilterValues] = useState({})
@@ -144,10 +146,21 @@ export default function Products() {
 
   async function handleBulkDelete() {
     setBulkWorking(true)
-    await supabase.from('products').delete().in('id', [...selectedIds])
+    const ids = [...selectedIds]
+    const { requested } = await withOwnerApproval(supabase, {
+      isStaff, role, workspaceId, actionType: 'bulk_delete_products',
+      payload: { ids, description: `Eliminar ${ids.length} ${ids.length === 1 ? 'producto' : 'productos'}` },
+    }, async () => {
+      await supabase.from('products').delete().in('id', ids)
+    })
     setSelectedIds(new Set())
     setShowBulkDeleteConfirm(false)
     setBulkWorking(false)
+    if (requested) {
+      setBulkRequestNotice('Se mandó la solicitud al owner del workspace para que la apruebe.')
+      setTimeout(() => setBulkRequestNotice(null), 4000)
+      return
+    }
     fetchProducts()
   }
 
@@ -447,6 +460,7 @@ export default function Products() {
           <button className="neg-bulk-delete-btn" disabled={bulkWorking} onClick={() => setShowBulkDeleteConfirm(true)}>
             🗑 Eliminar ({selectedIds.size})
           </button>
+          {bulkRequestNotice && <span className="neg-bulk-request-notice">{bulkRequestNotice}</span>}
         </div>
       )}
 

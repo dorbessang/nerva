@@ -32,6 +32,7 @@ import { resolveStateConfig, terminalStatusNames } from '../lib/customStates'
 import { lowActivityWindow, isLowActivityAlert } from '../lib/lowActivity'
 import { sumMilestonesByCurrency } from '../lib/pipeline'
 import { isOwner, canEditContent, isPrivileged as isPrivilegedRole } from '../lib/roles'
+import { withOwnerApproval } from '../lib/staffActions'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
@@ -157,7 +158,7 @@ async function exportNegotiationsXlsx(negotiations, cols, getEntityName, customF
 
 
 export default function Negotiations() {
-  const { user, workspaceId, effectiveRole, activeWorkspace } = useAuth()
+  const { user, workspaceId, effectiveRole, activeWorkspace, isStaff, role } = useAuth()
   const canCreateProject = canEditContent(effectiveRole)
   const canBulkDelete = isOwner(effectiveRole)
   const location = useLocation()
@@ -228,6 +229,7 @@ export default function Negotiations() {
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [bulkWorking, setBulkWorking] = useState(false)
+  const [bulkRequestNotice, setBulkRequestNotice] = useState(null)
   const [showImportModal, setShowImportModal] = useState(false)
 
   // Si viene de uno de los banners globales, pre-filtra por baja actividad
@@ -573,10 +575,21 @@ export default function Negotiations() {
 
   async function handleBulkDelete() {
     setBulkWorking(true)
-    await supabase.from('negotiations').delete().in('id', [...selectedIds])
+    const ids = [...selectedIds]
+    const { requested } = await withOwnerApproval(supabase, {
+      isStaff, role, workspaceId, actionType: 'bulk_delete_negotiations',
+      payload: { ids, description: `Eliminar ${ids.length} proyecto${ids.length !== 1 ? 's' : ''}` },
+    }, async () => {
+      await supabase.from('negotiations').delete().in('id', ids)
+    })
     setSelectedIds(new Set())
     setShowBulkDeleteConfirm(false)
     setBulkWorking(false)
+    if (requested) {
+      setBulkRequestNotice('Se mandó la solicitud al owner del workspace para que la apruebe.')
+      setTimeout(() => setBulkRequestNotice(null), 4000)
+      return
+    }
     fetchAll()
   }
 
@@ -664,6 +677,7 @@ export default function Negotiations() {
                     🗑 Eliminar ({selectedIds.size})
                   </button>
                 )}
+                {bulkRequestNotice && <span className="neg-bulk-request-notice">{bulkRequestNotice}</span>}
               </div>
             )}
           </div>

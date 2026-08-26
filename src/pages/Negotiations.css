@@ -138,6 +138,15 @@
 .neg-bulk-delete-btn:hover { background: #FEF2F2; }
 .neg-bulk-delete-btn:disabled { opacity: 0.6; cursor: default; }
 
+.neg-bulk-request-notice {
+  font-size: 12px;
+  color: #92400E;
+  background: #FEF3C7;
+  border: 1px solid #FDE68A;
+  border-radius: 7px;
+  padding: 6px 10px;
+}
+
 .neg-th-check, .neg-td-check { width: 32px; text-align: center; }
 
 .neg-th-number, .neg-td-number {

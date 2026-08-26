@@ -43,6 +43,7 @@ export default function Profile() {
   const [closingId, setClosingId] = useState(null)
   const [closeMessage, setCloseMessage] = useState('')
   const [closingBusy, setClosingBusy] = useState(false)
+  const [myRequests, setMyRequests] = useState([])
 
   useEffect(() => {
     setFullName(profile?.full_name || '')
@@ -52,8 +53,18 @@ export default function Profile() {
   // tickets abiertos esté disponible para el badge de la solapa apenas
   // entra a Perfil, sin tener que cambiar de pestaña primero.
   useEffect(() => {
-    if (isStaff) fetchAccessQueue()
+    if (isStaff) { fetchAccessQueue(); fetchMyRequests() }
   }, [isStaff])
+
+  async function fetchMyRequests() {
+    const { data } = await supabase
+      .from('staff_action_requests')
+      .select('*, ws:workspace_id ( name )')
+      .eq('requested_by', user.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    setMyRequests(data || [])
+  }
 
   async function fetchAccessQueue() {
     const { data: tickets } = await supabase
@@ -88,6 +99,19 @@ export default function Profile() {
   async function handleClaimTypedCode() {
     if (!accessCode.trim()) return
     await claimCode(accessCode.trim())
+  }
+
+  async function handleCancelRequest(id) {
+    await supabase.rpc('cancel_staff_action_request', { p_request_id: id })
+    fetchMyRequests()
+  }
+
+  function requestStatusLabel(r) {
+    if (r.status === 'pending') return 'Esperando al owner'
+    if (r.status === 'approved') return 'Aprobada'
+    if (r.status === 'rejected') return r.resolution_message ? `Rechazada — "${r.resolution_message}"` : 'Rechazada'
+    if (r.status === 'cancelled') return 'Cancelada'
+    return r.status
   }
 
   async function handleCloseAccess(id) {
@@ -348,6 +372,32 @@ export default function Profile() {
               </div>
             )}
           </div>
+
+          {myRequests.length > 0 && (
+            <div className="settings-block">
+              <h2 className="settings-block-title">Mis solicitudes</h2>
+              <p style={{ fontSize: 13, color: '#6b7280', marginTop: -8, marginBottom: 16 }}>
+                Acciones que pediste hacer por encima de tu rol en un workspace — quedan pendientes hasta que un owner las aprueba o rechaza.
+              </p>
+              <div className="settings-table">
+                {myRequests.map(r => (
+                  <div key={r.id} className="settings-row">
+                    <div className="settings-row-info">
+                      <div className="settings-row-text">
+                        <div className="settings-row-name">{r.payload?.description || r.action_type} · {r.ws?.name || 'Workspace'}</div>
+                        <div className="settings-row-email">{requestStatusLabel(r)}</div>
+                      </div>
+                    </div>
+                    {r.status === 'pending' && (
+                      <div className="settings-row-actions">
+                        <button className="settings-btn-secondary" onClick={() => handleCancelRequest(r.id)}>Retirar</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="settings-block">
             <h2 className="settings-block-title">Dar de alta un cliente nuevo</h2>

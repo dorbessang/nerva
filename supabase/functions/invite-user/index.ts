@@ -11,9 +11,18 @@
 // ningún workspace al cual pedirle ownership; el segundo es una acción
 // global, no de un workspace puntual).
 //
-// Body esperado: { action: 'invite' | 'cancel' | 'invite_client' | 'delete_user', workspaceId, email, role, workspaceName }
+// Si quien llama a 'invite' es staff (is_staff) pero no owner de ese
+// workspace (típico de un acceso de soporte con rol más bajo), no se
+// rechaza: la invitación queda pendiente en staff_action_requests y
+// devuelve { ok: true, requested: true } en vez de mandarla. Un owner del
+// workspace la aprueba después con la acción 'approve_staff_invite'
+// (única forma de invitar de verdad que necesita la Admin API, por eso
+// vive acá y no en la función SQL approve_staff_action — ver PENDIENTES.md).
+//
+// Body esperado: { action: 'invite' | 'cancel' | 'invite_client' | 'delete_user' | 'approve_staff_invite', workspaceId, email, role, workspaceName, requestId }
 // workspaceId es obligatorio para 'invite'/'cancel'. role es obligatorio para 'invite'.
 // workspaceName y email son obligatorios para 'invite_client'. email es obligatorio para 'delete_user'.
+// requestId es obligatorio para 'approve_staff_invite'.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
@@ -199,7 +208,7 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) return json({ error: 'No autorizado' }, 401)
 
-  let payload: { action?: string; email?: string; role?: string; workspaceId?: string; workspaceName?: string }
+  let payload: { action?: string; email?: string; role?: string; workspaceId?: string; workspaceName?: string; requestId?: string }
   try {
     payload = await req.json()
   } catch {
@@ -278,9 +287,57 @@ Deno.serve(async (req) => {
     })
   }
 
+  if (action === 'approve_staff_invite') {
+    const requestId = payload.requestId
+    if (!requestId) return json({ error: 'Falta requestId' }, 400)
+
+    const { data: reqRow } = await admin
+      .from('staff_action_requests')
+      .select('*')
+      .eq('id', requestId)
+      .eq('status', 'pending')
+      .eq('action_type', 'invite_member')
+      .maybeSingle()
+    if (!reqRow) return json({ error: 'No hay ninguna solicitud pendiente con ese id' }, 404)
+
+    const { data: approverMembership } = await admin
+      .from('workspace_members')
+      .select('role')
+      .eq('workspace_id', reqRow.workspace_id)
+      .eq('user_id', caller.id)
+      .eq('status', 'active')
+      .maybeSingle()
+    if (!approverMembership || approverMembership.role !== 'owner') {
+      return json({ error: 'Solo el owner puede aprobar esto' }, 403)
+    }
+
+    const result = await addOrInviteUser(admin, reqRow.payload.email, reqRow.payload.role, reqRow.workspace_id)
+    if (result.error) return json({ error: result.error }, 400)
+
+    await admin
+      .from('staff_action_requests')
+      .update({ status: 'approved', reviewed_by: caller.id, reviewed_at: new Date().toISOString() })
+      .eq('id', requestId)
+
+    if (reqRow.requested_by) {
+      await admin.from('notifications').insert({
+        workspace_id: reqRow.workspace_id,
+        user_id: reqRow.requested_by,
+        type: 'staff_action_resolved',
+        title: 'Tu solicitud fue aprobada',
+        body: `El owner aprobó tu pedido y ya se mandó la invitación a ${reqRow.payload.email}.`,
+      })
+    }
+
+    return json({ ok: true, direct: result.direct, inviteLink: result.inviteLink, emailSent: result.emailSent })
+  }
+
   if (!workspaceId) return json({ error: 'Falta workspaceId' }, 400)
 
   // Solo el owner de ESE workspace puede invitar o cancelar invitaciones
+  // -- salvo que sea staff actuando con un acceso de soporte de rol más
+  // bajo: ahí, en vez de rechazar, la invitación queda pendiente de que
+  // un owner del workspace la apruebe (ver approve_staff_invite arriba).
   const { data: membership } = await admin
     .from('workspace_members')
     .select('role')
@@ -289,6 +346,49 @@ Deno.serve(async (req) => {
     .maybeSingle()
 
   if (!membership || membership.role !== 'owner') {
+    if (action === 'invite' && membership) {
+      const { data: staffProfile } = await admin
+        .from('profiles')
+        .select('is_staff')
+        .eq('id', caller.id)
+        .maybeSingle()
+
+      if (staffProfile?.is_staff) {
+        if (!email || !role) return json({ error: 'Faltan datos' }, 400)
+        if (!VALID_ROLES.includes(role)) return json({ error: 'Rol inválido' }, 400)
+
+        const description = `Invitar a ${email} como ${role}`
+        const { data: reqRow, error: reqErr } = await admin
+          .from('staff_action_requests')
+          .insert({
+            workspace_id: workspaceId,
+            requested_by: caller.id,
+            action_type: 'invite_member',
+            payload: { email: email.toLowerCase(), role, description },
+          })
+          .select()
+          .single()
+        if (reqErr || !reqRow) return json({ error: reqErr?.message || 'No se pudo crear la solicitud' }, 400)
+
+        const { data: owners } = await admin
+          .from('workspace_members')
+          .select('user_id')
+          .eq('workspace_id', workspaceId)
+          .eq('role', 'owner')
+          .eq('status', 'active')
+        for (const o of owners || []) {
+          await admin.from('notifications').insert({
+            workspace_id: workspaceId,
+            user_id: o.user_id,
+            type: 'staff_action_requested',
+            title: 'Solicitud de staff pendiente',
+            body: `Alguien del staff pidió autorización: ${description}`,
+          })
+        }
+
+        return json({ ok: true, requested: true })
+      }
+    }
     return json({ error: 'No tenés permisos para gestionar usuarios en este workspace' }, 403)
   }
 

@@ -29,6 +29,7 @@ import { fetchFullNegotiation } from '../lib/negotiations'
 import { resolveStateConfig, terminalStatusNames } from '../lib/customStates'
 import { sumMilestonesByCurrency } from '../lib/pipeline'
 import { isOwner, canEditContent } from '../lib/roles'
+import { withOwnerApproval } from '../lib/staffActions'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import './Entities.css'
 
@@ -54,7 +55,7 @@ function getEntitySortValue(key, entity, entityFieldDefs, members) {
 }
 
 export default function Entities({ entityTypeId, entityTypeName, entityTypeSingular }) {
-  const { user, workspaceId, activeWorkspace, effectiveRole } = useAuth()
+  const { user, workspaceId, activeWorkspace, effectiveRole, isStaff, role } = useAuth()
   const canBulkDelete = isOwner(effectiveRole)
   const canImport = canEditContent(effectiveRole)
   const location = useLocation()
@@ -77,6 +78,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [bulkWorking, setBulkWorking] = useState(false)
+  const [bulkRequestNotice, setBulkRequestNotice] = useState(null)
   const [members, setMembers] = useState([])
   const [fieldOrder, setFieldOrder] = useState(null)
   const [customFilterValues, setCustomFilterValues] = useState({})
@@ -143,10 +145,21 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
 
   async function handleBulkDelete() {
     setBulkWorking(true)
-    await supabase.from('entities').delete().in('id', [...selectedIds])
+    const ids = [...selectedIds]
+    const { requested } = await withOwnerApproval(supabase, {
+      isStaff, role, workspaceId, actionType: 'bulk_delete_entities',
+      payload: { ids, description: `Eliminar ${ids.length} ${ids.length === 1 ? singular : plural}` },
+    }, async () => {
+      await supabase.from('entities').delete().in('id', ids)
+    })
     setSelectedIds(new Set())
     setShowBulkDeleteConfirm(false)
     setBulkWorking(false)
+    if (requested) {
+      setBulkRequestNotice('Se mandó la solicitud al owner del workspace para que la apruebe.')
+      setTimeout(() => setBulkRequestNotice(null), 4000)
+      return
+    }
     fetchEntities()
   }
 
@@ -534,6 +547,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           <button className="neg-bulk-delete-btn" disabled={bulkWorking} onClick={() => setShowBulkDeleteConfirm(true)}>
             🗑 Eliminar ({selectedIds.size})
           </button>
+          {bulkRequestNotice && <span className="neg-bulk-request-notice">{bulkRequestNotice}</span>}
         </div>
       )}
 

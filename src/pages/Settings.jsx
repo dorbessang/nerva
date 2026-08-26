@@ -10,6 +10,7 @@ import { extractFunctionError } from '../lib/edgeFunctionError'
 import { FINANCIAL_FEATURES, resolveFinancialConfig } from '../lib/financialConfig'
 import { isOwner as isOwnerRole, isPrivileged } from '../lib/roles'
 import { APPROVAL_RULE_TYPES } from '../lib/approvals'
+import { withOwnerApproval } from '../lib/staffActions'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 
@@ -182,7 +183,7 @@ function ModuloProductos({ workspaceId }) {
 // ─── TAB USUARIOS ────────────────────────────────────────────────────────────
 
 function TabUsuarios({ workspaceId }) {
-  const { user: currentUser } = useAuth()
+  const { user: currentUser, isStaff, role } = useAuth()
   const [members, setMembers] = useState([])
   const [invitations, setInvitations] = useState([])
   const [loading, setLoading] = useState(true)
@@ -196,6 +197,7 @@ function TabUsuarios({ workspaceId }) {
   const [confirmRemove, setConfirmRemove] = useState(null) // miembro a eliminar
   const [membershipLog, setMembershipLog] = useState([])
   const [showLog, setShowLog] = useState(false)
+  const [requestNotice, setRequestNotice] = useState(null)
 
   useEffect(() => {
     fetchMembers()
@@ -233,35 +235,48 @@ function TabUsuarios({ workspaceId }) {
   }
 
   async function handleChangeRole(userId, newRole) {
-    await supabase
-      .from('workspace_members')
-      .update({ role: newRole })
-      .eq('workspace_id', workspaceId)
-      .eq('user_id', userId)
-    await notifyRoleChanged(supabase, { workspaceId, userId, newRoleLabel: roleLabel(newRole), actingUserId: currentUser?.id })
+    setRequestNotice(null)
+    const member = members.find(m => m.user_id === userId)
+    const targetName = member?.profile?.full_name || member?.profile?.email || 'un miembro'
+    const { requested } = await withOwnerApproval(supabase, {
+      isStaff, role, workspaceId, actionType: 'change_member_role',
+      payload: { user_id: userId, new_role: newRole, description: `Cambiar el rol de ${targetName} a ${roleLabel(newRole)}` },
+    }, async () => {
+      await supabase.from('workspace_members').update({ role: newRole }).eq('workspace_id', workspaceId).eq('user_id', userId)
+      await notifyRoleChanged(supabase, { workspaceId, userId, newRoleLabel: roleLabel(newRole), actingUserId: currentUser?.id })
+    })
+    if (requested) { setRequestNotice('Se mandó la solicitud al owner del workspace para que la apruebe.'); return }
     fetchMembers()
     fetchMembershipLog()
   }
 
   async function handleToggleStatus(member) {
+    setRequestNotice(null)
     const newStatus = member.status === 'active' ? 'inactive' : 'active'
-    await supabase
-      .from('workspace_members')
-      .update({ status: newStatus })
-      .eq('workspace_id', workspaceId)
-      .eq('user_id', member.user_id)
+    const targetName = member?.profile?.full_name || member?.profile?.email || 'un miembro'
+    const { requested } = await withOwnerApproval(supabase, {
+      isStaff, role, workspaceId, actionType: 'toggle_member_status',
+      payload: { user_id: member.user_id, new_status: newStatus, description: `${newStatus === 'active' ? 'Reactivar' : 'Desactivar'} a ${targetName}` },
+    }, async () => {
+      await supabase.from('workspace_members').update({ status: newStatus }).eq('workspace_id', workspaceId).eq('user_id', member.user_id)
+    })
+    if (requested) { setRequestNotice('Se mandó la solicitud al owner del workspace para que la apruebe.'); return }
     fetchMembers()
     fetchMembershipLog()
   }
 
   async function handleRemoveMember() {
     if (!confirmRemove) return
-    await supabase
-      .from('workspace_members')
-      .delete()
-      .eq('workspace_id', workspaceId)
-      .eq('user_id', confirmRemove.user_id)
+    setRequestNotice(null)
+    const targetName = confirmRemove.profile?.full_name || confirmRemove.profile?.email || 'un miembro'
+    const { requested } = await withOwnerApproval(supabase, {
+      isStaff, role, workspaceId, actionType: 'remove_member',
+      payload: { user_id: confirmRemove.user_id, description: `Eliminar a ${targetName} del workspace` },
+    }, async () => {
+      await supabase.from('workspace_members').delete().eq('workspace_id', workspaceId).eq('user_id', confirmRemove.user_id)
+    })
     setConfirmRemove(null)
+    if (requested) { setRequestNotice('Se mandó la solicitud al owner del workspace para que la apruebe.'); return }
     fetchMembers()
     fetchMembershipLog()
   }
@@ -280,6 +295,11 @@ function TabUsuarios({ workspaceId }) {
     setInviting(false)
     if (error || data?.error) {
       setInviteError(data?.error || (await extractFunctionError(error)) || 'Error al enviar la invitación. Verificá que el email no esté ya invitado.')
+      return
+    }
+    if (data?.requested) {
+      setInviteSuccess('Se mandó la solicitud al owner del workspace para que la apruebe.')
+      setInviteEmail('')
       return
     }
     if (data?.direct) {
@@ -340,6 +360,8 @@ function TabUsuarios({ workspaceId }) {
             + Invitar usuario
           </button>
         </div>
+
+        {requestNotice && <p className="settings-success">{requestNotice}</p>}
 
         {/* Formulario de invitación */}
         {showInviteForm && (
@@ -1711,7 +1733,7 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
 // ─── TAB WORKSPACE ────────────────────────────────────────────────────────────
 
 function TabWorkspace({ workspaceId, isOwner }) {
-  const { refreshWorkspaces } = useAuth()
+  const { refreshWorkspaces, isStaff, role } = useAuth()
   const [workspace, setWorkspace] = useState(null)
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -1740,13 +1762,50 @@ function TabWorkspace({ workspaceId, isOwner }) {
   const [lastCode, setLastCode] = useState(null)
   const [revokingGrantId, setRevokingGrantId] = useState(null)
   const [revokeMessage, setRevokeMessage] = useState('')
+  const [staffRequests, setStaffRequests] = useState([])
+  const [requestNotice, setRequestNotice] = useState(null)
+  const [rejectingRequestId, setRejectingRequestId] = useState(null)
+  const [rejectMessage, setRejectMessage] = useState('')
 
   useEffect(() => {
     fetchWorkspace()
     fetchMembers()
     fetchRules()
     fetchGrants()
-  }, [workspaceId])
+    if (isOwner) fetchStaffRequests()
+  }, [workspaceId, isOwner])
+
+  async function fetchStaffRequests() {
+    const { data } = await supabase
+      .from('staff_action_requests')
+      .select('*, requester:requested_by ( full_name, email )')
+      .eq('workspace_id', workspaceId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+    if (data) setStaffRequests(data)
+  }
+
+  async function handleApproveRequest(req) {
+    if (req.action_type === 'invite_member') {
+      const { data, error } = await supabase.functions.invoke('invite-user', {
+        body: { action: 'approve_staff_invite', requestId: req.id },
+      })
+      if (error || data?.error) { setRequestNotice(data?.error || 'No se pudo aprobar la invitación.'); return }
+    } else {
+      const { error } = await supabase.rpc('approve_staff_action', { p_request_id: req.id })
+      if (error) { setRequestNotice('No se pudo aprobar la solicitud.'); return }
+    }
+    fetchStaffRequests()
+    fetchMembers()
+  }
+
+  async function handleRejectRequest(id, message) {
+    const { error } = await supabase.rpc('reject_staff_action', { p_request_id: id, p_message: message?.trim() || null })
+    if (error) { setRequestNotice('No se pudo rechazar la solicitud.'); return }
+    setRejectingRequestId(null)
+    setRejectMessage('')
+    fetchStaffRequests()
+  }
 
   async function fetchGrants() {
     const { data } = await supabase
@@ -1850,19 +1909,35 @@ function TabWorkspace({ workspaceId, isOwner }) {
       }
     }
     setSavingRules(true)
-    const { error } = await supabase.from('approval_rules').upsert(
-      rules.map(r => ({
-        workspace_id: workspaceId,
-        rule_type: r.rule_type,
-        enabled: r.enabled,
-        approver_id: r.approver_id || null,
-        threshold_numeric: r.threshold_numeric.trim() ? parseFloat(r.threshold_numeric) : null,
-        updated_at: new Date().toISOString(),
-      })),
-      { onConflict: 'workspace_id,rule_type' }
-    )
+    let saveError = null
+    const { requested } = await withOwnerApproval(supabase, {
+      isStaff, role, workspaceId, actionType: 'update_approval_rules',
+      payload: {
+        rules: rules.map(r => ({
+          rule_type: r.rule_type,
+          enabled: r.enabled,
+          approver_id: r.approver_id || null,
+          threshold_numeric: r.threshold_numeric.trim() ? parseFloat(r.threshold_numeric) : null,
+        })),
+        description: 'Actualizar reglas de autorización',
+      },
+    }, async () => {
+      const { error } = await supabase.from('approval_rules').upsert(
+        rules.map(r => ({
+          workspace_id: workspaceId,
+          rule_type: r.rule_type,
+          enabled: r.enabled,
+          approver_id: r.approver_id || null,
+          threshold_numeric: r.threshold_numeric.trim() ? parseFloat(r.threshold_numeric) : null,
+          updated_at: new Date().toISOString(),
+        })),
+        { onConflict: 'workspace_id,rule_type' }
+      )
+      saveError = error
+    })
     setSavingRules(false)
-    if (error) { setRulesError('No se pudo guardar. Intentá de nuevo.'); return }
+    if (requested) { setRequestNotice('Se mandó la solicitud al owner del workspace para que la apruebe.'); return }
+    if (saveError) { setRulesError('No se pudo guardar. Intentá de nuevo.'); return }
     setSavedRules(true)
     await refreshWorkspaces()
     setTimeout(() => setSavedRules(false), 2000)
@@ -1890,12 +1965,20 @@ function TabWorkspace({ workspaceId, isOwner }) {
     if (!Number.isInteger(alert) || alert <= 0) { setActivityError('El aviso tiene que ser un número mayor a 0'); return }
     if (!Number.isInteger(inactive) || inactive <= alert) { setActivityError('El límite de "inactivo" tiene que ser mayor al del aviso'); return }
     setSavingActivity(true)
-    const { error } = await supabase
-      .from('workspaces')
-      .update({ low_activity_alert_days: alert, low_activity_inactive_days: inactive })
-      .eq('id', workspaceId)
+    let saveError = null
+    const { requested } = await withOwnerApproval(supabase, {
+      isStaff, role, workspaceId, actionType: 'update_inactivity_alerts',
+      payload: { low_activity_alert_days: alert, low_activity_inactive_days: inactive, description: `Cambiar alertas de inactividad a ${alert}/${inactive} días` },
+    }, async () => {
+      const { error } = await supabase
+        .from('workspaces')
+        .update({ low_activity_alert_days: alert, low_activity_inactive_days: inactive })
+        .eq('id', workspaceId)
+      saveError = error
+    })
     setSavingActivity(false)
-    if (error) { setActivityError('No se pudo guardar. Intentá de nuevo.'); return }
+    if (requested) { setRequestNotice('Se mandó la solicitud al owner del workspace para que la apruebe.'); return }
+    if (saveError) { setActivityError('No se pudo guardar. Intentá de nuevo.'); return }
     setSavedActivity(true)
     await refreshWorkspaces()
     setTimeout(() => setSavedActivity(false), 2000)
@@ -1994,6 +2077,48 @@ function TabWorkspace({ workspaceId, isOwner }) {
           <button className="settings-btn-primary" onClick={handleSaveRules} disabled={savingRules}>
             {savingRules ? 'Guardando...' : savedRules ? '✓ Guardado' : 'Guardar cambios'}
           </button>
+        </div>
+      )}
+
+      {isOwner && staffRequests.length > 0 && (
+        <div className="settings-block">
+          <h2 className="settings-block-title">Solicitudes de staff pendientes</h2>
+          <p className="settings-hint">
+            Un miembro del staff con un acceso de soporte de rol más bajo pidió hacer algo que necesita ser owner. No se ejecuta hasta que lo aprobás.
+          </p>
+          {requestNotice && <p className="form-error">{requestNotice}</p>}
+          <div className="settings-table">
+            {staffRequests.map(r => (
+              <div key={r.id} className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                  <div className="settings-row-info">
+                    <div className="settings-row-text">
+                      <div className="settings-row-name">{r.payload?.description || r.action_type}</div>
+                      <div className="settings-row-email">
+                        {r.requester?.full_name || r.requester?.email || 'Alguien del staff'} · {new Date(r.created_at).toLocaleString('es-AR')}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="settings-row-actions">
+                    <button className="settings-btn-primary" onClick={() => handleApproveRequest(r)}>✓ Aprobar</button>
+                    <button className="settings-btn-danger" onClick={() => { setRejectingRequestId(r.id); setRejectMessage('') }}>✕ Rechazar</button>
+                  </div>
+                </div>
+                {rejectingRequestId === r.id && (
+                  <div style={{ marginTop: 10 }}>
+                    <div className="form-group">
+                      <label>MOTIVO (OPCIONAL)</label>
+                      <textarea rows={2} value={rejectMessage} onChange={e => setRejectMessage(e.target.value)} placeholder="Ej: Todavía no, esperemos a..." />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                      <button className="settings-btn-secondary" onClick={() => setRejectingRequestId(null)}>Cancelar</button>
+                      <button className="settings-btn-danger" onClick={() => handleRejectRequest(r.id, rejectMessage)}>Confirmar rechazo</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
