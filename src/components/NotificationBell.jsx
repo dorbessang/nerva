@@ -5,16 +5,34 @@ import { useAuth } from '../lib/AuthContext'
 import { timeAgo } from '../lib/timeAgo'
 import './NotificationBell.css'
 
+// Tipos que no cuelgan de un proyecto/entidad/tarea puntual -- son sobre
+// el workspace en sí (accesos de soporte, solicitudes de staff). Al
+// clickear, alcanza con cambiar al workspace correspondiente y mandar a
+// la pantalla donde se gestionan.
+const WORKSPACE_LEVEL_TYPES = {
+  access_grant_pending_confirmation: '/settings',
+  staff_action_requested: '/settings',
+  staff_action_resolved: '/profile',
+  access_grant_closed: '/settings',
+}
+
 export default function NotificationBell() {
-  const { user, workspaceId } = useAuth()
+  const { user, workspaceId, workspaces, setActiveWorkspace } = useAuth()
   const navigate = useNavigate()
   const [notifications, setNotifications] = useState([])
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
+  // Antes se filtraba por workspace_id = workspace activo -- rompía en
+  // particular las notificaciones de staff (pedido/aprobación de una
+  // acción, acceso de soporte pendiente de confirmar): esas casi siempre
+  // pasan en un workspace DISTINTO al que la persona tiene activo en ese
+  // momento, así que nunca se veían en la campana. Ahora trae todas las
+  // del usuario sin importar el workspace, y al clickear cambia al
+  // workspace correspondiente si hace falta.
   useEffect(() => {
-    if (user && workspaceId) fetchNotifications()
-  }, [user, workspaceId])
+    if (user) fetchNotifications()
+  }, [user])
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -29,10 +47,13 @@ export default function NotificationBell() {
       .from('notifications')
       .select('*')
       .eq('user_id', user.id)
-      .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false })
       .limit(20)
     if (data) setNotifications(data)
+  }
+
+  function workspaceName(id) {
+    return workspaces.find(w => w.id === id)?.name || null
   }
 
   async function handleToggleOpen() {
@@ -56,6 +77,10 @@ export default function NotificationBell() {
   async function handleNotifClick(n) {
     dismiss(n.id)
     setOpen(false)
+
+    if (n.workspace_id && n.workspace_id !== workspaceId) {
+      setActiveWorkspace(n.workspace_id)
+    }
 
     if (n.task_id) {
       const { data: task } = await supabase
@@ -87,6 +112,11 @@ export default function NotificationBell() {
       if (entity?.entity_type_id) {
         navigate(`/entities/${entity.entity_type_id}?openEntity=${n.entity_id}`)
       }
+      return
+    }
+
+    if (WORKSPACE_LEVEL_TYPES[n.type]) {
+      navigate(WORKSPACE_LEVEL_TYPES[n.type])
     }
   }
 
@@ -119,7 +149,10 @@ export default function NotificationBell() {
                 >
                   <p className="notif-item-title">{n.title}</p>
                   {n.body && <p className="notif-item-body">{n.body}</p>}
-                  <p className="notif-item-time">{timeAgo(n.created_at)}</p>
+                  <p className="notif-item-time">
+                    {n.workspace_id && n.workspace_id !== workspaceId && workspaceName(n.workspace_id) ? `${workspaceName(n.workspace_id)} · ` : ''}
+                    {timeAgo(n.created_at)}
+                  </p>
                 </div>
               ))}
             </div>

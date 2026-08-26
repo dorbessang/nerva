@@ -20,16 +20,19 @@ export default function Settings() {
   const isOwner = isOwnerRole(effectiveRole)
   const isAdminOrOwner = isPrivileged(effectiveRole)
   // Un workspace personal es de un solo usuario y no tiene proyectos/entidades —
-  // no tiene sentido invitar gente ni configurar estados/tipos de entidad ahí
-  const canInvite = isOwner && !isPersonal
+  // no tiene sentido invitar gente ni configurar estados/tipos de entidad ahí.
+  // Ver la lista de miembros es para cualquier rol; gestionarlos (invitar,
+  // cambiar rol, desactivar/eliminar) sigue siendo exclusivo del owner —
+  // TabUsuarios usa canManage para eso.
+  const canViewUsuarios = !isPersonal
   const showModuleTabs = isAdminOrOwner && !isPersonal
-  const [activeTab, setActiveTab] = useState(canInvite ? 'usuarios' : showModuleTabs ? 'proyectos' : 'notificaciones')
+  const [activeTab, setActiveTab] = useState(canViewUsuarios ? 'usuarios' : showModuleTabs ? 'proyectos' : 'notificaciones')
 
   useEffect(() => {
-    if (activeTab === 'usuarios' && !canInvite) setActiveTab(showModuleTabs ? 'proyectos' : 'notificaciones')
+    if (activeTab === 'usuarios' && !canViewUsuarios) setActiveTab(showModuleTabs ? 'proyectos' : 'notificaciones')
     if (['proyectos', 'entidades', 'productos'].includes(activeTab) && !showModuleTabs) setActiveTab(isAdminOrOwner ? 'workspace' : 'notificaciones')
     if (activeTab === 'workspace' && !isAdminOrOwner) setActiveTab('notificaciones')
-  }, [canInvite, showModuleTabs, isAdminOrOwner, activeTab])
+  }, [canViewUsuarios, showModuleTabs, isAdminOrOwner, activeTab])
 
   return (
     <div className="settings-container">
@@ -47,7 +50,7 @@ export default function Settings() {
           configurar un solo tipo de dato. */}
       <div className="settings-tabs">
         {[
-          ...(canInvite ? [{ key: 'usuarios', label: 'Usuarios' }] : []),
+          ...(canViewUsuarios ? [{ key: 'usuarios', label: 'Usuarios' }] : []),
           ...(showModuleTabs ? [{ key: 'proyectos', label: 'Proyectos' }] : []),
           ...(showModuleTabs ? [{ key: 'entidades', label: 'Entidades' }] : []),
           ...(showModuleTabs ? [{ key: 'productos', label: 'Productos' }] : []),
@@ -66,7 +69,7 @@ export default function Settings() {
 
       {/* Contenido según tab activo */}
       <div className="settings-content">
-        {activeTab === 'usuarios' && canInvite && <TabUsuarios workspaceId={workspaceId} />}
+        {activeTab === 'usuarios' && canViewUsuarios && <TabUsuarios workspaceId={workspaceId} canManage={isOwner} />}
         {activeTab === 'proyectos' && showModuleTabs && <ModuloProyectos workspaceId={workspaceId} />}
         {activeTab === 'entidades' && showModuleTabs && <ModuloEntidades workspaceId={workspaceId} />}
         {activeTab === 'productos' && showModuleTabs && <ModuloProductos workspaceId={workspaceId} />}
@@ -182,7 +185,7 @@ function ModuloProductos({ workspaceId }) {
 
 // ─── TAB USUARIOS ────────────────────────────────────────────────────────────
 
-function TabUsuarios({ workspaceId }) {
+function TabUsuarios({ workspaceId, canManage }) {
   const { user: currentUser, isStaff, role } = useAuth()
   const [members, setMembers] = useState([])
   const [invitations, setInvitations] = useState([])
@@ -356,15 +359,17 @@ function TabUsuarios({ workspaceId }) {
       <div className="settings-block">
         <div className="settings-block-header">
           <h2 className="settings-block-title">Miembros del workspace ({members.filter(m => m.status === 'active').length} activos)</h2>
-          <button className="settings-btn-primary" onClick={() => setShowInviteForm(v => !v)}>
-            + Invitar usuario
-          </button>
+          {canManage && (
+            <button className="settings-btn-primary" onClick={() => setShowInviteForm(v => !v)}>
+              + Invitar usuario
+            </button>
+          )}
         </div>
 
         {requestNotice && <p className="settings-success">{requestNotice}</p>}
 
         {/* Formulario de invitación */}
-        {showInviteForm && (
+        {canManage && showInviteForm && (
           <div className="invite-form">
             <div className="form-row">
               <div className="form-group">
@@ -420,18 +425,22 @@ function TabUsuarios({ workspaceId }) {
                   </div>
                 </div>
                 <div className="settings-row-actions">
-                  <select
-                    className="settings-role-select"
-                    value={m.role}
-                    onChange={e => handleChangeRole(m.user_id, e.target.value)}
-                    disabled={isOwner}
-                  >
-                    <option value="owner">Owner</option>
-                    <option value="admin">Admin</option>
-                    <option value="editor">Editor</option>
-                    <option value="viewer">Viewer</option>
-                  </select>
-                  {!isOwner && !isSelf && (
+                  {canManage ? (
+                    <select
+                      className="settings-role-select"
+                      value={m.role}
+                      onChange={e => handleChangeRole(m.user_id, e.target.value)}
+                      disabled={isOwner}
+                    >
+                      <option value="owner">Owner</option>
+                      <option value="admin">Admin</option>
+                      <option value="editor">Editor</option>
+                      <option value="viewer">Viewer</option>
+                    </select>
+                  ) : (
+                    <span className="settings-role-readonly">{roleLabel(m.role)}</span>
+                  )}
+                  {canManage && !isOwner && !isSelf && (
                     <>
                       <button className="settings-btn-secondary" onClick={() => handleToggleStatus(m)}>
                         {m.status === 'active' ? 'Desactivar' : 'Reactivar'}
@@ -462,9 +471,11 @@ function TabUsuarios({ workspaceId }) {
                     <div className="settings-row-email">Rol: {roleLabel(inv.role)} · Expira: {new Date(inv.expires_at).toLocaleDateString('es-AR')}</div>
                   </div>
                 </div>
-                <button className="settings-btn-danger" onClick={() => handleCancelInvitation(inv)}>
-                  Cancelar
-                </button>
+                {canManage && (
+                  <button className="settings-btn-danger" onClick={() => handleCancelInvitation(inv)}>
+                    Cancelar
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -2259,6 +2270,10 @@ const NOTIF_TYPES = [
   { key: 'task_approval_requested', label: 'Soy aprobador y hay una tarea esperando mi autorización' },
   { key: 'task_approval_resolved', label: 'Se resuelve la autorización de una tarea mía' },
   { key: 'negotiation_close_requested', label: 'Soy aprobador y hay un cierre de proyecto esperando confirmación' },
+  { key: 'access_grant_pending_confirmation', label: 'Alguien del staff tomó un código de acceso y espera que lo confirme' },
+  { key: 'access_grant_closed', label: 'Se cierra un acceso de soporte que di' },
+  { key: 'staff_action_requested', label: 'Un miembro del staff pide autorización para hacer algo por encima de su rol' },
+  { key: 'staff_action_resolved', label: 'Se resuelve algo que pedí como staff (autorización o invitación)' },
 ]
 
 function TabNotificaciones({ workspaceId }) {

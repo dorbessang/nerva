@@ -269,6 +269,12 @@
   cursor: not-allowed;
 }
 
+.settings-role-readonly {
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
 /* Botones */
 .settings-btn-primary {
   background: #0B1F3A;

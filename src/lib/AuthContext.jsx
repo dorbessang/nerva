@@ -22,9 +22,18 @@ export function AuthProvider({ children }) {
       else setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
+      // TOKEN_REFRESHED dispara solo (sin acción del usuario) cada vez que
+      // la pestaña/ventana recupera el foco — Supabase renueva el token
+      // solo. Antes esto igual pasaba por el branch de abajo, poniendo
+      // loading=true un instante: ProtectedRoute desmonta <Layout> mientras
+      // tanto, y con eso se perdía cualquier estado local de la pantalla
+      // (ej. la pestaña activa en Configuración/Perfil volvía siempre a la
+      // primera). Nada cambió realmente (misma sesión, mismo usuario), así
+      // que no hace falta recargar profile/workspaces ni mostrar "Cargando".
+      if (event === 'TOKEN_REFRESHED') return
       if (session?.user) {
         // Vuelve a "cargando" (y limpia el profile viejo) apenas cambia la
         // sesión — sin esto, un cambio de sesión en la misma pestaña (ej. el

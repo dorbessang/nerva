@@ -53,6 +53,25 @@ function json(body: unknown, status = 200) {
 // deno-lint-ignore no-explicit-any
 type AdminClient = any
 
+// Mismo criterio que notify_if_enabled() del lado de Postgres (usado por
+// el resto de las notificaciones de acceso de soporte/staff) -- por
+// default habilitado, se salta solo si el usuario guardó enabled:false
+// explícito para ese (usuario, workspace, tipo).
+async function notifyIfEnabled(
+  admin: AdminClient,
+  { workspaceId, userId, type, title, body }: { workspaceId: string; userId: string; type: string; title: string; body: string },
+) {
+  const { data: pref } = await admin
+    .from('notification_preferences')
+    .select('enabled')
+    .eq('user_id', userId)
+    .eq('workspace_id', workspaceId)
+    .eq('type', type)
+    .maybeSingle()
+  if (pref?.enabled === false) return
+  await admin.from('notifications').insert({ workspace_id: workspaceId, user_id: userId, type, title, body })
+}
+
 // Manda el mail de invitación vía Resend (API HTTP directa, no el mailer de
 // Supabase — generateLink no manda mail por su cuenta). Si no hay
 // RESEND_API_KEY configurado como secret, o Resend rechaza el envío, no
@@ -320,9 +339,9 @@ Deno.serve(async (req) => {
       .eq('id', requestId)
 
     if (reqRow.requested_by) {
-      await admin.from('notifications').insert({
-        workspace_id: reqRow.workspace_id,
-        user_id: reqRow.requested_by,
+      await notifyIfEnabled(admin, {
+        workspaceId: reqRow.workspace_id,
+        userId: reqRow.requested_by,
         type: 'staff_action_resolved',
         title: 'Tu solicitud fue aprobada',
         body: `El owner aprobó tu pedido y ya se mandó la invitación a ${reqRow.payload.email}.`,
@@ -377,9 +396,9 @@ Deno.serve(async (req) => {
           .eq('role', 'owner')
           .eq('status', 'active')
         for (const o of owners || []) {
-          await admin.from('notifications').insert({
-            workspace_id: workspaceId,
-            user_id: o.user_id,
+          await notifyIfEnabled(admin, {
+            workspaceId,
+            userId: o.user_id,
             type: 'staff_action_requested',
             title: 'Solicitud de staff pendiente',
             body: `Alguien del staff pidió autorización: ${description}`,
