@@ -142,7 +142,7 @@ export default function Documents({ negotiationId, entityId, workspaceId, canEdi
               <div className="neg-task-body">
                 <span className="neg-task-title">{doc.name}</span>
                 <span className="doc-meta">
-                  {formatSize(doc.size_bytes)}{doc.uploader?.full_name ? ` · ${doc.uploader.full_name}` : ''} · {new Date(doc.created_at).toLocaleDateString('es-AR')}
+                  {formatSize(doc.size_bytes)}{doc.uploader?.full_name ? ` · ${doc.uploader.full_name}` : doc.uploaded_by ? ' · Usuario eliminado' : ''} · {new Date(doc.created_at).toLocaleDateString('es-AR')}
                 </span>
               </div>
               <button className="doc-download" onClick={() => handleDownload(doc)} title="Descargar">⬇</button>

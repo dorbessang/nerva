@@ -73,7 +73,7 @@ export default function ActivityTimeline({ negotiationId, entityId, refreshKey }
           <div className="activity-body">
             <span className="activity-title">{ev.title}</span>
             <span className="activity-meta">
-              {ev.actor?.full_name ? `${ev.actor.full_name} · ` : ''}{timeAgo(ev.created_at)}
+              {ev.actor?.full_name ? `${ev.actor.full_name} · ` : ev.actor_id ? 'Usuario eliminado · ' : ''}{timeAgo(ev.created_at)}
             </span>
           </div>
         </div>
