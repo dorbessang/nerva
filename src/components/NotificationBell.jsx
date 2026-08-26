@@ -10,10 +10,10 @@ import './NotificationBell.css'
 // clickear, alcanza con cambiar al workspace correspondiente y mandar a
 // la pantalla donde se gestionan.
 const WORKSPACE_LEVEL_TYPES = {
-  access_grant_pending_confirmation: '/settings',
-  staff_action_requested: '/settings',
-  staff_action_resolved: '/profile',
-  access_grant_closed: '/settings',
+  access_grant_pending_confirmation: '/settings?tab=workspace',
+  staff_action_requested: '/settings?tab=workspace',
+  staff_action_resolved: '/profile?tab=staff',
+  access_grant_closed: '/settings?tab=workspace',
 }
 
 export default function NotificationBell() {

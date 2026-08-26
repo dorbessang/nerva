@@ -1,6 +1,7 @@
 // Profile.jsx — Perfil del usuario logueado (datos propios, no de workspace)
 
 import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { extractFunctionError } from '../lib/edgeFunctionError'
@@ -9,7 +10,19 @@ import './Settings.css'
 
 export default function Profile() {
   const { user, profile, isStaff, refreshProfile } = useAuth()
-  const [activeTab, setActiveTab] = useState('perfil')
+  const location = useLocation()
+  const navigate = useNavigate()
+  // La pestaña activa vive en la URL (?tab=staff), no solo en un useState
+  // -- así sobrevive a cualquier remount del componente (cambio de sesión,
+  // el navegador descartando la pestaña en segundo plano, etc.), no solo
+  // al caso puntual de TOKEN_REFRESHED que ya se arregló en AuthContext.
+  const initialTab = new URLSearchParams(location.search).get('tab') === 'staff' ? 'staff' : 'perfil'
+  const [activeTab, setActiveTabState] = useState(initialTab)
+
+  function setActiveTab(tab) {
+    setActiveTabState(tab)
+    navigate(`/profile${tab === 'staff' ? '?tab=staff' : ''}`, { replace: true })
+  }
   const [fullName, setFullName] = useState('')
   const [savingName, setSavingName] = useState(false)
   const [nameSuccess, setNameSuccess] = useState(false)

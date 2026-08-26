@@ -1,6 +1,7 @@
 // Settings.jsx — Página de configuración del workspace
 
 import { useState, useEffect, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
@@ -14,8 +15,12 @@ import { withOwnerApproval } from '../lib/staffActions'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 
+const SETTINGS_TAB_KEYS = ['usuarios', 'proyectos', 'entidades', 'productos', 'workspace', 'notificaciones']
+
 export default function Settings() {
   const { workspaceId, effectiveRole, activeWorkspace } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const isPersonal = activeWorkspace?.type === 'personal'
   const isOwner = isOwnerRole(effectiveRole)
   const isAdminOrOwner = isPrivileged(effectiveRole)
@@ -26,7 +31,36 @@ export default function Settings() {
   // TabUsuarios usa canManage para eso.
   const canViewUsuarios = !isPersonal
   const showModuleTabs = isAdminOrOwner && !isPersonal
-  const [activeTab, setActiveTab] = useState(canViewUsuarios ? 'usuarios' : showModuleTabs ? 'proyectos' : 'notificaciones')
+  const urlTab = new URLSearchParams(location.search).get('tab')
+  // La pestaña activa vive en la URL (?tab=...), no solo en un useState —
+  // así sobrevive a cualquier remount del componente (cambio de sesión, el
+  // navegador descartando la pestaña en segundo plano, etc.).
+  const [activeTab, setActiveTabState] = useState(
+    SETTINGS_TAB_KEYS.includes(urlTab) ? urlTab : canViewUsuarios ? 'usuarios' : showModuleTabs ? 'proyectos' : 'notificaciones'
+  )
+
+  function setActiveTab(tab) {
+    setActiveTabState(tab)
+    navigate(`/settings?tab=${tab}`, { replace: true })
+  }
+
+  const [pendingWorkspaceCount, setPendingWorkspaceCount] = useState(0)
+
+  // Misma burbuja que ya tiene la solapa "Staff" en Perfil, pero acá para
+  // el owner: accesos de soporte esperando confirmación + solicitudes de
+  // staff pendientes, del workspace activo.
+  useEffect(() => {
+    if (!isOwner || !workspaceId) { setPendingWorkspaceCount(0); return }
+    fetchPendingWorkspaceCount()
+  }, [isOwner, workspaceId])
+
+  async function fetchPendingWorkspaceCount() {
+    const [{ count: grantsCount }, { count: requestsCount }] = await Promise.all([
+      supabase.from('access_grants').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('status', 'pending_confirmation'),
+      supabase.from('staff_action_requests').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('status', 'pending'),
+    ])
+    setPendingWorkspaceCount((grantsCount || 0) + (requestsCount || 0))
+  }
 
   useEffect(() => {
     if (activeTab === 'usuarios' && !canViewUsuarios) setActiveTab(showModuleTabs ? 'proyectos' : 'notificaciones')
@@ -54,7 +88,7 @@ export default function Settings() {
           ...(showModuleTabs ? [{ key: 'proyectos', label: 'Proyectos' }] : []),
           ...(showModuleTabs ? [{ key: 'entidades', label: 'Entidades' }] : []),
           ...(showModuleTabs ? [{ key: 'productos', label: 'Productos' }] : []),
-          ...(isAdminOrOwner ? [{ key: 'workspace', label: 'Workspace' }] : []),
+          ...(isAdminOrOwner ? [{ key: 'workspace', label: 'Workspace', badge: pendingWorkspaceCount }] : []),
           { key: 'notificaciones', label: 'Notificaciones' },
         ].map(tab => (
           <button
@@ -63,6 +97,7 @@ export default function Settings() {
             onClick={() => setActiveTab(tab.key)}
           >
             {tab.label}
+            {tab.badge > 0 && <span className="settings-tab-badge">{tab.badge > 9 ? '9+' : tab.badge}</span>}
           </button>
         ))}
       </div>

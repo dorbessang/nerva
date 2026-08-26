@@ -47,6 +47,7 @@ export default function Layout({ children }) {
   const [inactiveProjects, setInactiveProjects] = useState([]);
   const [inactiveBannerDismissed, setInactiveBannerDismissed] = useState(false);
   const [openTicketCount, setOpenTicketCount] = useState(0);
+  const [ownerPendingCount, setOwnerPendingCount] = useState(0);
 
   const isPersonalWorkspace = activeWorkspace?.type === 'personal';
   const needsOnboarding = activeWorkspace && activeWorkspace.type !== 'personal' && activeWorkspace.onboarded === false;
@@ -82,6 +83,26 @@ export default function Layout({ children }) {
       .eq('is_ticket', true)
       .eq('status', 'open');
     setOpenTicketCount(count || 0);
+  }
+
+  // Misma burbuja que la de tickets del staff, pero del lado del owner:
+  // accesos de soporte esperando confirmación + solicitudes de staff
+  // pendientes de aprobar, sumadas entre todos los workspaces donde soy
+  // owner (no solo el activo).
+  useEffect(() => {
+    const ownerWsIds = workspaces.filter(w => w.role === 'owner').map(w => w.id);
+    if (ownerWsIds.length === 0) { setOwnerPendingCount(0); return; }
+    fetchOwnerPendingCount(ownerWsIds);
+    const interval = setInterval(() => fetchOwnerPendingCount(ownerWsIds), 60000);
+    return () => clearInterval(interval);
+  }, [workspaces]);
+
+  async function fetchOwnerPendingCount(ownerWsIds) {
+    const [{ count: grantsCount }, { count: requestsCount }] = await Promise.all([
+      supabase.from('access_grants').select('id', { count: 'exact', head: true }).eq('status', 'pending_confirmation').in('workspace_id', ownerWsIds),
+      supabase.from('staff_action_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending').in('workspace_id', ownerWsIds),
+    ]);
+    setOwnerPendingCount((grantsCount || 0) + (requestsCount || 0));
   }
 
   // Trae los estados marcados "final" del workspace (is_terminal) y con eso
@@ -430,8 +451,11 @@ export default function Layout({ children }) {
               onMouseEnter={(e) => handleNavMouseEnter(e, "Configuración")}
               onMouseLeave={handleNavMouseLeave}
             >
-              <span className="nav-icon">
+              <span className="nav-icon nav-icon--with-badge">
                 <LucideIcons.Settings size={18} />
+                {ownerPendingCount > 0 && (
+                  <span className="nav-item-badge">{ownerPendingCount > 9 ? '9+' : ownerPendingCount}</span>
+                )}
               </span>
               {showLabels && <span className="nav-label">Configuración</span>}
             </button>
