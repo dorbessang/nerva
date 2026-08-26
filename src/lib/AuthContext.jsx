@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase'
-import { ROLES } from './roles'
 
 const AuthContext = createContext(null)
 
@@ -110,17 +109,13 @@ export function AuthProvider({ children }) {
     localStorage.setItem('nerva_active_workspace', wsId)
   }
 
-  // Bug real reportado por el usuario: cualquier is_staff podía elegirse
-  // "Owner" acá sin importar el rol real que tenía en el workspace activo
-  // -- pensado como herramienta de QA para el workspace de Testing (donde
-  // el staff sí es owner real), pero sin techo se convertía en un bypass
-  // completo del rol que el cliente elige a propósito al confirmar un
-  // acceso de soporte (ej. "viewer"). Ahora solo deja bajar de privilegio
-  // (ROLES está ordenado de más a menos privilegiado), nunca subir por
-  // encima del rol real.
+  // El staff puede "ver como" cualquier rol sin techo -- a propósito (ver
+  // PENDIENTES.md, "Solicitud de acción de staff por encima de su rol
+  // real"): la restricción real no está acá, está en que actuar con un
+  // privilegio por encima del rol real pasa por una solicitud que un
+  // owner del workspace tiene que aprobar antes de que se ejecute.
   function impersonateRole(newRole) {
     if (!isStaff) return
-    if (ROLES.indexOf(newRole) < ROLES.indexOf(role)) return
     setEffectiveRole(newRole)
   }
 

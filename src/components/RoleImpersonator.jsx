@@ -41,7 +41,7 @@ export default function RoleImpersonator() {
         <button className="role-imp-collapse-btn" onClick={() => setCollapsed(true)} title="Minimizar">✕</button>
       </div>
       <div className="role-imp-pills">
-        {ROLES.filter(r => ROLES.indexOf(r) >= ROLES.indexOf(role)).map(r => (
+        {ROLES.map(r => (
           <button
             key={r}
             className={`role-imp-pill ${effectiveRole === r ? 'role-imp-pill--selected' : ''}`}
