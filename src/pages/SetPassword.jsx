@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/AuthContext'
 
 export default function SetPassword() {
   const [fullName, setFullName] = useState('')
@@ -9,6 +10,7 @@ export default function SetPassword() {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const { refreshProfile } = useAuth()
 
   useEffect(() => {
     // Supabase manda el token en el hash de la URL, esto lo procesa automático
@@ -51,6 +53,10 @@ export default function SetPassword() {
         await supabase.from('invitations').delete().eq('email', email.toLowerCase())
       }
 
+      // El AuthContext todavía tiene el profile viejo (full_name vacío) en
+      // memoria — sin este refresh, needsOnboarding sigue dando true y
+      // ProtectedRoute rebota de nuevo para acá apenas se navega.
+      await refreshProfile()
       navigate('/dashboard')
     } catch (err) {
       setError('Hubo un error al guardar los datos. Intentá de nuevo.')
