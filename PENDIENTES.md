@@ -74,7 +74,7 @@ Ya diseñado en detalle más abajo (ver "ETAPA 2" y "FASE 2" — planes, Stripe,
 
 ---
 
-## 🛡️ ACCESO DE SOPORTE PARA STAFF (2026-08-18/19) — núcleo construido, falta la ventana de ayuda y la vista redactada
+## 🛡️ ACCESO DE SOPORTE PARA STAFF (2026-08-18 a 22) — núcleo + solicitud de acción por rol construidos, falta la ventana de ayuda y la vista redactada
 
 Reemplaza el hack manual de SQL que se venía usando para que el staff (Gervasio, `is_staff=true`) entre a un workspace de un cliente a ayudar. No encaja en ninguna Fase A–F del roadmap (es herramienta interna, no producto de cliente) — queda como iniciativa propia. Diseñado en varias vueltas de conversación con el usuario; acá el diseño final acordado, para no perderlo.
 
@@ -97,6 +97,11 @@ Modelo de datos: `access_grants` (una sola tabla) con estados `open → pending_
 
 UI: bloque "Acceso de soporte" en `Configuración → Workspace` (owner-only: generar código, ver estado de los grants del workspace, confirmar/rechazar/revocar) y bloque "Acceso de soporte" en `Perfil → Staff` (ingresar código a mano, ver cola de tickets abiertos de cualquier workspace y tomarlos, ver mis accesos en curso).
 
+**Sumado 2026-08-21/22, a pedido del usuario:**
+- [x] `access_grants.ticket_number` (identity, global, no por workspace) — trazabilidad simple ("Ticket #N") en vez de manejarse solo por uuid/código. Se muestra en la cola, en "mis accesos" y del lado del owner
+- [x] Burbuja roja con la cantidad de tickets abiertos en el ícono de "Mi perfil" del sidebar (visible para cualquier staff, se refresca cada 60s) + el mismo contador como badge en la solapa "Staff" dentro de Perfil — así se enteran de que hay algo pendiente sin depender de la campana de notificaciones
+- [x] El propio staff que tomó el acceso lo puede cerrar él mismo (antes exclusivo de owner/admin — `revoke_access_grant` ahora acepta también a `claimed_by`), con un mensaje opcional para contarle al workspace qué pasó (`resolution_message`, notificado a quien generó el código). Mismo mensaje disponible del lado del owner al revocar
+
 ### Bitácora
 - **No hay "deshacer" de nada** — decisión explícita del usuario, esto no es un sistema de undo.
 - [x] **construido (2026-08-18)**: `workspace_membership_log`, quién entra y sale de cada workspace (staff o no), con fecha/hora/quién lo autorizó — trigger sobre `workspace_members` (`log_membership_change`), no hace falta que ningún camino del código se acuerde de loguear a mano. UI: bloque "Historial de accesos" en `Configuración → Usuarios`.
@@ -118,6 +123,22 @@ Pedido explícito del usuario para arrancar por acá, "que es más sencilla" —
 - Backfill de lo ya existente en orden de `created_at`, contador de cada workspace dejado en el máximo asignado
 - Frontend: columna "#" fija (no ocultable) en `TableGrid` (compartida por las 3 páginas), badge `#N` en `CardTile`/Kanban, y en el header de cada detalle (Proyecto/Entidad/Producto)
 - **Pendiente, deferida a propósito**: la vista "redactada" (parte B del acceso de staff) que usa esta numeración para referenciar un registro sin mostrar su contenido — se decide más adelante
+
+### Solicitud de acción de staff por encima de su rol real — [x] construido (2026-08-22)
+El usuario probó el sistema y encontró que, siendo staff, veía TODO sin límite sin importar el rol que le hayan dado en el acceso de soporte — el selector "ver como" (`RoleImpersonator`) no tenía techo, cualquier `is_staff` podía elegirse "Owner" ahí. Primero se probó ponerle un techo (solo dejar bajar de privilegio, nunca subir), pero el usuario lo pensó mejor y prefirió **dejar la vista sin límite** (útil para diagnosticar) y en cambio **gatear la acción, no la vista**: el staff puede seguir viendo cualquier rol, pero si actúa con un privilegio por encima de su rol real en ese workspace (ej. le dieron 'admin' pero intenta borrar a alguien, algo de owner), la acción no se ejecuta directo — queda pendiente hasta que un owner del workspace la aprueba. No aplica a usuarios normales (un cliente sin el rol ni ve el botón, gateado por `effectiveRole`), es exclusivo del caso de staff con un acceso de soporte de rol más bajo que el que necesita para una acción puntual.
+
+**Alcance** (acciones que hoy son owner-only en la app — no es un proxy genérico de "cualquier acción posible", eso sería un proyecto aparte):
+- Miembros (`Configuración → Usuarios`): invitar, cambiar rol, desactivar/reactivar, eliminar
+- Borrado masivo de Proyectos/Entidades/Productos
+- Alertas de inactividad y Reglas de autorización (`Configuración → Workspace`)
+
+**Hallazgo de paso, corregido antes de construir esto**: el borrado masivo de Proyectos/Entidades/Productos no estaba restringido a owner en la base — la UI lo escondía si no eras owner, pero el RLS de esas 3 tablas era "cualquier miembro activo" para todo (insert/update/**delete**), sin distinguir por rol. Un viewer podía borrar por API directa aunque el botón esté escondido. Se separó la política única "ALL" en policies por comando, dejando el DELETE exclusivo a owner (`is_workspace_owner()`, mismo helper que ya usaban `workspace_members`/`approval_rules`) — sin este ajuste, la solicitud de aprobación para borrado masivo no hubiera servido de nada.
+
+**Modelo de datos**: `staff_action_requests` (workspace_id, requested_by, action_type, payload jsonb, status `pending→approved/rejected/cancelled`, reviewed_by/at, resolution_message) — mismo patrón `SECURITY DEFINER` sin policies de insert/update directas que `access_grants`. Funciones: `request_staff_action`, `approve_staff_action` (un `case` por `action_type`, ejecuta la mutación real), `reject_staff_action`, `cancel_staff_action_request`. La única excepción es **invitar**: como necesita la Admin API de Supabase Auth (no se puede desde una función SQL), el pedido y la aprobación viven en la Edge Function `invite-user` (acción `invite` deriva a pendiente si el caller es staff no-owner; acción nueva `approve_staff_invite` para que el owner la apruebe).
+
+**Frontend**: helper compartido `src/lib/staffActions.js` (`withOwnerApproval()` — ejecuta directo o pide aprobación según si `isStaff && role !== 'owner'`), interceptado en los handlers de Usuarios/Workspace/borrado masivo de las 3 páginas. Panel "Solicitudes de staff pendientes" (owner-only) en `Configuración → Workspace`, y "Mis solicitudes" (con su estado) en `Perfil → Staff`.
+
+Probado de punta a punta (pedido → aprobación, y que el RLS nuevo bloquea el borrado directo de un viewer) en un workspace descartable antes de aplicar — ver metodología de testing en la sección de arriba de `access_grants`.
 
 ---
 
