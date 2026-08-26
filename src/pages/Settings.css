@@ -137,6 +137,11 @@
   margin: 0;
 }
 
+.settings-block-title-row {
+  display: flex;
+  align-items: center;
+}
+
 .settings-hint {
   font-size: 13px;
   color: #9ca3af;

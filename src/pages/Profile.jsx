@@ -7,6 +7,7 @@ import { useAuth } from '../lib/AuthContext'
 import { extractFunctionError } from '../lib/edgeFunctionError'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import Avatar from '../components/Avatar'
+import InfoTooltip from '../components/InfoTooltip'
 import { AVATAR_PRESETS } from '../lib/avatarPresets'
 import './Settings.css'
 import './Profile.css'
@@ -444,12 +445,10 @@ export default function Profile() {
         </div>
 
         <div className="settings-block">
-          <h2 className="settings-block-title">Perfil personal</h2>
-          <p className="settings-hint">
-            Nada de esto es obligatorio ni se comparte fuera de tu equipo — es para tener un perfil más completo
-            de cara al resto (y para funciones que vamos a ir sumando más adelante: cumpleaños, directorio por
-            área, horarios según zona, etc.).
-          </p>
+          <div className="settings-block-title-row">
+            <h2 className="settings-block-title">Perfil personal</h2>
+            <InfoTooltip text="Nada de esto es obligatorio ni se comparte fuera de tu equipo — es para tener un perfil más completo de cara al resto (y para funciones que vamos a ir sumando más adelante: cumpleaños, directorio por área, horarios según zona, etc.)." />
+          </div>
           <div className="form-row">
             <div className="form-group" style={{ maxWidth: 240 }}>
               <label>TELÉFONO</label>

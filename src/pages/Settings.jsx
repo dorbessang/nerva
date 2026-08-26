@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import Avatar from '../components/Avatar'
+import InfoTooltip from '../components/InfoTooltip'
 import { notifyRoleChanged } from '../lib/notifications'
 import { computeFieldOrder, isCardFilterable } from '../lib/customFields'
 import { extractFunctionError } from '../lib/edgeFunctionError'
@@ -193,10 +194,10 @@ function TabFinanciero({ workspaceId }) {
   return (
     <div className="settings-section">
       <div className="settings-block">
-        <h2 className="settings-block-title">Financiero</h2>
-        <p className="settings-hint">
-          El tab Financiero está siempre disponible en todos los proyectos — acá elegís qué piezas usar. Moneda es la base de todo lo demás y siempre está activa. Lo que apagues no borra nada ya cargado, solo deja de mostrarse.
-        </p>
+        <div className="settings-block-title-row">
+          <h2 className="settings-block-title">Financiero</h2>
+          <InfoTooltip text="El tab Financiero está siempre disponible en todos los proyectos — acá elegís qué piezas usar. Moneda es la base de todo lo demás y siempre está activa. Lo que apagues no borra nada ya cargado, solo deja de mostrarse." />
+        </div>
         <div className="settings-table">
           {FINANCIAL_FEATURES.map(f => (
             <div key={f.key} className="settings-row">
@@ -703,12 +704,11 @@ function TabEstados({ workspaceId }) {
     <div className="settings-section">
       <div className="settings-block">
         <div className="settings-block-header">
-          <h2 className="settings-block-title">Estados de proyecto</h2>
+          <div className="settings-block-title-row">
+            <h2 className="settings-block-title">Estados de proyecto</h2>
+            <InfoTooltip text={'"Final" marca qué estado(s) cuentan como proyecto cerrado — se usa para las estadísticas de completados y para que un proyecto en ese estado no dispare las alertas de inactividad. Tiene que quedar siempre al menos uno marcado.'} />
+          </div>
         </div>
-
-        <p className="settings-hint">
-          "Final" marca qué estado(s) cuentan como proyecto cerrado — se usa para las estadísticas de completados y para que un proyecto en ese estado no dispare las alertas de inactividad. Tiene que quedar siempre al menos uno marcado.
-        </p>
         {deleteError && <p className="form-error">{deleteError}</p>}
 
         {loading ? <div className="settings-loading">Cargando...</div> : (
@@ -958,12 +958,11 @@ function TabEntidades({ workspaceId }) {
     <div className="settings-section">
       <div className="settings-block">
         <div className="settings-block-header">
-          <h2 className="settings-block-title">Tipos de entidad</h2>
+          <div className="settings-block-title-row">
+            <h2 className="settings-block-title">Tipos de entidad</h2>
+            <InfoTooltip text="Cada tipo genera una sección en el sidebar. Al eliminar un tipo se eliminan todas las entidades asociadas." />
+          </div>
         </div>
-
-        <p className="settings-hint">
-          Cada tipo genera una sección en el sidebar. Al eliminar un tipo se eliminan todas las entidades asociadas.
-        </p>
 
         {loading ? <div className="settings-loading">Cargando...</div> : (
           <div className="settings-table">
@@ -1195,12 +1194,11 @@ function TabProductos({ workspaceId }) {
     <div className="settings-section">
       <div className="settings-block">
         <div className="settings-block-header">
-          <h2 className="settings-block-title">Tipos de producto</h2>
+          <div className="settings-block-title-row">
+            <h2 className="settings-block-title">Tipos de producto</h2>
+            <InfoTooltip text="Cada tipo genera una sección en el sidebar. Al eliminar un tipo se eliminan todos los productos asociados." />
+          </div>
         </div>
-
-        <p className="settings-hint">
-          Cada tipo genera una sección en el sidebar. Al eliminar un tipo se eliminan todos los productos asociados.
-        </p>
 
         {loading ? <div className="settings-loading">Cargando...</div> : (
           <div className="settings-table">
@@ -1708,13 +1706,11 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
     <div className="settings-section">
       <div className="settings-block">
         <div className="settings-block-header">
-          <h2 className="settings-block-title">Campos personalizados</h2>
+          <div className="settings-block-title-row">
+            <h2 className="settings-block-title">Campos personalizados</h2>
+            <InfoTooltip text="El nombre de cada campo es libre — vos decidís cómo llamarlo, el tipo define cómo se guarda y se muestra. Eliminar un campo no borra los valores ya cargados, solo deja de mostrarlo." />
+          </div>
         </div>
-
-        <p className="settings-hint">
-          El nombre de cada campo es libre — vos decidís cómo llamarlo, el tipo define cómo se guarda y se muestra.
-          Eliminar un campo no borra los valores ya cargados, solo deja de mostrarlo.
-        </p>
 
         {loading ? <div className="settings-loading">Cargando...</div> : (
           <div className="settings-table">
@@ -1902,10 +1898,10 @@ function TabGeneral({ workspaceId, isOwner }) {
 
       {isOwner && (
         <div className="settings-block">
-          <h2 className="settings-block-title">Alertas de inactividad</h2>
-          <p className="settings-hint">
-            Pasados los días de "aviso", un proyecto activo sin novedades aparece en el banner de baja actividad. Pasados los días de "inactivo", se marca inactivo solo y aparece en su propio aviso. Solo el owner puede cambiar estos dos números.
-          </p>
+          <div className="settings-block-title-row">
+            <h2 className="settings-block-title">Alertas de inactividad</h2>
+            <InfoTooltip text={'Pasados los días de "aviso", un proyecto activo sin novedades aparece en el banner de baja actividad. Pasados los días de "inactivo", se marca inactivo solo y aparece en su propio aviso. Solo el owner puede cambiar estos dos números.'} />
+          </div>
           <div className="form-row">
             <div className="form-group" style={{ maxWidth: 180 }}>
               <label>AVISO (DÍAS)</label>
@@ -2024,10 +2020,10 @@ function TabAutomatizaciones({ workspaceId, isOwner }) {
     <div className="settings-section">
       {isOwner && (
         <div className="settings-block">
-          <h2 className="settings-block-title">Reglas de autorización</h2>
-          <p className="settings-hint">
-            Cada regla es independiente — activá solo las que te sirvan. Ninguna bloquea el trabajo del equipo: cuando algo queda pendiente, se marca y se le avisa a la persona designada, pero se puede seguir usando con normalidad mientras se resuelve. Sin aprobador designado, la regla no se puede activar. Solo el owner puede cambiar esto.
-          </p>
+          <div className="settings-block-title-row">
+            <h2 className="settings-block-title">Reglas de autorización</h2>
+            <InfoTooltip text="Cada regla es independiente — activá solo las que te sirvan. Ninguna bloquea el trabajo del equipo: cuando algo queda pendiente, se marca y se le avisa a la persona designada, pero se puede seguir usando con normalidad mientras se resuelve. Sin aprobador designado, la regla no se puede activar. Solo el owner puede cambiar esto." />
+          </div>
           <div className="approval-rules-list">
             {rules.map(r => {
               const def = APPROVAL_RULE_TYPES.find(t => t.key === r.rule_type)
@@ -2194,10 +2190,10 @@ function TabSoporte({ workspaceId, isOwner }) {
     <div className="settings-section">
       {isOwner && staffRequests.length > 0 && (
         <div className="settings-block">
-          <h2 className="settings-block-title">Solicitudes de staff pendientes</h2>
-          <p className="settings-hint">
-            Un miembro del staff con un acceso de soporte de rol más bajo pidió hacer algo que necesita ser owner. No se ejecuta hasta que lo aprobás.
-          </p>
+          <div className="settings-block-title-row">
+            <h2 className="settings-block-title">Solicitudes de staff pendientes</h2>
+            <InfoTooltip text="Un miembro del staff con un acceso de soporte de rol más bajo pidió hacer algo que necesita ser owner. No se ejecuta hasta que lo aprobás." />
+          </div>
           {requestNotice && <p className="form-error">{requestNotice}</p>}
           <div className="settings-table">
             {staffRequests.map(r => (
@@ -2236,10 +2232,10 @@ function TabSoporte({ workspaceId, isOwner }) {
 
       {isOwner && (
         <div className="settings-block">
-          <h2 className="settings-block-title">Acceso de soporte</h2>
-          <p className="settings-hint">
-            Le das acceso temporal a alguien del equipo de Nerva para que te ayude — siempre por código, y siempre con tu confirmación activa en el momento en que esa persona entra, aunque ya hayas generado el código antes. Podés mandarlo como ticket (aparece en la cola del staff, con el problema que cuentes) o pasarlo vos mismo directamente a alguien.
-          </p>
+          <div className="settings-block-title-row">
+            <h2 className="settings-block-title">Acceso de soporte</h2>
+            <InfoTooltip text="Le das acceso temporal a alguien del equipo de Nerva para que te ayude — siempre por código, y siempre con tu confirmación activa en el momento en que esa persona entra, aunque ya hayas generado el código antes. Podés mandarlo como ticket (aparece en la cola del staff, con el problema que cuentes) o pasarlo vos mismo directamente a alguien." />
+          </div>
 
           {lastCode && (
             <div className="access-grant-code-box">
@@ -2413,11 +2409,10 @@ function TabNotificaciones({ workspaceId }) {
   return (
     <div className="settings-section">
       <div className="settings-block">
-        <h2 className="settings-block-title">Notificaciones</h2>
-        <p className="settings-hint">
-          Elegí qué avisos in-app querés recibir en este workspace. Esto es personal, no afecta a nadie más.
-          Por ahora solo hay notificaciones dentro de la app — mail/WhatsApp están planeados para más adelante.
-        </p>
+        <div className="settings-block-title-row">
+          <h2 className="settings-block-title">Notificaciones</h2>
+          <InfoTooltip text="Elegí qué avisos in-app querés recibir en este workspace. Esto es personal, no afecta a nadie más. Por ahora solo hay notificaciones dentro de la app — mail/WhatsApp están planeados para más adelante." />
+        </div>
         <div className="settings-table">
           {NOTIF_TYPES.map(t => (
             <div key={t.key} className="settings-row">
