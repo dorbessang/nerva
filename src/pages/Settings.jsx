@@ -159,10 +159,136 @@ function ModuloProyectos({ workspaceId }) {
         <button className={`settings-toggle-btn ${section === 'estados' ? 'active' : ''}`} onClick={() => setSection('estados')}>Estados</button>
         <button className={`settings-toggle-btn ${section === 'financiero' ? 'active' : ''}`} onClick={() => setSection('financiero')}>Financiero</button>
         <button className={`settings-toggle-btn ${section === 'campos' ? 'active' : ''}`} onClick={() => setSection('campos')}>Campos</button>
+        <button className={`settings-toggle-btn ${section === 'playbooks' ? 'active' : ''}`} onClick={() => setSection('playbooks')}>Playbooks</button>
       </div>
       {section === 'estados' && <TabEstados workspaceId={workspaceId} />}
       {section === 'financiero' && <TabFinanciero workspaceId={workspaceId} />}
       {section === 'campos' && <TabCamposPersonalizados workspaceId={workspaceId} objectType="negotiation" />}
+      {section === 'playbooks' && <TabPlaybooks workspaceId={workspaceId} />}
+    </div>
+  )
+}
+
+// Playbooks: rutinas de tareas precargadas por workspace, elegibles al
+// crear un proyecto o aplicables después a mano (ver src/lib/playbooks.js
+// y el selector en NegotiationModal / botón "Aplicar playbook" en Tareas).
+const PRIORITY_LABELS = { low: 'Baja', medium: 'Media', high: 'Alta' }
+
+function TabPlaybooks({ workspaceId }) {
+  const [playbooks, setPlaybooks] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [newName, setNewName] = useState('')
+  const [creating, setCreating] = useState(false)
+
+  useEffect(() => { fetchPlaybooks() }, [workspaceId])
+
+  async function fetchPlaybooks() {
+    setLoading(true)
+    const { data } = await supabase
+      .from('task_playbooks')
+      .select('*, items:task_playbook_items(*)')
+      .eq('workspace_id', workspaceId)
+      .order('sort_order')
+    setPlaybooks((data || []).map(p => ({ ...p, items: (p.items || []).sort((a, b) => a.sort_order - b.sort_order) })))
+    setLoading(false)
+  }
+
+  async function handleCreate() {
+    if (!newName.trim()) return
+    setCreating(true)
+    await supabase.from('task_playbooks').insert({ workspace_id: workspaceId, name: newName.trim(), sort_order: playbooks.length })
+    setNewName('')
+    setCreating(false)
+    fetchPlaybooks()
+  }
+
+  async function handleDelete(id) {
+    await supabase.from('task_playbooks').delete().eq('id', id)
+    setPlaybooks(prev => prev.filter(p => p.id !== id))
+  }
+
+  async function handleAddItem(playbookId) {
+    const playbook = playbooks.find(p => p.id === playbookId)
+    await supabase.from('task_playbook_items').insert({
+      playbook_id: playbookId, title: 'Nueva tarea', days_offset: 0, sort_order: playbook.items.length,
+    })
+    fetchPlaybooks()
+  }
+
+  async function handleUpdateItem(itemId, patch) {
+    setPlaybooks(prev => prev.map(p => ({ ...p, items: p.items.map(it => it.id === itemId ? { ...it, ...patch } : it) })))
+    await supabase.from('task_playbook_items').update(patch).eq('id', itemId)
+  }
+
+  async function handleDeleteItem(playbookId, itemId) {
+    setPlaybooks(prev => prev.map(p => p.id === playbookId ? { ...p, items: p.items.filter(it => it.id !== itemId) } : p))
+    await supabase.from('task_playbook_items').delete().eq('id', itemId)
+  }
+
+  if (loading) return <div className="settings-loading">Cargando...</div>
+
+  return (
+    <div className="settings-section">
+      <div className="settings-block">
+        <div className="settings-block-title-row">
+          <h2 className="settings-block-title">Playbooks</h2>
+          <InfoTooltip text='Una rutina de tareas que este workspace usa siempre (o casi siempre) al arrancar algo nuevo — ej. "Onboarding proveedor nuevo". Cada tarea puede llevar un offset de días (desde que se aplica el playbook); si lo dejás vacío, la tarea queda sin fecha. Se puede elegir al crear un proyecto, o aplicar después desde su pestaña de Tareas, las veces que haga falta.' />
+        </div>
+
+        {playbooks.length === 0 && <p className="detail-empty">Sin playbooks todavía.</p>}
+
+        <div className="playbook-list">
+          {playbooks.map(pb => (
+            <div key={pb.id} className="playbook-card">
+              <div className="playbook-card-header">
+                <span className="playbook-card-name">{pb.name}</span>
+                <button className="neg-milestone-delete" title="Eliminar playbook" onClick={() => handleDelete(pb.id)}>✕</button>
+              </div>
+              <div className="playbook-items">
+                {pb.items.map(item => (
+                  <div key={item.id} className="playbook-item-row">
+                    <input
+                      type="text"
+                      className="playbook-item-title"
+                      value={item.title}
+                      onChange={e => handleUpdateItem(item.id, { title: e.target.value })}
+                      placeholder="Título de la tarea..."
+                    />
+                    <input
+                      type="number"
+                      className="playbook-item-offset"
+                      value={item.days_offset ?? ''}
+                      onChange={e => handleUpdateItem(item.id, { days_offset: e.target.value === '' ? null : parseInt(e.target.value, 10) })}
+                      placeholder="Sin fecha"
+                      title="Días desde que se aplica el playbook"
+                    />
+                    <select
+                      className="playbook-item-priority"
+                      value={item.priority}
+                      onChange={e => handleUpdateItem(item.id, { priority: e.target.value })}
+                    >
+                      {Object.entries(PRIORITY_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                    </select>
+                    <button className="neg-milestone-delete" title="Quitar" onClick={() => handleDeleteItem(pb.id, item.id)}>✕</button>
+                  </div>
+                ))}
+                <button className="neg-add-task-btn playbook-add-item-btn" onClick={() => handleAddItem(pb.id)}>+ Agregar tarea</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="settings-add-row" style={{ marginTop: 14 }}>
+          <input
+            type="text"
+            placeholder="Nombre del playbook nuevo (ej. Onboarding proveedor)..."
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
+          />
+          <button className="neg-add-task-btn" onClick={handleCreate} disabled={creating || !newName.trim()}>+ Nuevo playbook</button>
+        </div>
+      </div>
     </div>
   )
 }

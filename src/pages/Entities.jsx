@@ -11,6 +11,7 @@ import { getFlagUrl, getCountryName } from '../components/CountrySelector'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import NotesPostIts from '../components/NotesPostIts'
 import ActivityTimeline from '../components/ActivityTimeline'
+import LogMeetingModal from '../components/LogMeetingModal'
 import Documents from '../components/Documents'
 import { createTask, fetchPredecessorCandidates } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
@@ -475,8 +476,8 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           <button type="button" className="clear-filters-btn" onClick={clearAllFilters}>✕ Limpiar filtros</button>
         )}
         <div className="neg-view-toggle">
-          <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Mosaico"><LayoutGrid size={15} /></button>
           <button className={`neg-view-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')} title="Tabla"><Table2 size={15} /></button>
+          <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Mosaico"><LayoutGrid size={15} /></button>
         </div>
         {view === 'cards' && (
           <div className="neg-sort-select">
@@ -770,6 +771,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
   const [showNegModal, setShowNegModal] = useState(false)
   const [bgColor, textColor] = getAvatarColor(entity.name)
   const [activityRefresh, setActivityRefresh] = useState(0)
+  const [showLogMeeting, setShowLogMeeting] = useState(false)
   const [rightTab, setRightTab] = useState('resumen')
   const [entityTasks, setEntityTasks] = useState([])
   const [members, setMembers] = useState([])
@@ -983,7 +985,11 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
                         )}
                         {contact.whatsapp && (
                           <a href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="contact-detail">
-                            <span className="contact-icon">💬</span>{contact.whatsapp}
+                            <span className="contact-icon contact-icon--whatsapp">
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="#25D366" aria-hidden="true">
+                                <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.48 1.32 4.99L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.87 9.87 0 0 0 12.04 2zm5.86 14.07c-.25.7-1.44 1.34-1.98 1.42-.5.08-1.15.11-1.86-.12-.43-.13-.98-.32-1.69-.62-2.97-1.28-4.91-4.28-5.06-4.48-.15-.2-1.21-1.61-1.21-3.07 0-1.46.77-2.18 1.04-2.48.27-.3.6-.37.8-.37.2 0 .4 0 .57.01.18.01.43-.07.67.51.25.6.85 2.06.92 2.21.07.15.12.33.02.53-.1.2-.15.32-.3.5-.15.18-.31.4-.44.53-.15.15-.3.31-.13.61.17.3.76 1.25 1.63 2.03 1.12 1 2.06 1.31 2.36 1.46.3.15.48.13.65-.08.18-.2.75-.87.95-1.17.2-.3.4-.25.67-.15.28.1 1.76.83 2.06.98.3.15.5.23.57.35.08.13.08.73-.17 1.43z"/>
+                              </svg>
+                            </span>{contact.whatsapp}
                           </a>
                         )}
                       </div>
@@ -1039,7 +1045,14 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
             )}
 
             {rightTab === 'actividad' && (
-              <ActivityTimeline entityId={entity.id} refreshKey={activityRefresh} />
+              <div>
+                {canNote && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+                    <button className="neg-add-task-btn" onClick={() => setShowLogMeeting(true)}>📞 Registrar / Programar</button>
+                  </div>
+                )}
+                <ActivityTimeline entityId={entity.id} refreshKey={activityRefresh} />
+              </div>
             )}
 
             {rightTab === 'notas' && (
@@ -1278,6 +1291,16 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
           }}
           workspaceId={workspaceId}
           userId={user?.id}
+        />
+      )}
+
+      {showLogMeeting && (
+        <LogMeetingModal
+          workspaceId={workspaceId}
+          entityId={entity.id}
+          members={members}
+          onClose={() => setShowLogMeeting(false)}
+          onSaved={() => setActivityRefresh(v => v + 1)}
         />
       )}
 

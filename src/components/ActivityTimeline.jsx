@@ -21,6 +21,9 @@ const TYPE_ICONS = {
   negotiation_close_requested: '⏳',
   negotiation_close_resolved: '⚖️',
   email_logged: '✉️',
+  playbook_applied: '📋',
+  call_logged: '📞',
+  meeting_logged: '🤝',
 }
 
 // Timeline cronológico de todo lo que pasó con un proyecto o con una

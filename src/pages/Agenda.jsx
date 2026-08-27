@@ -3,12 +3,22 @@
 // "sueltas", no atadas a ningún proyecto/entidad).
 
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import NotesPostIts from '../components/NotesPostIts'
 import { useCloseOnOutsideOrEscape } from '../lib/useCloseOnOutsideOrEscape'
 import { canEditContent } from '../lib/roles'
 import './Agenda.css'
+
+// A dónde navegar al clickear una tarea "externa" (de un workspace de
+// equipo, traída acá solo para bajar a tierra lo asignado — de sólo
+// lectura, se edita/completa desde su proyecto/entidad de origen).
+function externalTaskPath(task) {
+  if (task.negotiation_id) return `/negotiations?openNeg=${task.negotiation_id}&openTask=${task.id}`
+  if (task.entity_id) return `/entities/${task.entity?.entity_type_id}?openEntity=${task.entity_id}`
+  return `/tasks?openTask=${task.id}`
+}
 
 const COLUMNS = [
   { key: 'pending', label: 'Pendiente', color: '#D97706', bg: '#fef3c7' },
@@ -23,13 +33,43 @@ const TABS = [
 ]
 
 export default function Agenda() {
-  const { user, workspaceId, effectiveRole } = useAuth()
+  const { user, workspaceId, effectiveRole, workspaces, setActiveWorkspace } = useAuth()
+  const navigate = useNavigate()
   const canEdit = canEditContent(effectiveRole)
   const [tab, setTab] = useState('tablero')
   const [tasks, setTasks] = useState([])
+  const [externalTasks, setExternalTasks] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { if (workspaceId) fetchTasks() }, [workspaceId])
+  useEffect(() => { if (user && workspaces.length) fetchExternalTasks() }, [user, workspaces])
+
+  // Todo lo que tenemos asignado en workspaces de equipo — para que la
+  // agenda personal "baje a tierra" lo pendiente en todos lados, no solo
+  // lo que se cargó acá suelto. Solo lectura: se completa/reprograma desde
+  // el proyecto/entidad de origen, no desde acá.
+  async function fetchExternalTasks() {
+    const teamWsIds = workspaces.filter(w => w.type !== 'personal').map(w => w.id)
+    if (teamWsIds.length === 0) { setExternalTasks([]); return }
+    const { data, error } = await supabase.from('tasks')
+      .select(`
+        id, title, status, due_date, due_time, due_time_end, workspace_id, negotiation_id, entity_id,
+        entity:entity_id ( entity_type_id )
+      `)
+      .in('workspace_id', teamWsIds)
+      .eq('assigned_to', user.id)
+      .neq('status', 'done')
+    if (error) { console.error('fetchExternalTasks error:', error.message); return }
+    const wsNameById = Object.fromEntries(workspaces.map(w => [w.id, w.name]))
+    setExternalTasks((data || []).map(t => ({ ...t, _external: true, _workspaceName: wsNameById[t.workspace_id] || 'Otro workspace' })))
+  }
+
+  function openExternalTask(task) {
+    setActiveWorkspace(task.workspace_id)
+    navigate(externalTaskPath(task))
+  }
+
+  const allTasks = [...tasks, ...externalTasks]
 
   async function fetchTasks() {
     setLoading(true)
@@ -96,10 +136,10 @@ export default function Agenda() {
       ) : (
         <>
           {tab === 'tablero' && (
-            <KanbanBoard tasks={tasks} canEdit={canEdit} onAdd={handleAdd} onMove={handleMove} onDelete={handleDelete} />
+            <KanbanBoard tasks={allTasks} canEdit={canEdit} onAdd={handleAdd} onMove={handleMove} onDelete={handleDelete} onOpenExternal={openExternalTask} />
           )}
           {tab === 'calendario' && (
-            <CalendarView tasks={tasks} canEdit={canEdit} onAdd={handleAdd} onMove={handleMove} onDelete={handleDelete} />
+            <CalendarView tasks={allTasks} canEdit={canEdit} onAdd={handleAdd} onMove={handleMove} onDelete={handleDelete} onOpenExternal={openExternalTask} />
           )}
           {tab === 'notas' && (
             <NotesPostIts workspaceId={workspaceId} canEdit={canEdit} />
@@ -113,7 +153,7 @@ export default function Agenda() {
 const TODAY_WIDGET_MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 const TODAY_WIDGET_WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
 
-function TodayWidget({ tasks }) {
+function TodayWidget({ tasks, onOpenExternal }) {
   const now = new Date()
   const todayStr = toDateStr(now)
   const todayTasks = tasks
@@ -146,7 +186,12 @@ function TodayWidget({ tasks }) {
       ) : (
         <div className="today-widget-timeline">
           {todayTasks.map(t => (
-            <div key={t.id} className="today-widget-item">
+            <div
+              key={t.id}
+              className={`today-widget-item ${t._external ? 'today-widget-item--external' : ''}`}
+              onClick={t._external ? () => onOpenExternal(t) : undefined}
+              role={t._external ? 'button' : undefined}
+            >
               <div className="today-widget-marker">
                 <span className="today-widget-dot" />
                 <span className="today-widget-line" />
@@ -154,6 +199,7 @@ function TodayWidget({ tasks }) {
               <div className="today-widget-content">
                 {t.due_time && <span className="today-widget-time">{t.due_time.slice(0, 5)}</span>}
                 <span className="today-widget-task-title">{t.title}</span>
+                {t._external && <span className="agenda-external-badge">{t._workspaceName}</span>}
               </div>
             </div>
           ))}
@@ -163,7 +209,7 @@ function TodayWidget({ tasks }) {
   )
 }
 
-function KanbanBoard({ tasks, canEdit, onAdd, onMove, onDelete }) {
+function KanbanBoard({ tasks, canEdit, onAdd, onMove, onDelete, onOpenExternal }) {
   const [newTitle, setNewTitle] = useState('')
   const [dragOverCol, setDragOverCol] = useState(null)
 
@@ -211,10 +257,13 @@ function KanbanBoard({ tasks, canEdit, onAdd, onMove, onDelete }) {
               {colTasks.map(task => (
                 <div
                   key={task.id}
-                  className="kanban-card"
-                  draggable={canEdit}
-                  onDragStart={e => e.dataTransfer.setData('text/plain', task.id)}
+                  className={`kanban-card ${task._external ? 'kanban-card--external' : ''}`}
+                  draggable={canEdit && !task._external}
+                  onDragStart={e => !task._external && e.dataTransfer.setData('text/plain', task.id)}
+                  onClick={task._external ? () => onOpenExternal(task) : undefined}
+                  role={task._external ? 'button' : undefined}
                 >
+                  {task._external && <span className="agenda-external-badge">{task._workspaceName}</span>}
                   <span className="kanban-card-title">{task.title}</span>
                   {task.due_date && (
                     <span className="kanban-card-date">
@@ -222,7 +271,7 @@ function KanbanBoard({ tasks, canEdit, onAdd, onMove, onDelete }) {
                       {task.due_time && ` · ${task.due_time.slice(0, 5)}`}
                     </span>
                   )}
-                  {canEdit && (
+                  {canEdit && !task._external && (
                     <div className="kanban-card-actions">
                       {idx > 0 && (
                         <button title="Mover a la izquierda" onClick={() => onMove(task.id, COLUMNS[idx - 1].key)}>‹</button>
@@ -241,7 +290,7 @@ function KanbanBoard({ tasks, canEdit, onAdd, onMove, onDelete }) {
         )
       })}
     </div>
-    <TodayWidget tasks={tasks} />
+    <TodayWidget tasks={tasks} onOpenExternal={onOpenExternal} />
     </div>
   )
 }
@@ -309,7 +358,7 @@ function layoutTimedTasks(timedTasks) {
   return positioned
 }
 
-function CalendarView({ tasks, canEdit, onAdd, onMove, onDelete }) {
+function CalendarView({ tasks, canEdit, onAdd, onMove, onDelete, onOpenExternal }) {
   const [viewMode, setViewMode] = useState('mes')
   const [selectedDate, setSelectedDate] = useState(new Date())
 
@@ -322,19 +371,19 @@ function CalendarView({ tasks, canEdit, onAdd, onMove, onDelete }) {
       </div>
       {viewMode === 'mes' && (
         <MonthView
-          tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete}
+          tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete} onOpenExternal={onOpenExternal}
           onSelectDay={(d) => { setSelectedDate(d); setViewMode('dia') }}
         />
       )}
       {viewMode === 'dia' && (
         <DayView
-          tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete}
+          tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete} onOpenExternal={onOpenExternal}
           selectedDate={selectedDate} onChangeDate={setSelectedDate}
         />
       )}
       {viewMode === 'semana' && (
         <WeekView
-          tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete}
+          tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete} onOpenExternal={onOpenExternal}
           selectedDate={selectedDate} onChangeDate={setSelectedDate}
         />
       )}
@@ -342,7 +391,7 @@ function CalendarView({ tasks, canEdit, onAdd, onMove, onDelete }) {
   )
 }
 
-function MonthView({ tasks, canEdit, onAdd, onMove, onDelete, onSelectDay }) {
+function MonthView({ tasks, canEdit, onAdd, onMove, onDelete, onOpenExternal, onSelectDay }) {
   const [month, setMonth] = useState(() => {
     const d = new Date()
     return new Date(d.getFullYear(), d.getMonth(), 1)
@@ -412,7 +461,12 @@ function MonthView({ tasks, canEdit, onAdd, onMove, onDelete, onSelectDay }) {
             <div key={idx} className={`calendar-cell ${isToday ? 'calendar-cell--today' : ''}`}>
               <button className="calendar-cell-day" onClick={() => onSelectDay(new Date(year, monthIdx, d))} title="Ver día">{d}</button>
               <div className="calendar-cell-tasks">
-                {dayTasks.map(task => (
+                {dayTasks.map(task => task._external ? (
+                  <div key={task.id} className="calendar-task calendar-task--external" onClick={() => onOpenExternal(task)} role="button">
+                    <span className="agenda-external-badge">{task._workspaceName}</span>
+                    <span className="calendar-task-title">{task.title}</span>
+                  </div>
+                ) : (
                   <div key={task.id} className={`calendar-task ${task.status === 'done' ? 'done' : ''}`}>
                     <input
                       type="checkbox"
@@ -450,7 +504,7 @@ function MonthView({ tasks, canEdit, onAdd, onMove, onDelete, onSelectDay }) {
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
-function AllDayRow({ dates, tasks, canEdit, onAdd, onDelete, onMove }) {
+function AllDayRow({ dates, tasks, canEdit, onAdd, onDelete, onMove, onOpenExternal }) {
   const [addingDate, setAddingDate] = useState(null)
   const [addingTitle, setAddingTitle] = useState('')
 
@@ -469,7 +523,12 @@ function AllDayRow({ dates, tasks, canEdit, onAdd, onDelete, onMove }) {
         const dayTasks = tasks.filter(t => t.due_date === dStr && !t.due_time)
         return (
           <div key={dStr} className="allday-cell">
-            {dayTasks.map(task => (
+            {dayTasks.map(task => task._external ? (
+              <div key={task.id} className="calendar-task calendar-task--external" onClick={() => onOpenExternal(task)} role="button">
+                <span className="agenda-external-badge">{task._workspaceName}</span>
+                <span className="calendar-task-title">{task.title}</span>
+              </div>
+            ) : (
               <div key={task.id} className={`calendar-task ${task.status === 'done' ? 'done' : ''}`}>
                 <input
                   type="checkbox"
@@ -510,7 +569,7 @@ function HourGutter() {
 
 // Columna de un día en la grilla horaria — se reusa tal cual en Día (una
 // sola, ancha) y en Semana (7, angostas, una al lado de la otra).
-function TimeColumn({ date, tasks, canEdit, onAdd, onMove, onDelete }) {
+function TimeColumn({ date, tasks, canEdit, onAdd, onMove, onDelete, onOpenExternal }) {
   const [addingTime, setAddingTime] = useState(null)
   const [addingTitle, setAddingTitle] = useState('')
   const [addingEnd, setAddingEnd] = useState('')
@@ -554,6 +613,24 @@ function TimeColumn({ date, tasks, canEdit, onAdd, onMove, onDelete }) {
         const height = Math.max(((timeToMinutes(task._end) - timeToMinutes(task.due_time)) / 60) * HOUR_HEIGHT, MIN_BLOCK_HEIGHT)
         const widthPct = 100 / task._cols
         const leftPct = widthPct * task._col
+        if (task._external) {
+          return (
+            <div
+              key={task.id}
+              className="time-block time-block--external"
+              style={{ top, height, left: `${leftPct}%`, width: `calc(${widthPct}% - 3px)` }}
+              onClick={e => { e.stopPropagation(); onOpenExternal(task) }}
+              role="button"
+              title={`${task.due_time.slice(0, 5)}–${task._end.slice(0, 5)} · ${task.title} · ${task._workspaceName}`}
+            >
+              <span className="time-block-body">
+                <span className="time-block-time">{task.due_time.slice(0, 5)}</span>
+                <span className="time-block-title">{task.title}</span>
+                <span className="agenda-external-badge">{task._workspaceName}</span>
+              </span>
+            </div>
+          )
+        }
         return (
           <div
             key={task.id}
@@ -640,7 +717,7 @@ function QuickAddPanel({ defaultDate, onAdd, onClose }) {
   )
 }
 
-function DayView({ tasks, canEdit, onAdd, onMove, onDelete, selectedDate, onChangeDate }) {
+function DayView({ tasks, canEdit, onAdd, onMove, onDelete, onOpenExternal, selectedDate, onChangeDate }) {
   const scrollRef = useRef(null)
   const [showQuickAdd, setShowQuickAdd] = useState(false)
 
@@ -664,12 +741,12 @@ function DayView({ tasks, canEdit, onAdd, onMove, onDelete, selectedDate, onChan
         <QuickAddPanel defaultDate={selectedDate} onAdd={onAdd} onClose={() => setShowQuickAdd(false)} />
       )}
 
-      <AllDayRow dates={[selectedDate]} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onDelete={onDelete} onMove={onMove} />
+      <AllDayRow dates={[selectedDate]} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onDelete={onDelete} onMove={onMove} onOpenExternal={onOpenExternal} />
 
       <div className="time-grid-scroll" ref={scrollRef}>
         <div className="time-grid-inner">
           <HourGutter />
-          <TimeColumn date={selectedDate} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete} />
+          <TimeColumn date={selectedDate} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete} onOpenExternal={onOpenExternal} />
         </div>
       </div>
     </div>
@@ -678,7 +755,7 @@ function DayView({ tasks, canEdit, onAdd, onMove, onDelete, selectedDate, onChan
 
 const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
-function WeekView({ tasks, canEdit, onAdd, onMove, onDelete, selectedDate, onChangeDate }) {
+function WeekView({ tasks, canEdit, onAdd, onMove, onDelete, onOpenExternal, selectedDate, onChangeDate }) {
   const scrollRef = useRef(null)
   const [showQuickAdd, setShowQuickAdd] = useState(false)
   const weekStart = startOfWeek(selectedDate)
@@ -715,14 +792,14 @@ function WeekView({ tasks, canEdit, onAdd, onMove, onDelete, selectedDate, onCha
         ))}
       </div>
 
-      <AllDayRow dates={days} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onDelete={onDelete} onMove={onMove} />
+      <AllDayRow dates={days} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onDelete={onDelete} onMove={onMove} onOpenExternal={onOpenExternal} />
 
       <div className="time-grid-scroll" ref={scrollRef}>
         <div className="time-grid-inner">
           <HourGutter />
           <div className="time-grid-week-cols">
             {days.map((d, i) => (
-              <TimeColumn key={i} date={d} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete} />
+              <TimeColumn key={i} date={d} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete} onOpenExternal={onOpenExternal} />
             ))}
           </div>
         </div>

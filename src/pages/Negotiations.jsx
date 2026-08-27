@@ -33,6 +33,8 @@ import { lowActivityWindow, isLowActivityAlert } from '../lib/lowActivity'
 import { sumMilestonesByCurrency } from '../lib/pipeline'
 import { isOwner, canEditContent, isPrivileged as isPrivilegedRole } from '../lib/roles'
 import { withOwnerApproval } from '../lib/staffActions'
+import { applyPlaybook } from '../lib/playbooks'
+import LogMeetingModal from '../components/LogMeetingModal'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
@@ -278,7 +280,7 @@ export default function Negotiations() {
     setMilestones(milestonesRes.data || [])
 
     const negIds = negsRes.data.map(n => n.id)
-    const [{ data: negEntities }, { data: negProducts }, { data: negNotes }, { data: pendingTasks }] = await Promise.all([
+    const [{ data: negEntities }, { data: negProducts }, { data: negNotes }, { data: pendingTasks }, { data: statusChanges }] = await Promise.all([
       supabase
         .from('negotiation_entities')
         .select('negotiation_id, entity_id, role, entity:entity_id(id, name, country_code, entity_type_id)')
@@ -299,8 +301,22 @@ export default function Negotiations() {
         .select('negotiation_id')
         .in('negotiation_id', negIds)
         .in('status', ['pending', 'in_progress']),
+      // Para el contador "días en este estado" — mismo criterio que el
+      // Dashboard (última vez que cambió de estado, o desde que se creó si
+      // nunca cambió), pero acá por proyecto en vez de promediado.
+      supabase
+        .from('activity_log')
+        .select('negotiation_id, created_at')
+        .eq('workspace_id', workspaceId)
+        .eq('type', 'status_changed')
+        .in('negotiation_id', negIds),
     ])
     const negIdsWithPendingTasks = new Set((pendingTasks || []).map(t => t.negotiation_id))
+    const lastStatusChangeByNeg = {}
+    for (const row of statusChanges || []) {
+      const prev = lastStatusChangeByNeg[row.negotiation_id]
+      if (!prev || row.created_at > prev) lastStatusChangeByNeg[row.negotiation_id] = row.created_at
+    }
 
     const combined = negsRes.data.map(neg => ({
       ...neg,
@@ -308,6 +324,7 @@ export default function Negotiations() {
       negotiation_products: (negProducts || []).filter(np => np.negotiation_id === neg.id),
       notes_list: (negNotes || []).filter(n => n.negotiation_id === neg.id),
       has_pending_tasks: negIdsWithPendingTasks.has(neg.id),
+      status_since: lastStatusChangeByNeg[neg.id] || neg.created_at,
     }))
 
     setNegotiations(combined)
@@ -867,6 +884,20 @@ export default function Negotiations() {
   )
 }
 
+// Días en el estado actual — última vez que cambió de estado
+// (`neg.status_since`, calculado en fetchAll) o desde que se creó si nunca
+// cambió. `null` si todavía no llegó ese dato (fetch en curso).
+function daysInState(neg) {
+  if (!neg.status_since) return null
+  return Math.floor((Date.now() - new Date(neg.status_since).getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function StatusDaysBadge({ neg }) {
+  const days = daysInState(neg)
+  if (days === null) return null
+  return <span className="neg-status-days" title="Días en este estado">{days === 0 ? 'hoy' : `${days}d`}</span>
+}
+
 // Editor de columnas — drag & drop para reordenar, toggle para mostrar/ocultar
 // Render de una celda según el key de columna
 function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members) {
@@ -898,7 +929,7 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
     case 'products':
       return <td key={key}>{getProductName(neg)}</td>
     case 'status':
-      return <td key={key}><span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span></td>
+      return <td key={key}><span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span> <StatusDaysBadge neg={neg} /></td>
     case 'companies':
       return (
         <td key={key}>
@@ -1087,7 +1118,10 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
               <span className="card-tile-number">#{neg.display_number}</span>
               {actIcon && <span className={`neg-paused-icon ${neg.activity_status === 'inactive' ? 'neg-icon-inactive' : 'neg-icon-paused'}`}>{actIcon}</span>}
             </>}
-            headerRight={<span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>}
+            headerRight={<>
+              <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span>
+              <StatusDaysBadge neg={neg} />
+            </>}
             footer={fields.length > 0 ? fields : null}
             selected={selectedIds.has(neg.id)}
             showCheckbox
@@ -1343,6 +1377,8 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
   const [error, setError] = useState(null)
   const [fieldOrder, setFieldOrder] = useState(null)
   const [financialConfig, setFinancialConfig] = useState(resolveFinancialConfig(null))
+  const [playbooks, setPlaybooks] = useState([])
+  const [playbookId, setPlaybookId] = useState('')
 
   useEffect(() => {
     supabase.from('workspaces').select('field_order, financial_config').eq('id', workspaceId).single()
@@ -1350,6 +1386,12 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
         setFieldOrder(data?.field_order || {})
         setFinancialConfig(resolveFinancialConfig(data?.financial_config))
       })
+    // El playbook solo tiene sentido al crear (un proyecto ya existente lo
+    // aplica desde su pestaña de Tareas, no re-entrando a este modal).
+    if (!initial) {
+      supabase.from('task_playbooks').select('id, name').eq('workspace_id', workspaceId).order('sort_order')
+        .then(({ data }) => setPlaybooks(data || []))
+    }
   }, [workspaceId])
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
@@ -1471,6 +1513,14 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
           workspaceId, negotiationId: negId, type: 'project_created',
           title: `Proyecto "${row.product || row.title}" creado`, actorId: userId,
         })
+        if (playbookId) {
+          const playbookName = playbooks.find(p => p.id === playbookId)?.name
+          await applyPlaybook(supabase, { playbookId, workspaceId, negotiationId: negId, userId })
+          await logActivity(supabase, {
+            workspaceId, negotiationId: negId, type: 'playbook_applied',
+            title: `Playbook aplicado: "${playbookName || ''}"`, actorId: userId,
+          })
+        }
       }
     }
     if (negId) {
@@ -1767,6 +1817,16 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
             )}
           </div>
 
+          {!initial && playbooks.length > 0 && (
+            <div className="form-group">
+              <label>PLAYBOOK (opcional)</label>
+              <select className="neg-newtask-select" style={{ width: '100%' }} value={playbookId} onChange={e => setPlaybookId(e.target.value)}>
+                <option value="">Sin playbook — cargar tareas a mano</option>
+                {playbooks.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+          )}
+
           <div className="form-group">
             <label>TAREAS INICIALES</label>
             <div className="neg-newtask-row">
@@ -1819,7 +1879,33 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   }
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [tasks, setTasks] = useState([])
+  const [playbooks, setPlaybooks] = useState([])
+  const [showPlaybookPicker, setShowPlaybookPicker] = useState(false)
+  const [applyingPlaybookId, setApplyingPlaybookId] = useState('')
+  const [applyingPlaybook, setApplyingPlaybook] = useState(false)
+
+  useEffect(() => {
+    supabase.from('task_playbooks').select('id, name').eq('workspace_id', workspaceId).order('sort_order')
+      .then(({ data }) => setPlaybooks(data || []))
+  }, [workspaceId])
+
+  async function handleApplyPlaybook() {
+    if (!applyingPlaybookId) return
+    setApplyingPlaybook(true)
+    const playbookName = playbooks.find(p => p.id === applyingPlaybookId)?.name
+    await applyPlaybook(supabase, { playbookId: applyingPlaybookId, workspaceId, negotiationId: neg.id, userId: myUserId })
+    await logActivity(supabase, {
+      workspaceId, negotiationId: neg.id, type: 'playbook_applied',
+      title: `Playbook aplicado: "${playbookName || ''}"`, actorId: myUserId,
+    })
+    setApplyingPlaybook(false)
+    setShowPlaybookPicker(false)
+    setApplyingPlaybookId('')
+    fetchTasks()
+    setActivityRefresh(v => v + 1)
+  }
   const [showTaskModal, setShowTaskModal] = useState(false)
+  const [showLogMeeting, setShowLogMeeting] = useState(false)
   const [activityRefresh, setActivityRefresh] = useState(0)
   const [activityStatus, setActivityStatus] = useState(neg.activity_status || 'active')
   const [closeConfirmationStatus, setCloseConfirmationStatus] = useState(neg.close_confirmation_status || null)
@@ -2049,6 +2135,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
               ) : (
                 <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{inlineStatus}</span>
               )}
+              <StatusDaysBadge neg={neg} />
             </div>
             {customFieldError && <p className="form-error">{customFieldError}</p>}
 
@@ -2279,6 +2366,11 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
 
             {activeTab === 'actividad' && (
               <div className="neg-tab-panel">
+                {canNote && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+                    <button className="neg-add-task-btn" onClick={() => setShowLogMeeting(true)}>📞 Registrar / Programar</button>
+                  </div>
+                )}
                 <ActivityTimeline negotiationId={neg.id} refreshKey={activityRefresh} />
               </div>
             )}
@@ -2289,8 +2381,24 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                   onChanged={() => { setActivityRefresh(v => v + 1); onNotesChanged?.() }} contextLabel={neg.product || neg.title} />
                 <div className="neg-tasks-header">
                   <div className="detail-section-title">TAREAS ({tasks.length})</div>
-                  {canTask && <button className="neg-add-task-btn" onClick={() => setShowTaskModal(true)}>+ Nueva tarea</button>}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {canTask && playbooks.length > 0 && (
+                      <button className="neg-add-task-btn" onClick={() => setShowPlaybookPicker(v => !v)}>📋 Aplicar playbook</button>
+                    )}
+                    {canTask && <button className="neg-add-task-btn" onClick={() => setShowTaskModal(true)}>+ Nueva tarea</button>}
+                  </div>
                 </div>
+                {showPlaybookPicker && (
+                  <div className="neg-newtask-row" style={{ marginBottom: 10 }}>
+                    <select className="neg-newtask-select" style={{ flex: 1 }} value={applyingPlaybookId} onChange={e => setApplyingPlaybookId(e.target.value)}>
+                      <option value="">Elegí un playbook...</option>
+                      {playbooks.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <button type="button" className="btn-secondary" disabled={!applyingPlaybookId || applyingPlaybook} onClick={handleApplyPlaybook}>
+                      {applyingPlaybook ? 'Aplicando...' : 'Aplicar'}
+                    </button>
+                  </div>
+                )}
                 {tasks.length === 0 ? (
                   <p className="detail-empty">Sin tareas todavía.</p>
                 ) : (() => {
@@ -2401,6 +2509,15 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
       )}
       {showTaskModal && (
         <TaskModalInline negotiationId={neg.id} onClose={() => setShowTaskModal(false)} onCreated={() => { fetchTasks(); setActivityRefresh(v => v + 1) }} />
+      )}
+      {showLogMeeting && (
+        <LogMeetingModal
+          workspaceId={workspaceId}
+          negotiationId={neg.id}
+          members={members}
+          onClose={() => setShowLogMeeting(false)}
+          onSaved={() => { fetchTasks(); setActivityRefresh(v => v + 1) }}
+        />
       )}
     </div>
   )

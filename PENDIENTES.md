@@ -14,12 +14,32 @@
 
 **Principio que ordena las fases** (ya venía de la sesión de repensada estratégica del 2026-07-06, sigue vigente): ¿esto mejora el producto de hoy además de servir a la visión larga (CRM robusto para PyMEs, después ERP)? Si una feature solo se justifica por el ERP imaginario del futuro, no se construye todavía. Una sola app, un solo backbone — nunca reconstruir aparte.
 
+---
+
+## 🔍 AUDITORÍA CRM CORE (2026-08-27) — cerrando los gaps encontrados vs. un CRM maduro
+
+Tras la auditoría integral (Nerva vs. CRM hecho y derecho, [informe completo](https://claude.ai/code/artifact/e5c66494-941d-4135-a2df-98b18b0e0b65)), se arrancó por CRM Core. Ya cerrado en esta sesión:
+
+- [x] **Búsqueda global — la auditoría se equivocó**: ya existe y funciona (`GlobalSearch.jsx`, en el header de `Layout.jsx`), cubre proyectos/entidades/productos/contactos/tareas/notas/documentos, con resultados agrupados y navegación directa. No hacía falta construir nada, la corrección quedó anotada acá para no repetir el error.
+- [x] **Ícono de WhatsApp real** en el contacto de Entidades (antes emoji 💬 genérico, ahora el logo real en SVG inline) — `Entities.jsx`.
+- [x] **Orden de las vistas Tabla/Mosaico, unificado**: Productos y Entidades tenían Mosaico primero (Negociaciones ya tenía Tabla primero) — ahora los 3 usan el mismo orden. El default ya era "Tabla" en los 3 (salvo mobile), no hizo falta tocar eso.
+- [x] **Contador "días en este estado" por proyecto**: mismo cálculo que ya usaba el Dashboard (última vez que cambió de estado según `activity_log`, o desde que se creó si nunca cambió) pero ahora también por proyecto individual — badge chico junto al estado en Tabla, Mosaico y el header del detalle (`neg.status_since`, calculado en `fetchAll`, `StatusDaysBadge` en `Negotiations.jsx`).
+- [x] **Playbooks (tareas recurrentes)**: cada workspace arma su rutina habitual (ej. "Onboarding proveedor nuevo") como una lista de tareas con offset de días desde que se aplica. Se elige opcionalmente al crear un proyecto, o se aplica después las veces que haga falta desde su pestaña Tareas ("📋 Aplicar playbook"). CRUD en `Configuración → Proyectos → Playbooks`. Tablas `task_playbooks`/`task_playbook_items` (RLS simple, mismo criterio que `custom_states`), helper `src/lib/playbooks.js`.
+- [x] **Registrar/Programar llamada y reunión**: trigger manual (botón "📞 Registrar / Programar" en la pestaña Actividad de Proyecto y Entidad) — "Ya pasó" loguea directo a `activity_log` (tipos `call_logged`/`meeting_logged`, con ícono propio en `ActivityTimeline`); "Programar" crea una tarea real con fecha/hora (aparece en Tareas y en la Agenda). `LogMeetingModal.jsx`. Deliberadamente manual — el log automático por integración de Microsoft/Google Calendar queda para cuando exista esa conexión (ver Fase B, "Qué dejamos afuera a propósito").
+- [x] **Workspace personal como agenda unificada**: Agenda ahora trae también (de solo lectura) todo lo asignado al usuario en sus workspaces de equipo — mezclado en Tablero/Calendario junto a lo personal, con badge violeta del nombre del workspace y click que cambia de workspace activo y navega al proyecto/entidad de origen. No se edita/completa desde acá a propósito (evita duplicar permisos por rol) — "bajar a tierra" lo pendiente, no reemplazar el detalle. `Agenda.jsx`, tasks fetch cross-workspace filtrado por `assigned_to`.
+
+**Revisión pendiente, a pedido explícito del usuario** (no se tocó el código, falta que el usuario precise qué no le cierra de cada uno — ver nota en Fase A más abajo): Valor monetario del deal, Comisión, Historial de precios — "la idea es buena pero hay que pulirlo".
+
 ### Fase A — Cerrar lo abierto + cimientos baratos
 - [x] **Dashboard real (2026-08-17)**: pipeline por etapa (valor de hitos de pago por estado no-terminal, por moneda), tiempo en etapa actual (promedio de días desde el último cambio de estado, vía `activity_log`), y tasa de cierre (% total que llegó a estado final + desglose por tipo de entidad vinculada). Deliberadamente sin "forecast" en $ — mezclaría Ganado/Perdido porque `custom_states` no tiene ese dato estructurado (`is_terminal`, no `is_won`); se puede sumar cuando exista esa distinción
 - [x] **Capa de Organización a nivel de dato (2026-08-17)**: tabla `organizations` + `workspaces.organization_id` (nullable, aditivo) + RLS de solo-lectura (mismo criterio `my_workspace_ids()` que el resto de la app) — aplicado en producción, sin UI todavía (ningún workspace tiene `organization_id` seteado). El flujo para armar/asignar una organización se construye en la Fase D, junto con el dashboard unificado que lo va a usar
 - [x] Módulo de Productos — confirmado 2026-08-17 contra la base real: tablas, seeds y `primary_product_id` ya estaban aplicados en ambos workspaces de equipo (Testing y Conderco). La nota de "SQL pendiente" estaba desactualizada
 - [x] Pestañas huérfanas de Estados en Entidades/Tareas — confirmado 2026-08-17 que ya se habían resuelto (ver nota en la sección correspondiente más abajo), no había nada pendiente de decidir
 - [ ] Panel de Settings puntual para el módulo Financiero (mencionado al cerrar Comisión, deferred a propósito)
+- [ ] **Revisión pendiente del módulo Financiero completo (2026-08-27, pedido explícito del usuario tras auditar Nerva vs. un CRM maduro)** — el usuario marcó los tres como "la idea es buena, pero hay que pulirlo/revisarlo", sin especificar el detalle todavía. Antes de tocar nada acá, preguntarle específicamente qué no le cierra de cada uno:
+  - **Valor monetario del deal** (`deal_milestones` — hitos libres con nombre/monto/fecha o `timing_note`, admite negativos)
+  - **Comisión** (`negotiation_price_history.commission_pct` + flujo de aprobación por umbral, ver "Motor de aprobaciones" en Fase B) — "la idea es buena, pero nos falta pulirlo"
+  - **Historial de precios** (`negotiation_price_history` — cotización por fecha con múltiples presentaciones/líneas, `PriceHistory.jsx`) — "está bien, pero le falta una vuelta de tuerca, hay detalles que no me terminan de cerrar"
 
 ### Fase B — Actividad automática + el diferencial de gobernanza
 - [ ] **MVP de captura de actividad por mail (2026-08-17, construido — faltan 2 pasos manuales del usuario para activarlo)**: CCeás `log@gonerva.com` en un mail a un contacto ya cargado en Nerva, y queda logueado en la bitácora de esa entidad. Deliberadamente vía CC, no forward (headers estructurados, matcheo confiable) — no es el sync OAuth completo de Gmail/Outlook (ver "Qué dejamos afuera a propósito").

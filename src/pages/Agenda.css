@@ -629,3 +629,29 @@
   .hour-gutter-label { font-size: 9px; padding: 2px 4px; }
   .time-block { font-size: 9px; }
 }
+
+/* Tareas "externas" — asignadas en un workspace de equipo, mostradas acá
+   de solo lectura (bajan a tierra lo pendiente en todos lados). Se
+   distinguen con un tinte violeta (vs. el azul de lo local) + badge con
+   el nombre del workspace; clickear navega al proyecto/entidad de origen. */
+.agenda-external-badge {
+  font-size: 9px;
+  font-weight: 600;
+  color: #7c3aed;
+  background: #f3e8ff;
+  padding: 1px 6px;
+  border-radius: 99px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.kanban-card--external, .calendar-task--external, .time-block--external {
+  cursor: pointer;
+  background: #faf5ff;
+  border-color: #e9d5ff;
+}
+.kanban-card--external:hover, .calendar-task--external:hover, .time-block--external:hover {
+  border-color: #c4b5fd;
+}
+.today-widget-item--external { cursor: pointer; }
+.today-widget-item--external .today-widget-content { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

@@ -392,8 +392,8 @@ export default function Products() {
           <button type="button" className="clear-filters-btn" onClick={clearAllFilters}>✕ Limpiar filtros</button>
         )}
         <div className="neg-view-toggle">
-          <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Mosaico"><LayoutGrid size={15} /></button>
           <button className={`neg-view-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')} title="Tabla"><Table2 size={15} /></button>
+          <button className={`neg-view-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')} title="Mosaico"><LayoutGrid size={15} /></button>
         </div>
         {view === 'cards' && (
           <div className="neg-sort-select">

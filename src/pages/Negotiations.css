@@ -745,6 +745,13 @@
   flex-shrink: 0;
 }
 
+.neg-status-days {
+  font-size: 10.5px;
+  color: #9ca3af;
+  white-space: nowrap;
+  margin-left: 2px;
+}
+
 .neg-nda-badge { font-size: 11px; color: #6b7280; }
 
 .neg-chips { display: flex; flex-wrap: wrap; gap: 4px; }

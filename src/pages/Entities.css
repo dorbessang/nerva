@@ -520,6 +520,7 @@
 
 .contact-detail:hover { color: #0B1F3A; }
 .contact-icon { font-size: 13px; width: 18px; text-align: center; }
+.contact-icon--whatsapp { display: inline-flex; align-items: center; justify-content: center; }
 
 .contact-notes {
   font-size: 12px;
