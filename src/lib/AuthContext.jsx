@@ -3,6 +3,22 @@ import { supabase } from './supabase'
 
 const AuthContext = createContext(null)
 
+// Vencimiento de sesión por inactividad: Supabase por default no tiene
+// techo (persistSession + autoRefreshToken renuevan solo, para siempre) —
+// esto lo agrega a mano. `nerva_last_active` se refresca cada 60s mientras
+// la pestaña sigue abierta (y al recuperar foco); si queda cerrada/dormida,
+// el timestamp se congela ahí. Al volver a abrir la app, si pasó más de
+// SESSION_INACTIVITY_MS desde ese último timestamp, se cierra la sesión
+// antes de restaurarla — 8hs elegidas explícitamente por el usuario para
+// que abrir a la mañana siguiente (más de una noche de por medio) siempre
+// pida loguearse de nuevo, sin interrumpir una pausa normal en el mismo día.
+const LAST_ACTIVE_KEY = 'nerva_last_active'
+const SESSION_INACTIVITY_MS = 8 * 60 * 60 * 1000
+
+function touchLastActive() {
+  localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()))
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [session, setSession] = useState(null)
@@ -15,12 +31,26 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    async function init() {
+      const lastActive = Number(localStorage.getItem(LAST_ACTIVE_KEY) || 0)
+      if (lastActive && Date.now() - lastActive > SESSION_INACTIVITY_MS) {
+        await supabase.auth.signOut()
+      }
+      touchLastActive()
+      const { data: { session } } = await supabase.auth.getSession()
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) fetchWorkspaces(session.user.id)
       else setLoading(false)
-    })
+    }
+    init()
+
+    // Mientras la pestaña siga abierta, el heartbeat mantiene el timestamp
+    // al día — cerrar la app (o que quede dormida) lo congela, que es
+    // justo la señal que init() usa para decidir si venció.
+    const heartbeat = setInterval(touchLastActive, 60 * 1000)
+    function onVisible() { if (document.visibilityState === 'visible') touchLastActive() }
+    document.addEventListener('visibilitychange', onVisible)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
@@ -54,7 +84,11 @@ export function AuthProvider({ children }) {
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      clearInterval(heartbeat)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [])
 
   async function fetchWorkspaces(userId) {
