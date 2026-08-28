@@ -235,7 +235,7 @@ function TabPlaybooks({ workspaceId }) {
       <div className="settings-block">
         <div className="settings-block-title-row">
           <h2 className="settings-block-title">Playbooks</h2>
-          <InfoTooltip text='Una rutina de tareas que este workspace usa siempre (o casi siempre) al arrancar algo nuevo — ej. "Onboarding proveedor nuevo". Cada tarea puede llevar un offset de días (desde que se aplica el playbook); si lo dejás vacío, la tarea queda sin fecha. Se puede elegir al crear un proyecto, o aplicar después desde su pestaña de Tareas, las veces que haga falta.' />
+          <InfoTooltip text='Una rutina de tareas que este workspace usa siempre (o casi siempre) al arrancar algo nuevo — ej. "Onboarding proveedor nuevo". Cada tarea puede llevar un offset de días (desde que se aplica el playbook); si lo dejás vacío, la tarea queda sin fecha. Se puede elegir al crear un proyecto, o aplicar después desde su pestaña de Tareas, las veces que haga falta. Las tareas quedan sin asignar — se le asigna a alguien después, desde el proyecto.' />
         </div>
 
         {playbooks.length === 0 && <p className="detail-empty">Sin playbooks todavía.</p>}

@@ -26,7 +26,11 @@ export async function applyPlaybook(supabase, { playbookId, workspaceId, negotia
       status: 'pending',
       priority: item.priority || 'medium',
       due_date: dueDate,
-      assigned_to: userId || null,
+      // Sin asignar por default -- el playbook es una plantilla genérica
+      // (no sabe de antemano quién va a llevar ESTE proyecto puntual), a
+      // diferencia de "creado por", que sí es real: quien aplicó el
+      // playbook, para trazabilidad.
+      assigned_to: null,
       created_by: userId || null,
     }
   })
