@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 
 const AuthContext = createContext(null)
@@ -29,6 +29,7 @@ export function AuthProvider({ children }) {
   const [workspaceId, setWorkspaceId] = useState(null)
   const [workspaces, setWorkspaces] = useState([])
   const [loading, setLoading] = useState(true)
+  const lastUserIdRef = useRef(null)
 
   useEffect(() => {
     async function init() {
@@ -38,6 +39,7 @@ export function AuthProvider({ children }) {
       }
       touchLastActive()
       const { data: { session } } = await supabase.auth.getSession()
+      lastUserIdRef.current = session?.user?.id ?? null
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) fetchWorkspaces(session.user.id)
@@ -55,15 +57,22 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
-      // TOKEN_REFRESHED dispara solo (sin acción del usuario) cada vez que
-      // la pestaña/ventana recupera el foco — Supabase renueva el token
-      // solo. Antes esto igual pasaba por el branch de abajo, poniendo
-      // loading=true un instante: ProtectedRoute desmonta <Layout> mientras
-      // tanto, y con eso se perdía cualquier estado local de la pantalla
-      // (ej. la pestaña activa en Configuración/Perfil volvía siempre a la
-      // primera). Nada cambió realmente (misma sesión, mismo usuario), así
-      // que no hace falta recargar profile/workspaces ni mostrar "Cargando".
-      if (event === 'TOKEN_REFRESHED') return
+      // Supabase reemite eventos (TOKEN_REFRESHED, y en ciertas versiones
+      // también SIGNED_IN) cada vez que la pestaña/ventana recupera el
+      // foco, aunque sea EXACTAMENTE la misma sesión — no solo al refrescar
+      // el token. Filtrar por nombre de evento (como se hacía antes, solo
+      // para TOKEN_REFRESHED) dejaba pasar los demás reintentos silenciosos
+      // igual: el branch de abajo ponía loading=true un instante,
+      // ProtectedRoute desmontaba <Layout>, y con eso se perdía cualquier
+      // estado local de la pantalla (pestaña activa en Configuración,
+      // sub-tab de un módulo, un modal de detalle abierto, lo que sea) —
+      // en cualquier parte de la app, no solo donde se había parcheado a
+      // mano. El chequeo real, más robusto, es si el usuario efectivamente
+      // cambió — no el nombre del evento.
+      const newUserId = session?.user?.id ?? null
+      const sameUser = !!newUserId && newUserId === lastUserIdRef.current
+      lastUserIdRef.current = newUserId
+      if (sameUser) return
       if (session?.user) {
         // Vuelve a "cargando" (y limpia el profile viejo) apenas cambia la
         // sesión — sin esto, un cambio de sesión en la misma pestaña (ej. el

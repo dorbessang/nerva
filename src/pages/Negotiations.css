@@ -1955,16 +1955,32 @@
 
 .entity-search-input:focus { border-color: #0B1F3A; }
 
+.entity-combobox-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #EFF6FF;
+  border: 1px solid #bfdbfe;
+  border-radius: 7px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+
+.entity-combobox-selected-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1D4ED8;
+}
+
 .entity-combobox-clear {
-  display: block;
-  margin-top: 4px;
   background: none;
   border: none;
-  color: #6b7280;
-  font-size: 12px;
+  color: #1D4ED8;
+  font-size: 13px;
   cursor: pointer;
-  padding: 0;
-  text-align: left;
+  padding: 0 2px;
+  flex-shrink: 0;
 }
 .entity-combobox-clear:hover { color: #DC2626; }
 

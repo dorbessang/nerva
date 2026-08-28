@@ -341,6 +341,20 @@
 .playbook-item-offset { width: 90px; flex-shrink: 0; padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; }
 .playbook-item-priority { flex-shrink: 0; padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; background: #fff; }
 .playbook-add-item-btn { align-self: flex-start; margin-top: 4px; }
+.playbook-item-row--header {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.playbook-item-row--header .playbook-item-title,
+.playbook-item-row--header .playbook-item-offset,
+.playbook-item-row--header .playbook-item-priority {
+  border: none;
+  padding: 0 10px;
+  background: none;
+}
 .settings-add-row { display: flex; gap: 8px; align-items: center; }
 .settings-add-row input[type="text"] { flex: 1; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; }
 
@@ -482,6 +496,14 @@
   border-radius: 7px;
   overflow: hidden;
 }
+
+.log-meeting-toggles {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.log-meeting-toggles .settings-type-toggle { flex: 1; }
+.log-meeting-toggles .settings-toggle-btn { flex: 1; text-align: center; }
 
 .settings-toggle-btn {
   background: #ffffff;

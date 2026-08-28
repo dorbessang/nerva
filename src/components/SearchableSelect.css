@@ -21,6 +21,13 @@
 .searchable-select-input:focus { border-color: #0B1F3A; }
 .searchable-select-input:disabled { background: #f3f4f6; color: #9ca3af; cursor: not-allowed; }
 
+.searchable-select--filled .searchable-select-input {
+  background: #EFF6FF;
+  border-color: #bfdbfe;
+  color: #1D4ED8;
+  font-weight: 600;
+}
+
 .searchable-select-dropdown {
   position: absolute;
   top: calc(100% + 4px);

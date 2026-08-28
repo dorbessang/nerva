@@ -210,7 +210,10 @@ function TabPlaybooks({ workspaceId }) {
   async function handleAddItem(playbookId) {
     const playbook = playbooks.find(p => p.id === playbookId)
     await supabase.from('task_playbook_items').insert({
-      playbook_id: playbookId, title: 'Nueva tarea', days_offset: 0, sort_order: playbook.items.length,
+      // days_offset arranca sin valor (no 0) — 0 y "sin fecha" son cosas
+      // distintas (0 = "el mismo día que se aplica"), no hay que forzar
+      // ninguna de las dos por default.
+      playbook_id: playbookId, title: 'Nueva tarea', days_offset: null, sort_order: playbook.items.length,
     })
     fetchPlaybooks()
   }
@@ -245,6 +248,14 @@ function TabPlaybooks({ workspaceId }) {
                 <button className="neg-milestone-delete" title="Eliminar playbook" onClick={() => handleDelete(pb.id)}>✕</button>
               </div>
               <div className="playbook-items">
+                {pb.items.length > 0 && (
+                  <div className="playbook-item-row playbook-item-row--header">
+                    <span className="playbook-item-title">Tarea</span>
+                    <span className="playbook-item-offset">Días</span>
+                    <span className="playbook-item-priority">Prioridad</span>
+                    <span style={{ width: 22 }} />
+                  </div>
+                )}
                 {pb.items.map(item => (
                   <div key={item.id} className="playbook-item-row">
                     <input

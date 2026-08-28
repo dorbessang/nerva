@@ -1262,19 +1262,22 @@ function EntityTypeCombobox({ entityType, allEntities, workspaceId, value, onSel
 
   return (
     <div className="entity-combobox">
+      {selected && (
+        <div className="entity-combobox-selected">
+          <span className="entity-combobox-selected-name">✓ {selected.name}</span>
+          <button type="button" className="entity-combobox-clear" onMouseDown={() => onSelect('')} title="Quitar">✕</button>
+        </div>
+      )}
       <input
         type="text"
         className="entity-search-input"
-        placeholder={selected ? selected.name : 'Buscar o crear...'}
+        placeholder={selected ? 'Cambiar...' : 'Buscar o crear...'}
         value={search}
         autoComplete="off"
         onChange={e => setSearch(e.target.value)}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
       />
-      {selected && !search && (
-        <button type="button" className="entity-combobox-clear" onMouseDown={() => onSelect('')} title="Quitar">✕ {selected.name}</button>
-      )}
       {open && (
         <div className="entity-dropdown">
           <div className="entity-dropdown-option" onMouseDown={() => { onSelect(''); setSearch(''); setOpen(false) }}>Sin asignar</div>

@@ -71,16 +71,14 @@ export default function LogMeetingModal({ workspaceId, negotiationId, entityId, 
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">
-          <div className="settings-type-toggle" style={{ marginBottom: 14 }}>
-            <button type="button" className={`settings-toggle-btn ${mode === 'log' ? 'active' : ''}`} onClick={() => setMode('log')}>Ya pasó</button>
-            <button type="button" className={`settings-toggle-btn ${mode === 'schedule' ? 'active' : ''}`} onClick={() => setMode('schedule')}>Programar</button>
-          </div>
-
-          <div className="form-group">
-            <label>TIPO</label>
+          <div className="log-meeting-toggles">
             <div className="settings-type-toggle">
               <button type="button" className={`settings-toggle-btn ${kind === 'call' ? 'active' : ''}`} onClick={() => setKind('call')}>📞 Llamada</button>
               <button type="button" className={`settings-toggle-btn ${kind === 'meeting' ? 'active' : ''}`} onClick={() => setKind('meeting')}>🤝 Reunión</button>
+            </div>
+            <div className="settings-type-toggle">
+              <button type="button" className={`settings-toggle-btn ${mode === 'log' ? 'active' : ''}`} onClick={() => setMode('log')}>Ya pasó</button>
+              <button type="button" className={`settings-toggle-btn ${mode === 'schedule' ? 'active' : ''}`} onClick={() => setMode('schedule')}>Programar</button>
             </div>
           </div>
 
