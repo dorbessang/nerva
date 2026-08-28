@@ -63,14 +63,19 @@ export default function LogMeetingModal({ workspaceId, negotiationId, entityId, 
     onClose()
   }
 
+  function handleSubmit(e) {
+    e.preventDefault()
+    handleSave()
+  }
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+      <div className="modal-card" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Registrar / Programar</h2>
+          <h2 className="modal-title">Registrar / Programar</h2>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
-        <div className="modal-body">
+        <form onSubmit={handleSubmit} className="modal-form">
           <div className="log-meeting-toggles">
             <div className="settings-type-toggle">
               <button type="button" className={`settings-toggle-btn ${kind === 'call' ? 'active' : ''}`} onClick={() => setKind('call')}>📞 Llamada</button>
@@ -112,13 +117,14 @@ export default function LogMeetingModal({ workspaceId, negotiationId, entityId, 
             <label>{mode === 'log' ? 'RESUMEN (opcional)' : 'MOTIVO (opcional)'}</label>
             <textarea rows={2} value={summary} onChange={e => setSummary(e.target.value)} placeholder={mode === 'log' ? 'De qué se habló...' : 'Para qué es la reunión...'} />
           </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn-primary" onClick={handleSave} disabled={saving || !date}>
-            {saving ? 'Guardando...' : mode === 'log' ? 'Registrar' : 'Programar'}
-          </button>
-        </div>
+
+          <div className="modal-actions">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="btn-primary" disabled={saving || !date}>
+              {saving ? 'Guardando...' : mode === 'log' ? 'Registrar' : 'Programar'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )
