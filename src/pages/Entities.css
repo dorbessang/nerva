@@ -651,12 +651,24 @@
     padding: 16px;
   }
 
+  /* Mismo bug real encontrado (y confirmado con captura) en el detalle
+     de Proyecto, ver la nota larga en Negotiations.css @ .neg-detail-body--split:
+     Grid de 1 columna con 2 filas "auto" dentro de un contenedor de
+     altura fija termina repartiendo esa altura entre las dos en vez de
+     dejar que cada una crezca con su contenido -- overflow-y:auto en
+     cada columna entonces las corta o (peor, con overflow:visible) las
+     desborda una encima de la otra. Fix: flex-column acá también, cada
+     columna mide su propio contenido y el contenedor entero scrollea. */
   .entity-detail-body--cols {
-    grid-template-columns: minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
   }
 
   .entity-detail-col {
     padding: 0 0 16px;
+    overflow-y: visible;
+    flex-shrink: 0;
   }
 
   .entity-detail-col--left {

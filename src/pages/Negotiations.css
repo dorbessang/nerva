@@ -1065,9 +1065,36 @@
 .neg-financiero-field .neg-inline-select { margin-top: 2px; }
 
 @media (max-width: 720px) {
-  .neg-detail-body--split { grid-template-columns: 1fr; overflow-y: auto; }
-  .neg-detail-sidebar { border-right: none; border-bottom: 1px solid #f0f2f5; overflow-y: visible; }
-  .neg-detail-rightpane { overflow: visible; }
+  /* Reportado por el usuario con captura real: en el celu, el contenido
+     del sidebar (Resumen, Entidades vinculadas, Observaciones...) se
+     superponía visualmente con los tabs y el panel de la derecha —
+     texto de las dos columnas mezclado, ilegible. Causa real: seguía
+     siendo CSS Grid de 1 columna con 2 filas implícitas, cada una
+     "auto" pero dentro de un contenedor de ALTURA FIJA (heredada del
+     flex:1 de .neg-detail-card, fijo a 100vh en mobile) — el navegador
+     termina repartiendo esa altura fija entre las dos filas en vez de
+     dejar que cada una crezca según su contenido real, y como el
+     sidebar tenía overflow-y:visible (para no generar un scroll interno
+     enano), lo que no entraba en su fila calculada se desbordaba
+     encima de la fila siguiente. El fix real es dejar de usar Grid acá:
+     con flex-column, cada bloque mide lo que su contenido necesita y
+     scrollea el contenedor entero, no cada mitad por separado.
+     Reproducido y confirmado con Playwright antes de este fix. */
+  .neg-detail-body--split {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .neg-detail-sidebar {
+    border-right: none;
+    border-bottom: 1px solid #f0f2f5;
+    overflow-y: visible;
+    flex-shrink: 0;
+  }
+  .neg-detail-rightpane {
+    overflow-y: visible;
+    flex-shrink: 0;
+  }
 }
 
 .neg-detail-hero {
