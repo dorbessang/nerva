@@ -260,31 +260,65 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
     onChanged?.()
   }
 
-  const latest = entries[0]
-  const oldest = entries[entries.length - 1]
-  const pctChange = latest && oldest && latest.id !== oldest.id && Number(oldest.value) !== 0
-    ? ((Number(latest.value) - Number(oldest.value)) / Number(oldest.value)) * 100
-    : null
+  // Una cotización es una sola, tenga 1 o 20 productos/presentaciones —
+  // "el precio vigente" no puede ser solo la fila más nueva del historial
+  // completo, porque si se actualiza el precio de UN producto/presentación,
+  // los demás quedan con su último precio vigente igual y tienen que
+  // seguir viéndose acá (antes se perdían de la vista al quedar "atrás"
+  // en el historial). Se agrupa por (product_id, presentation) y de cada
+  // grupo se toma la entrada más nueva y la más vieja — entries ya viene
+  // ordenado entry_date desc/created_at desc (fetchEntries).
+  function groupKey(e) { return `${e.product_id || 'none'}::${e.presentation || ''}` }
+  const current = []
+  const seenCurrent = new Set()
+  for (const e of entries) {
+    const key = groupKey(e)
+    if (!seenCurrent.has(key)) { seenCurrent.add(key); current.push(e) }
+  }
+  const oldestByGroup = new Map()
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const key = groupKey(entries[i])
+    if (!oldestByGroup.has(key)) oldestByGroup.set(key, entries[i])
+  }
+  function pctChangeFor(e) {
+    const oldest = oldestByGroup.get(groupKey(e))
+    if (!oldest || oldest.id === e.id || Number(oldest.value) === 0) return null
+    return ((Number(e.value) - Number(oldest.value)) / Number(oldest.value)) * 100
+  }
+  function labelFor(e) {
+    const productName = e.product_id ? products.find(p => p.id === e.product_id)?.name : null
+    return [productName, e.presentation].filter(Boolean).join(' — ')
+  }
 
   return (
     <div>
-      {latest && (
+      {current.length > 0 && (
         <div className="price-history-summary">
-          <div>
-            <span className="price-history-current">
-              {formatAmount(latest.value)}{currency ? ` ${currency}` : ''}{unit ? ` / ${unit}` : ''}
-            </span>
-            {showQuantity && latest.quantity && (
-              <span className="price-history-total">
-                A partir de {formatAmount(latest.quantity)}{unit ? ` ${unit}` : ''} — mínimo de compra: {formatAmount(latest.value * latest.quantity)}{currency ? ` ${currency}` : ''}
-              </span>
-            )}
-          </div>
-          {pctChange !== null && (
-            <span className={`price-history-delta ${pctChange < 0 ? 'price-history-delta--down' : pctChange > 0 ? 'price-history-delta--up' : ''}`}>
-              {pctChange < 0 ? '▼' : pctChange > 0 ? '▲' : '·'} {Math.abs(pctChange).toFixed(1)}% desde la primera entrada
-            </span>
-          )}
+          {current.length > 1 && <p className="price-history-summary-title">Precio vigente ({current.length} presentaciones)</p>}
+          {current.map(e => {
+            const pctChange = pctChangeFor(e)
+            const label = labelFor(e)
+            return (
+              <div key={e.id} className="price-history-current-row">
+                <div>
+                  {label && <span className="price-history-current-label">{label}</span>}
+                  <span className="price-history-current">
+                    {formatAmount(e.value)}{currency ? ` ${currency}` : ''}{unit ? ` / ${unit}` : ''}
+                  </span>
+                  {showQuantity && e.quantity && (
+                    <span className="price-history-total">
+                      A partir de {formatAmount(e.quantity)}{unit ? ` ${unit}` : ''} — mínimo de compra: {formatAmount(e.value * e.quantity)}{currency ? ` ${currency}` : ''}
+                    </span>
+                  )}
+                </div>
+                {pctChange !== null && (
+                  <span className={`price-history-delta ${pctChange < 0 ? 'price-history-delta--down' : pctChange > 0 ? 'price-history-delta--up' : ''}`}>
+                    {pctChange < 0 ? '▼' : pctChange > 0 ? '▲' : '·'} {Math.abs(pctChange).toFixed(1)}% desde la primera entrada
+                  </span>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 

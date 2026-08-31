@@ -1758,16 +1758,24 @@
 
 .price-history-summary {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
   padding: 12px 14px;
   margin-bottom: 10px;
   background: #F9FAFB;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
 }
+.price-history-summary-title { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; }
+.price-history-current-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.price-history-current-row + .price-history-current-row { padding-top: 10px; border-top: 1px solid #e5e7eb; }
+.price-history-current-label { display: block; font-size: 11px; font-weight: 600; color: #6b7280; margin-bottom: 1px; }
 .price-history-current { font-size: 18px; font-weight: 700; color: #111827; }
 .price-history-total { display: block; font-size: 11.5px; color: #6b7280; margin-top: 2px; }
 .price-history-delta { font-size: 12px; font-weight: 700; color: #6b7280; flex-shrink: 0; }
