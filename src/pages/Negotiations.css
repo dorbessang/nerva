@@ -2407,6 +2407,19 @@
     overflow-x: auto;
   }
 
+  /* Financiero/Bitácora/Actividad/Tareas/Documentos no entran en una
+     pantalla chica sin desbordar -- mismo fix que ya tenía Entidades
+     (.entity-tabs), acá se le había quedado afuera. */
+  .neg-tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .neg-tab {
+    flex-shrink: 0;
+  }
+
   .modal-header {
     flex-wrap: wrap;
     row-gap: 8px;
