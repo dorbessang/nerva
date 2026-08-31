@@ -207,7 +207,11 @@
 
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* minmax(0, 1fr), no 1fr a secas -- si no, una celda con contenido
+     largo (una tarea con título extenso) obliga a su columna a crecer
+     por encima de 1/7 y el grid deja de ser parejo (roto en mobile,
+     donde el ancho total ya es chico de por sí). */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -222,6 +226,7 @@
 
 .calendar-cell {
   min-height: 90px;
+  min-width: 0;
   border: 1px solid #f0f2f5;
   border-radius: 6px;
   padding: 6px;
@@ -260,7 +265,7 @@
 }
 
 .calendar-task input[type="checkbox"] { width: 11px; height: 11px; flex-shrink: 0; cursor: pointer; }
-.calendar-task-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-task-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-task.done .calendar-task-title { text-decoration: line-through; color: #9ca3af; }
 
 .calendar-task-delete {
@@ -344,6 +349,9 @@
 .allday-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .allday-cell .calendar-task { font-size: 12px; padding: 4px 6px; }
 .allday-cell .calendar-task input[type="checkbox"] { width: 12px; height: 12px; }
+
+.week-hscroll { overflow-x: visible; }
+.week-hscroll-inner { min-width: 100%; }
 
 .week-day-headers {
   display: grid;
@@ -625,9 +633,25 @@
   .calendar-month-label { min-width: 0; }
   .calendar-task-title { font-size: 10px; }
 
+  /* En una celda de ~45px de ancho no entra ni el checkbox ni la X ni
+     texto legible los tres juntos — se prioriza el título (tocar el
+     número del día ya lleva a la vista Día, con checkbox/borrar de
+     verdad). Solo dentro de las celdas del mes, no en Semana/Día
+     (.calendar-cell-tasks solo lo usa MonthView). */
+  .calendar-cell-tasks .calendar-task input[type="checkbox"],
+  .calendar-cell-tasks .calendar-task-delete {
+    display: none;
+  }
+
   .hour-gutter { width: 46px; }
   .hour-gutter-label { font-size: 9px; padding: 2px 4px; }
   .time-block { font-size: 9px; }
+
+  /* Semana: scroll horizontal en vez de achicar cada día a lo ilegible.
+     46px de gutter (arriba) + 7 columnas de 92px como mínimo legible. */
+  .week-hscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .week-hscroll-inner { min-width: 690px; }
+  .time-col { min-width: 92px; }
 }
 
 /* Tareas "externas" — asignadas en un workspace de equipo, mostradas acá

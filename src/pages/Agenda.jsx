@@ -783,24 +783,36 @@ function WeekView({ tasks, canEdit, onAdd, onMove, onDelete, onOpenExternal, sel
         <QuickAddPanel defaultDate={selectedDate} onAdd={onAdd} onClose={() => setShowQuickAdd(false)} />
       )}
 
-      <div className="week-day-headers" style={{ gridTemplateColumns: `70px repeat(7, 1fr)` }}>
-        <span />
-        {days.map((d, i) => (
-          <div key={i} className={`week-day-header ${toDateStr(d) === todayStr ? 'today' : ''}`}>
-            {WEEKDAY_LABELS[i]} <strong>{d.getDate()}</strong>
-          </div>
-        ))}
-      </div>
-
-      <AllDayRow dates={days} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onDelete={onDelete} onMove={onMove} onOpenExternal={onOpenExternal} />
-
-      <div className="time-grid-scroll" ref={scrollRef}>
-        <div className="time-grid-inner">
-          <HourGutter />
-          <div className="time-grid-week-cols">
+      {/* En mobile, 7 columnas + gutter no entran en el ancho de la
+          pantalla sin quedar ilegibles (nada de texto/hora visible) —
+          .week-hscroll fuerza un ancho mínimo y scrollea horizontal en
+          vez de achicar cada columna, mismo patrón que cualquier
+          calendario semanal real en el celular. En desktop no hace nada
+          (el contenido ya entra). Todo adentro (headers, sin horario,
+          grilla horaria) comparte el mismo scroll para que las columnas
+          queden alineadas entre sí. */}
+      <div className="week-hscroll">
+        <div className="week-hscroll-inner">
+          <div className="week-day-headers" style={{ gridTemplateColumns: `70px repeat(7, 1fr)` }}>
+            <span />
             {days.map((d, i) => (
-              <TimeColumn key={i} date={d} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete} onOpenExternal={onOpenExternal} />
+              <div key={i} className={`week-day-header ${toDateStr(d) === todayStr ? 'today' : ''}`}>
+                {WEEKDAY_LABELS[i]} <strong>{d.getDate()}</strong>
+              </div>
             ))}
+          </div>
+
+          <AllDayRow dates={days} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onDelete={onDelete} onMove={onMove} onOpenExternal={onOpenExternal} />
+
+          <div className="time-grid-scroll" ref={scrollRef}>
+            <div className="time-grid-inner">
+              <HourGutter />
+              <div className="time-grid-week-cols">
+                {days.map((d, i) => (
+                  <TimeColumn key={i} date={d} tasks={tasks} canEdit={canEdit} onAdd={onAdd} onMove={onMove} onDelete={onDelete} onOpenExternal={onOpenExternal} />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
