@@ -43,8 +43,8 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
   const [lineCommission, setLineCommission] = useState('')
   const [stagedLines, setStagedLines] = useState([]) // [{ value, quantity, presentation, commissionPct }]
   const [saving, setSaving] = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [editForm, setEditForm] = useState(null)
+  const [editingQuoteKey, setEditingQuoteKey] = useState(null)
+  const [editQuoteForm, setEditQuoteForm] = useState(null) // { entry_date, note, lines: [{ id, product_id, presentation, value, quantity, commission_pct }] }
   const needsProductPicker = products.length > 1
   const presentationSuggestions = [...new Set(entries.map(e => e.presentation).filter(Boolean))]
 
@@ -182,28 +182,37 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
     onChanged?.()
   }
 
-  async function handleDelete(id) {
-    await supabase.from('negotiation_price_history').delete().eq('id', id)
-    setEntries(prev => prev.filter(e => e.id !== id))
-    onChanged?.()
-  }
-
-  function startEdit(e) {
-    setEditingId(e.id)
-    setEditForm({
-      entry_date: e.entry_date,
-      value: String(e.value),
-      quantity: e.quantity !== null ? String(e.quantity) : '',
-      note: e.note || '',
-      product_id: e.product_id || '',
-      presentation: e.presentation || '',
-      commission_pct: e.commission_pct !== null && e.commission_pct !== undefined ? String(e.commission_pct) : '',
+  function startEditQuote(quote) {
+    setEditingQuoteKey(quote.key)
+    setEditQuoteForm({
+      entry_date: quote.entry_date,
+      note: quote.note || '',
+      lines: quote.lines.map(l => ({
+        id: l.id,
+        product_id: l.product_id || '',
+        presentation: l.presentation || '',
+        value: String(l.value),
+        quantity: l.quantity !== null ? String(l.quantity) : '',
+        commission_pct: l.commission_pct !== null && l.commission_pct !== undefined ? String(l.commission_pct) : '',
+      })),
     })
   }
 
-  function cancelEdit() {
-    setEditingId(null)
-    setEditForm(null)
+  function cancelEditQuote() {
+    setEditingQuoteKey(null)
+    setEditQuoteForm(null)
+  }
+
+  function updateEditLine(idx, patch) {
+    setEditQuoteForm(f => ({ ...f, lines: f.lines.map((l, i) => i === idx ? { ...l, ...patch } : l) }))
+  }
+
+  function removeEditLine(idx) {
+    setEditQuoteForm(f => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) }))
+  }
+
+  function addEditLine() {
+    setEditQuoteForm(f => ({ ...f, lines: [...f.lines, { id: null, product_id: '', presentation: '', value: '', quantity: '', commission_pct: '' }] }))
   }
 
   function clearLine() {
@@ -222,41 +231,75 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); clearLine() }
   }
 
-  function handleEditKeyDown(e, id) {
-    if (e.key === 'Enter') { e.preventDefault(); handleSaveEdit(id) }
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelEdit() }
+  function handleEditKeyDown(e) {
+    if (e.key === 'Enter') { e.preventDefault(); handleSaveEditQuote() }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelEditQuote() }
   }
 
-  async function handleSaveEdit(id) {
-    const value = parseFloat(editForm.value)
-    if (!editForm.entry_date || Number.isNaN(value)) return
-    if (needsProductPicker && !editForm.product_id) return
-    const patch = {
-      entry_date: editForm.entry_date,
-      value,
-      quantity: showQuantity && editForm.quantity ? parseFloat(editForm.quantity) : null,
-      note: editForm.note.trim() || null,
-      product_id: editForm.product_id || null,
-      presentation: editForm.presentation.trim() || null,
-      commission_pct: editForm.commission_pct ? parseFloat(editForm.commission_pct) : null,
+  // Guarda TODA la cotización de una — una cotización es una sola aunque
+  // tenga varias presentaciones, así que editarla actualiza fecha/motivo
+  // (compartidos) y cada línea de una vez: las que ya existían se
+  // actualizan por id, las que se agregaron durante la edición se
+  // insertan, y las que se sacaron se borran.
+  async function handleSaveEditQuote() {
+    const f = editQuoteForm
+    if (!f.entry_date || f.lines.length === 0) return
+    if (needsProductPicker && f.lines.some(l => !l.product_id)) return
+    setSaving(true)
+    const originalQuote = quotes.find(q => q.key === editingQuoteKey)
+    const keptIds = new Set(f.lines.filter(l => l.id).map(l => l.id))
+    const removedIds = (originalQuote?.lines || []).map(l => l.id).filter(id => !keptIds.has(id))
+
+    for (const line of f.lines) {
+      const value = parseFloat(line.value)
+      if (Number.isNaN(value)) continue
+      const commissionPct = line.commission_pct ? parseFloat(line.commission_pct) : null
+      const basePatch = {
+        entry_date: f.entry_date,
+        note: f.note.trim() || null,
+        value,
+        quantity: showQuantity && line.quantity ? parseFloat(line.quantity) : null,
+        product_id: line.product_id || null,
+        presentation: line.presentation.trim() || null,
+        commission_pct: commissionPct,
+      }
+      if (line.id) {
+        const previous = entries.find(e => e.id === line.id)
+        const patch = { ...basePatch }
+        if (previous && Number(previous.commission_pct) !== Number(commissionPct)) {
+          patch.commission_approval_status = computeApprovalStatus(commissionPct)
+          patch.commission_approved_by = null
+          patch.commission_approved_at = null
+        }
+        await supabase.from('negotiation_price_history').update(patch).eq('id', line.id)
+        if (patch.commission_approval_status === 'pending' && previous?.commission_approval_status !== 'pending') {
+          await createApprovalTask(line.id, commissionPct)
+        }
+      } else {
+        const { data: inserted } = await supabase.from('negotiation_price_history').insert({
+          workspace_id: workspaceId, negotiation_id: negotiationId,
+          ...basePatch, commission_approval_status: computeApprovalStatus(commissionPct),
+        }).select('id, commission_pct, commission_approval_status').single()
+        if (inserted?.commission_approval_status === 'pending') await createApprovalTask(inserted.id, inserted.commission_pct)
+      }
     }
-    const previous = entries.find(e => e.id === id)
-    const newStatus = computeApprovalStatus(patch.commission_pct)
-    // Solo se re-evalúa si cambió el % — si ya estaba aprobada/rechazada y
-    // el % no se tocó, no hace falta pedir aprobación de nuevo por editar
-    // otro campo (fecha, nota, etc.)
-    if (previous && Number(previous.commission_pct) !== Number(patch.commission_pct)) {
-      patch.commission_approval_status = newStatus
-      patch.commission_approved_by = null
-      patch.commission_approved_at = null
+    if (removedIds.length > 0) {
+      await supabase.from('negotiation_price_history').delete().in('id', removedIds)
     }
-    await supabase.from('negotiation_price_history').update(patch).eq('id', id)
-    if (patch.commission_approval_status === 'pending' && previous?.commission_approval_status !== 'pending') {
-      await createApprovalTask(id, patch.commission_pct)
-    }
-    setEntries(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e).sort((a, b) => b.entry_date.localeCompare(a.entry_date)))
-    setEditingId(null)
-    setEditForm(null)
+    await logActivity(supabase, {
+      workspaceId, negotiationId, type: 'price_updated',
+      title: `Cotización del ${new Date(f.entry_date + 'T00:00:00').toLocaleDateString('es-AR')} actualizada`, actorId: user?.id,
+    })
+    setEditingQuoteKey(null)
+    setEditQuoteForm(null)
+    setSaving(false)
+    fetchEntries()
+    onChanged?.()
+  }
+
+  async function handleDeleteQuote(quote) {
+    await supabase.from('negotiation_price_history').delete().in('id', quote.lines.map(l => l.id))
+    setEntries(prev => prev.filter(e => !quote.lines.some(l => l.id === e.id)))
     onChanged?.()
   }
 
@@ -288,6 +331,25 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
   function labelFor(e) {
     const productName = e.product_id ? products.find(p => p.id === e.product_id)?.name : null
     return [productName, e.presentation].filter(Boolean).join(' — ')
+  }
+
+  // Historial completo agrupado por cotización — pedido explícito del
+  // usuario: una cotización es una sola aunque tenga varias presentaciones
+  // adentro, así que se ve (y se edita) como un solo renglón, no una fila
+  // por presentación. Se agrupa por (fecha, motivo), que es exactamente lo
+  // que ya comparten las líneas cargadas juntas en un mismo "Guardar" (ver
+  // handleSave). entries ya viene ordenado entry_date desc/created_at desc,
+  // así que el primer id visto por grupo define el orden de `quotes`.
+  function quoteKey(e) { return `${e.entry_date}::${e.note || ''}` }
+  const quotes = []
+  {
+    const byKey = new Map()
+    for (const e of entries) {
+      const key = quoteKey(e)
+      let q = byKey.get(key)
+      if (!q) { q = { key, entry_date: e.entry_date, note: e.note, lines: [] }; byKey.set(key, q); quotes.push(q) }
+      q.lines.push(e)
+    }
   }
 
   return (
@@ -322,118 +384,132 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
         </div>
       )}
 
-      {entries.length === 0 ? (
+      {quotes.length === 0 ? (
         <p className="detail-empty">Sin cambios de precio registrados todavía.</p>
       ) : (
-        <div className="neg-tasks-list">
-          {entries.map(e => {
-            const isEditing = editingId === e.id
+        <div className="price-history-quote-list">
+          {quotes.map(quote => {
+            const isEditing = editingQuoteKey === quote.key
             if (isEditing) {
+              const f = editQuoteForm
               return (
-                <div key={e.id} className="neg-task-row neg-milestone-edit-row">
-                  <input
-                    type="date"
-                    className="neg-note-date-input neg-milestone-date-input"
-                    value={editForm.entry_date}
-                    onChange={ev => setEditForm(f => ({ ...f, entry_date: ev.target.value }))}
-                    onKeyDown={ev => handleEditKeyDown(ev, e.id)}
-                    autoFocus
-                  />
-                  {needsProductPicker && (
-                    <SearchableSelect
-                      style={{ width: 160, minWidth: 160, flexShrink: 0 }}
-                      value={editForm.product_id}
-                      onChange={v => setEditForm(f => ({ ...f, product_id: v }))}
-                      options={products.map(p => ({ value: p.id, label: p.name }))}
-                      placeholder="Producto..."
-                      emptyLabel="Sin producto"
-                    />
-                  )}
-                  <input
-                    type="number"
-                    className="neg-note-date-input neg-milestone-amount-input"
-                    placeholder={`Precio${unit ? ` por ${unit}` : ''}`}
-                    value={editForm.value}
-                    onChange={ev => setEditForm(f => ({ ...f, value: ev.target.value }))}
-                    onKeyDown={ev => handleEditKeyDown(ev, e.id)}
-                    step="0.01"
-                  />
-                  {showQuantity && (
+                <div key={quote.key} className="price-history-quote-card price-history-quote-card--editing">
+                  <div className="neg-milestone-add">
                     <input
-                      type="number"
-                      className="neg-note-date-input neg-milestone-amount-input"
-                      placeholder={`Volumen mínimo${unit ? ` (${unit})` : ''}`}
-                      value={editForm.quantity}
-                      onChange={ev => setEditForm(f => ({ ...f, quantity: ev.target.value }))}
-                      onKeyDown={ev => handleEditKeyDown(ev, e.id)}
-                      step="0.01"
+                      type="date"
+                      className="neg-note-date-input neg-milestone-date-input"
+                      value={f.entry_date}
+                      onChange={ev => setEditQuoteForm(ff => ({ ...ff, entry_date: ev.target.value }))}
+                      onKeyDown={handleEditKeyDown}
+                      autoFocus
                     />
-                  )}
-                  <input
-                    type="text"
-                    className="neg-note-input neg-milestone-timing-input"
-                    placeholder="Presentación (opcional)"
-                    list="price-history-presentations"
-                    value={editForm.presentation}
-                    onChange={ev => setEditForm(f => ({ ...f, presentation: ev.target.value }))}
-                    onKeyDown={ev => handleEditKeyDown(ev, e.id)}
-                  />
-                  <input
-                    type="number"
-                    className="neg-note-date-input neg-milestone-amount-input"
-                    placeholder="Comisión %"
-                    value={editForm.commission_pct}
-                    onChange={ev => setEditForm(f => ({ ...f, commission_pct: ev.target.value }))}
-                    onKeyDown={ev => handleEditKeyDown(ev, e.id)}
-                    step="0.01"
-                    min="0"
-                    max="100"
-                  />
-                  <input
-                    type="text"
-                    className="neg-note-input neg-milestone-timing-input"
-                    placeholder="Motivo del cambio..."
-                    value={editForm.note}
-                    onChange={ev => setEditForm(f => ({ ...f, note: ev.target.value }))}
-                    onKeyDown={ev => handleEditKeyDown(ev, e.id)}
-                  />
-                  <button className="neg-add-task-btn" onClick={() => handleSaveEdit(e.id)}>Guardar</button>
-                  <button className="neg-milestone-delete" onClick={cancelEdit} title="Cancelar">✕</button>
+                    <input
+                      type="text"
+                      className="neg-note-input neg-milestone-timing-input"
+                      placeholder="Motivo del cambio (aplica a toda la cotización)..."
+                      value={f.note}
+                      onChange={ev => setEditQuoteForm(ff => ({ ...ff, note: ev.target.value }))}
+                      onKeyDown={handleEditKeyDown}
+                    />
+                  </div>
+                  {f.lines.map((line, idx) => (
+                    <div key={line.id || `new-${idx}`} className="neg-task-row neg-milestone-edit-row">
+                      {needsProductPicker && (
+                        <SearchableSelect
+                          style={{ width: 160, minWidth: 160, flexShrink: 0 }}
+                          value={line.product_id}
+                          onChange={v => updateEditLine(idx, { product_id: v })}
+                          options={products.map(p => ({ value: p.id, label: p.name }))}
+                          placeholder="Producto..."
+                          emptyLabel="Sin producto"
+                        />
+                      )}
+                      <input
+                        type="number"
+                        className="neg-note-date-input neg-milestone-amount-input"
+                        placeholder={`Precio${unit ? ` por ${unit}` : ''}`}
+                        value={line.value}
+                        onChange={ev => updateEditLine(idx, { value: ev.target.value })}
+                        onKeyDown={handleEditKeyDown}
+                        step="0.01"
+                      />
+                      {showQuantity && (
+                        <input
+                          type="number"
+                          className="neg-note-date-input neg-milestone-amount-input"
+                          placeholder={`Volumen mínimo${unit ? ` (${unit})` : ''}`}
+                          value={line.quantity}
+                          onChange={ev => updateEditLine(idx, { quantity: ev.target.value })}
+                          onKeyDown={handleEditKeyDown}
+                          step="0.01"
+                        />
+                      )}
+                      <input
+                        type="text"
+                        className="neg-note-input neg-milestone-timing-input"
+                        placeholder="Presentación (opcional)"
+                        list="price-history-presentations"
+                        value={line.presentation}
+                        onChange={ev => updateEditLine(idx, { presentation: ev.target.value })}
+                        onKeyDown={handleEditKeyDown}
+                      />
+                      <input
+                        type="number"
+                        className="neg-note-date-input neg-milestone-amount-input"
+                        placeholder="Comisión %"
+                        value={line.commission_pct}
+                        onChange={ev => updateEditLine(idx, { commission_pct: ev.target.value })}
+                        onKeyDown={handleEditKeyDown}
+                        step="0.01"
+                        min="0"
+                        max="100"
+                      />
+                      <button className="neg-milestone-delete" onClick={() => removeEditLine(idx)} title="Quitar presentación">✕</button>
+                    </div>
+                  ))}
+                  <div className="price-history-quote-actions">
+                    <button type="button" className="price-history-add-line-btn" onClick={addEditLine}>+ Otra presentación</button>
+                    <button className="neg-add-task-btn" onClick={handleSaveEditQuote} disabled={saving}>Guardar</button>
+                    <button className="neg-milestone-delete" onClick={cancelEditQuote} title="Cancelar">Cancelar</button>
+                  </div>
                 </div>
               )
             }
             return (
-              <div key={e.id} className="neg-task-row">
-                <span className="neg-task-date">{new Date(e.entry_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}</span>
-                <span className="neg-milestone-amount">
-                  {formatAmount(e.value)}{currency ? ` ${currency}` : ''}{unit ? `/${unit}` : ''}
-                  {e.commission_pct !== null && e.commission_pct !== undefined && (
-                    <span className="neg-milestone-timing-inline">
-                      Comisión {formatAmount(e.commission_pct)}%
-                      {e.commission_approval_status === 'pending' && <span className="commission-approval-badge commission-approval-badge--pending">⏳ Pendiente de aprobación</span>}
-                      {e.commission_approval_status === 'approved' && <span className="commission-approval-badge commission-approval-badge--approved">✓ Aprobada</span>}
-                      {e.commission_approval_status === 'rejected' && <span className="commission-approval-badge commission-approval-badge--rejected">✕ Rechazada</span>}
-                    </span>
+              <div key={quote.key} className="price-history-quote-card">
+                <div className="price-history-quote-header">
+                  <span className="neg-task-date">{new Date(quote.entry_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                  <span className="price-history-quote-note">{quote.note || '—'}</span>
+                  {canEdit && (
+                    <>
+                      <button className="neg-milestone-edit" onClick={() => startEditQuote(quote)} title="Editar cotización">✏️</button>
+                      <button className="neg-milestone-delete" onClick={() => handleDeleteQuote(quote)} title="Eliminar cotización">✕</button>
+                    </>
                   )}
-                </span>
-                <div className="neg-task-body">
-                  <span className="neg-task-title">
-                    {e.presentation ? `${e.presentation} — ` : ''}
-                    {showQuantity && e.quantity ? `A partir de ${formatAmount(e.quantity)} ${unit || ''} — ` : ''}{e.note || '—'}
-                  </span>
                 </div>
-                {isApprover && e.commission_approval_status === 'pending' && (
-                  <>
-                    <button className="neg-milestone-edit" onClick={() => handleApprove(e)} title="Aprobar">✓ Aprobar</button>
-                    <button className="neg-milestone-delete" onClick={() => handleReject(e)} title="Rechazar">✕ Rechazar</button>
-                  </>
-                )}
-                {canEdit && (
-                  <>
-                    <button className="neg-milestone-edit" onClick={() => startEdit(e)} title="Editar">✏️</button>
-                    <button className="neg-milestone-delete" onClick={() => handleDelete(e.id)} title="Eliminar">✕</button>
-                  </>
-                )}
+                {quote.lines.map(e => (
+                  <div key={e.id} className="price-history-quote-line">
+                    {e.presentation && <span className="price-history-quote-line-label">{e.presentation}</span>}
+                    <span className="neg-milestone-amount">
+                      {formatAmount(e.value)}{currency ? ` ${currency}` : ''}{unit ? `/${unit}` : ''}
+                      {showQuantity && e.quantity ? ` · desde ${formatAmount(e.quantity)} ${unit || ''}` : ''}
+                    </span>
+                    {e.commission_pct !== null && e.commission_pct !== undefined && (
+                      <span className="neg-milestone-timing-inline">
+                        Comisión {formatAmount(e.commission_pct)}%
+                        {e.commission_approval_status === 'pending' && <span className="commission-approval-badge commission-approval-badge--pending">⏳ Pendiente de aprobación</span>}
+                        {e.commission_approval_status === 'approved' && <span className="commission-approval-badge commission-approval-badge--approved">✓ Aprobada</span>}
+                        {e.commission_approval_status === 'rejected' && <span className="commission-approval-badge commission-approval-badge--rejected">✕ Rechazada</span>}
+                      </span>
+                    )}
+                    {isApprover && e.commission_approval_status === 'pending' && (
+                      <>
+                        <button className="neg-milestone-edit" onClick={() => handleApprove(e)} title="Aprobar">✓ Aprobar</button>
+                        <button className="neg-milestone-delete" onClick={() => handleReject(e)} title="Rechazar">✕ Rechazar</button>
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
             )
           })}
