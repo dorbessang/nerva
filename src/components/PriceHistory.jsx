@@ -5,6 +5,7 @@ import { logActivity } from '../lib/activity'
 import { notifyTaskAssigned } from '../lib/tasks'
 import { getApprovalRule, isApprover as isApproverFor } from '../lib/approvals'
 import SearchableSelect from './SearchableSelect'
+import Field from './FieldLabel'
 // Mismo patrón que DealMilestones.jsx — reusa .neg-note-input/.neg-milestone-*
 // ya definidas en Negotiations.css.
 
@@ -404,75 +405,86 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
               return (
                 <div key={quote.key} className="price-history-quote-card price-history-quote-card--editing">
                   <div className="neg-milestone-add">
-                    <input
-                      type="date"
-                      className="neg-note-date-input neg-milestone-date-input"
-                      value={f.entry_date}
-                      onChange={ev => setEditQuoteForm(ff => ({ ...ff, entry_date: ev.target.value }))}
-                      onKeyDown={handleEditKeyDown}
-                      autoFocus
-                    />
-                    <input
-                      type="text"
-                      className="neg-note-input neg-milestone-timing-input"
-                      placeholder="Motivo del cambio (aplica a toda la cotización)..."
-                      value={f.note}
-                      onChange={ev => setEditQuoteForm(ff => ({ ...ff, note: ev.target.value }))}
-                      onKeyDown={handleEditKeyDown}
-                    />
+                    <Field label="Fecha" style={{ width: 130, flexShrink: 0 }}>
+                      <input
+                        type="date"
+                        className="neg-note-date-input neg-milestone-date-input"
+                        value={f.entry_date}
+                        onChange={ev => setEditQuoteForm(ff => ({ ...ff, entry_date: ev.target.value }))}
+                        onKeyDown={handleEditKeyDown}
+                        autoFocus
+                      />
+                    </Field>
+                    <Field label="Motivo del cambio" style={{ flex: 1.5, minWidth: 160 }}>
+                      <input
+                        type="text"
+                        className="neg-note-input neg-milestone-timing-input"
+                        placeholder="Aplica a toda la cotización..."
+                        value={f.note}
+                        onChange={ev => setEditQuoteForm(ff => ({ ...ff, note: ev.target.value }))}
+                        onKeyDown={handleEditKeyDown}
+                      />
+                    </Field>
                   </div>
                   {f.lines.map((line, idx) => (
                     <div key={line.id || `new-${idx}`} className="neg-task-row neg-milestone-edit-row">
                       {needsProductPicker && (
-                        <SearchableSelect
-                          style={{ width: 160, minWidth: 160, flexShrink: 0 }}
-                          value={line.product_id}
-                          onChange={v => updateEditLine(idx, { product_id: v })}
-                          options={products.map(p => ({ value: p.id, label: p.name }))}
-                          placeholder="Producto..."
-                          emptyLabel="Sin producto"
-                        />
+                        <Field label="Producto" style={{ width: 160, minWidth: 160, flexShrink: 0 }}>
+                          <SearchableSelect
+                            style={{ width: '100%' }}
+                            value={line.product_id}
+                            onChange={v => updateEditLine(idx, { product_id: v })}
+                            options={products.map(p => ({ value: p.id, label: p.name }))}
+                            placeholder="Producto..."
+                            emptyLabel="Sin producto"
+                          />
+                        </Field>
                       )}
-                      <input
-                        type="text"
-                        className="neg-note-input neg-milestone-timing-input"
-                        placeholder="Presentación (opcional)"
-                        list="price-history-presentations"
-                        value={line.presentation}
-                        onChange={ev => updateEditLine(idx, { presentation: ev.target.value })}
-                        onKeyDown={handleEditKeyDown}
-                      />
-                      <input
-                        type="number"
-                        className="neg-note-date-input neg-milestone-amount-input"
-                        placeholder={`Precio${unit ? ` por ${unit}` : ''}`}
-                        value={line.value}
-                        onChange={ev => updateEditLine(idx, { value: ev.target.value })}
-                        onKeyDown={handleEditKeyDown}
-                        step="0.01"
-                      />
-                      {showQuantity && (
+                      <Field label="Presentación" style={{ flex: 1.5, minWidth: 160 }}>
+                        <input
+                          type="text"
+                          className="neg-note-input neg-milestone-timing-input"
+                          placeholder="Opcional"
+                          list="price-history-presentations"
+                          value={line.presentation}
+                          onChange={ev => updateEditLine(idx, { presentation: ev.target.value })}
+                          onKeyDown={handleEditKeyDown}
+                        />
+                      </Field>
+                      <Field label={`Precio${unit ? ` x ${unit}` : ''}`} style={{ width: 110, flexShrink: 0 }}>
                         <input
                           type="number"
                           className="neg-note-date-input neg-milestone-amount-input"
-                          placeholder={`MOQ${unit ? ` (${unit})` : ''}`}
-                          value={line.quantity}
-                          onChange={ev => updateEditLine(idx, { quantity: ev.target.value })}
+                          value={line.value}
+                          onChange={ev => updateEditLine(idx, { value: ev.target.value })}
                           onKeyDown={handleEditKeyDown}
                           step="0.01"
                         />
+                      </Field>
+                      {showQuantity && (
+                        <Field label="MOQ" style={{ width: 110, flexShrink: 0 }}>
+                          <input
+                            type="number"
+                            className="neg-note-date-input neg-milestone-amount-input"
+                            value={line.quantity}
+                            onChange={ev => updateEditLine(idx, { quantity: ev.target.value })}
+                            onKeyDown={handleEditKeyDown}
+                            step="0.01"
+                          />
+                        </Field>
                       )}
-                      <input
-                        type="number"
-                        className="neg-note-date-input neg-milestone-amount-input"
-                        placeholder="Comisión %"
-                        value={line.commission_pct}
-                        onChange={ev => updateEditLine(idx, { commission_pct: ev.target.value })}
-                        onKeyDown={handleEditKeyDown}
-                        step="0.01"
-                        min="0"
-                        max="100"
-                      />
+                      <Field label="Comisión %" style={{ width: 110, flexShrink: 0 }}>
+                        <input
+                          type="number"
+                          className="neg-note-date-input neg-milestone-amount-input"
+                          value={line.commission_pct}
+                          onChange={ev => updateEditLine(idx, { commission_pct: ev.target.value })}
+                          onKeyDown={handleEditKeyDown}
+                          step="0.01"
+                          min="0"
+                          max="100"
+                        />
+                      </Field>
                       <button className="neg-milestone-delete" onClick={() => removeEditLine(idx)} title="Quitar presentación">✕</button>
                     </div>
                   ))}
@@ -538,29 +550,35 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
       {canEdit && (
         <div className="price-history-cotizacion">
           <div className="neg-milestone-add">
-            <input
-              type="date"
-              className="neg-note-date-input neg-milestone-date-input"
-              value={newDate}
-              onChange={e => setNewDate(e.target.value)}
-            />
-            {needsProductPicker && (
-              <SearchableSelect
-                style={{ width: 160, minWidth: 160, flexShrink: 0 }}
-                value={newProductId}
-                onChange={setNewProductId}
-                options={products.map(p => ({ value: p.id, label: p.name }))}
-                placeholder="Producto..."
-                emptyLabel="Sin producto"
+            <Field label="Fecha" style={{ width: 130, flexShrink: 0 }}>
+              <input
+                type="date"
+                className="neg-note-date-input neg-milestone-date-input"
+                value={newDate}
+                onChange={e => setNewDate(e.target.value)}
               />
+            </Field>
+            {needsProductPicker && (
+              <Field label="Producto" style={{ width: 160, minWidth: 160, flexShrink: 0 }}>
+                <SearchableSelect
+                  style={{ width: '100%' }}
+                  value={newProductId}
+                  onChange={setNewProductId}
+                  options={products.map(p => ({ value: p.id, label: p.name }))}
+                  placeholder="Producto..."
+                  emptyLabel="Sin producto"
+                />
+              </Field>
             )}
-            <input
-              type="text"
-              className="neg-note-input neg-milestone-timing-input"
-              placeholder="Motivo del cambio (aplica a toda la cotización)..."
-              value={newNote}
-              onChange={e => setNewNote(e.target.value)}
-            />
+            <Field label="Motivo del cambio" style={{ flex: 1.5, minWidth: 160 }}>
+              <input
+                type="text"
+                className="neg-note-input neg-milestone-timing-input"
+                placeholder="Aplica a toda la cotización..."
+                value={newNote}
+                onChange={e => setNewNote(e.target.value)}
+              />
+            </Field>
           </div>
 
           {stagedLines.length > 0 && (
@@ -580,46 +598,52 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
           )}
 
           <div className="neg-milestone-add">
-            <input
-              type="text"
-              className="neg-note-input neg-milestone-timing-input"
-              placeholder="Presentación (opcional)"
-              list="price-history-presentations"
-              value={linePresentation}
-              onChange={e => setLinePresentation(e.target.value)}
-              onKeyDown={handleLineKeyDown}
-            />
-            <input
-              type="number"
-              className="neg-note-date-input neg-milestone-amount-input"
-              placeholder={`Precio${unit ? ` por ${unit}` : ' por unidad'}`}
-              value={lineValue}
-              onChange={e => setLineValue(e.target.value)}
-              onKeyDown={handleLineKeyDown}
-              step="0.01"
-            />
-            {showQuantity && (
+            <Field label="Presentación" style={{ flex: 1.5, minWidth: 160 }}>
+              <input
+                type="text"
+                className="neg-note-input neg-milestone-timing-input"
+                placeholder="Opcional"
+                list="price-history-presentations"
+                value={linePresentation}
+                onChange={e => setLinePresentation(e.target.value)}
+                onKeyDown={handleLineKeyDown}
+              />
+            </Field>
+            <Field label={`Precio${unit ? ` x ${unit}` : ''}`} style={{ width: 110, flexShrink: 0 }}>
               <input
                 type="number"
                 className="neg-note-date-input neg-milestone-amount-input"
-                placeholder={`MOQ (${unit || 'unidad de medida'})`}
-                value={lineQuantity}
-                onChange={e => setLineQuantity(e.target.value)}
+                value={lineValue}
+                onChange={e => setLineValue(e.target.value)}
                 onKeyDown={handleLineKeyDown}
                 step="0.01"
               />
+            </Field>
+            {showQuantity && (
+              <Field label="MOQ" style={{ width: 110, flexShrink: 0 }}>
+                <input
+                  type="number"
+                  className="neg-note-date-input neg-milestone-amount-input"
+                  value={lineQuantity}
+                  onChange={e => setLineQuantity(e.target.value)}
+                  onKeyDown={handleLineKeyDown}
+                  step="0.01"
+                />
+              </Field>
             )}
-            <input
-              type="number"
-              className="neg-note-date-input neg-milestone-amount-input"
-              placeholder="Comisión % (opcional)"
-              value={lineCommission}
-              onChange={e => setLineCommission(e.target.value)}
-              onKeyDown={handleLineKeyDown}
-              step="0.01"
-              min="0"
-              max="100"
-            />
+            <Field label="Comisión %" style={{ width: 110, flexShrink: 0 }}>
+              <input
+                type="number"
+                className="neg-note-date-input neg-milestone-amount-input"
+                placeholder="Opcional"
+                value={lineCommission}
+                onChange={e => setLineCommission(e.target.value)}
+                onKeyDown={handleLineKeyDown}
+                step="0.01"
+                min="0"
+                max="100"
+              />
+            </Field>
             <datalist id="price-history-presentations">
               {presentationSuggestions.map(p => <option key={p} value={p} />)}
             </datalist>

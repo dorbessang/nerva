@@ -1762,7 +1762,7 @@
 
 .neg-milestone-edit:hover { opacity: 1; }
 
-.neg-milestone-edit-row { flex-wrap: wrap; gap: 8px; padding: 10px 14px; }
+.neg-milestone-edit-row { flex-wrap: wrap; gap: 8px; padding: 10px 14px; align-items: flex-end; }
 
 .neg-milestone-total {
   text-align: right;
@@ -1777,7 +1777,7 @@
 .neg-milestone-add {
   display: flex;
   gap: 8px;
-  align-items: center;
+  align-items: flex-end;
   margin-top: 10px;
   flex-wrap: wrap;
 }
