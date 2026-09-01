@@ -9,6 +9,7 @@ import { useAuth } from '../lib/AuthContext'
 import NotesPostIts from '../components/NotesPostIts'
 import { useCloseOnOutsideOrEscape } from '../lib/useCloseOnOutsideOrEscape'
 import { canEditContent } from '../lib/roles'
+import Field from '../components/FieldLabel'
 import './Agenda.css'
 
 // A dónde navegar al clickear una tarea "externa" (de un workspace de
@@ -703,14 +704,21 @@ function QuickAddPanel({ defaultDate, onAdd, onClose }) {
 
   return (
     <form className="quick-add-panel" ref={formRef} onSubmit={submit}>
-      <input
-        type="text" autoFocus placeholder="Título del evento..." className="quick-add-title"
-        value={title} onChange={e => setTitle(e.target.value)}
-      />
-      <input type="date" value={date} onChange={e => setDate(e.target.value)} />
-      <input type="time" value={start} onChange={e => { setStart(e.target.value); setEnd(addMinutesToTime(e.target.value, 30)) }} />
-      <span className="quick-add-sep">–</span>
-      <input type="time" value={end} onChange={e => setEnd(e.target.value)} />
+      <Field label="Título" style={{ flex: 1, minWidth: 160 }}>
+        <input
+          type="text" autoFocus placeholder="Título del evento..." className="quick-add-title"
+          value={title} onChange={e => setTitle(e.target.value)}
+        />
+      </Field>
+      <Field label="Fecha">
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+      </Field>
+      <Field label="Desde">
+        <input type="time" value={start} onChange={e => { setStart(e.target.value); setEnd(addMinutesToTime(e.target.value, 30)) }} />
+      </Field>
+      <Field label="Hasta">
+        <input type="time" value={end} onChange={e => setEnd(e.target.value)} />
+      </Field>
       <button type="submit" className="time-add-ok">Agregar</button>
       <button type="button" className="quick-add-cancel" onClick={onClose}>✕</button>
     </form>

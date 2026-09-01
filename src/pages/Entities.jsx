@@ -18,6 +18,7 @@ import { logActivity } from '../lib/activity'
 import { formatAmount } from '../components/DealMilestones'
 import { CustomFieldReadOnly } from '../components/CustomFieldInput'
 import { computeFieldOrder, getCustomFieldValue, renderCustomFieldDisplay, isFieldFilterable, matchesAllFieldFilters, filterChoicesFor, describeFieldFilters } from '../lib/customFields'
+import Field from '../components/FieldLabel'
 import { useColumnPrefs, ColumnEditor } from '../components/ColumnEditor'
 import FiltersPanelButton from '../components/FiltersPanelButton'
 import TableGrid from '../components/TableGrid'
@@ -1096,7 +1097,9 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
                       <option value="">Sin asignar</option>
                       {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email || 'Usuario'}</option>)}
                     </select>
-                    <input type="date" className="neg-note-date-input" value={newTaskDue} onChange={e => setNewTaskDue(e.target.value)} />
+                    <Field label="Vencimiento" style={{ width: 150, flexShrink: 0 }}>
+                      <input type="date" className="neg-note-date-input" value={newTaskDue} onChange={e => setNewTaskDue(e.target.value)} />
+                    </Field>
                     {taskCandidates.length > 0 && (
                       <select value={newTaskPredecessor} onChange={e => setNewTaskPredecessor(e.target.value)} style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid #e5e7eb', fontSize: 13 }}>
                         <option value="">No depende de otra</option>
