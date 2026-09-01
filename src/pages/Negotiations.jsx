@@ -1936,6 +1936,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   const entityNames = primaryEntity?.name || '—'
   const primaryProduct = neg.primary_product || neg.negotiation_products?.map(np => np.product).filter(Boolean)[0] || null
   const secondaryProducts = (neg.negotiation_products || []).filter(np => np.product?.id && np.product.id !== primaryProduct?.id)
+  const quoteProducts = [primaryProduct, ...secondaryProducts.map(np => np.product)].filter(Boolean)
   const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
   const entitiesLinkDef = customFieldDefs.find(d => d.field_type === 'entities_link')
   const productsLinkDef = customFieldDefs.find(d => d.field_type === 'products_link')
@@ -1960,13 +1961,21 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
     if (data) setMilestonesTotal(data.reduce((sum, m) => sum + Number(m.amount), 0))
   }
 
+  // Una cotización es una sola aunque tenga varias presentaciones -- este
+  // widget mostraba solo la fila más nueva del historial (una sola
+  // presentación), perdiendo el resto de la cotización. Se trae un lote
+  // (alcanza para cubrir cualquier cotización real) y se queda con TODAS
+  // las filas que comparten fecha+motivo con la más nueva, mismo criterio
+  // de agrupamiento que ya usa PriceHistory.jsx para el historial completo.
   async function fetchLatestPrice() {
     const { data } = await supabase.from('negotiation_price_history').select('*')
       .eq('negotiation_id', neg.id)
       .order('entry_date', { ascending: false })
       .order('created_at', { ascending: false })
-      .limit(1)
-    setLatestPrice(data?.[0] || null)
+      .limit(50)
+    if (!data || data.length === 0) { setLatestPrice(null); return }
+    const latest = data[0]
+    setLatestPrice(data.filter(e => e.entry_date === latest.entry_date && (e.note || '') === (latest.note || '')))
   }
 
   async function fetchTasks() {
@@ -2162,20 +2171,29 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
               </div>
             </div>
 
-            {financialConfig.historial_precio && latestPrice && (
+            {financialConfig.historial_precio && latestPrice?.length > 0 && (
               <div className="neg-sidebar-section">
                 <p className="neg-sidebar-label">Última cotización</p>
                 <div className="neg-quote-summary">
-                  <span className="neg-quote-value">
-                    {formatAmount(latestPrice.value)}{inlineCurrency ? ` ${inlineCurrency}` : ''}{inlineUnit ? `/${inlineUnit}` : ''}
-                  </span>
                   <span className="neg-quote-date">
-                    {new Date(latestPrice.entry_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {new Date(latestPrice[0].entry_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </span>
-                  {financialConfig.volumen && latestPrice.quantity && (
-                    <span className="neg-quote-detail">A partir de {formatAmount(latestPrice.quantity)} {inlineUnit || ''}</span>
-                  )}
-                  {latestPrice.note && <span className="neg-quote-detail">{latestPrice.note}</span>}
+                  {latestPrice.map(e => {
+                    const productName = e.product_id ? quoteProducts.find(p => p.id === e.product_id)?.name : null
+                    const label = [productName, e.presentation].filter(Boolean).join(' — ')
+                    return (
+                      <div key={e.id} className="neg-quote-line">
+                        {label && <span className="neg-quote-line-label">{label}</span>}
+                        <span className="neg-quote-value">
+                          {formatAmount(e.value)}{inlineCurrency ? ` ${inlineCurrency}` : ''}{inlineUnit ? `/${inlineUnit}` : ''}
+                        </span>
+                        {financialConfig.volumen && e.quantity && (
+                          <span className="neg-quote-detail">A partir de {formatAmount(e.quantity)} {inlineUnit || ''}</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {latestPrice[0].note && <span className="neg-quote-detail">{latestPrice[0].note}</span>}
                 </div>
               </div>
             )}

@@ -1059,6 +1059,9 @@
 .neg-quote-value { font-size: 16px; font-weight: 700; color: #111827; line-height: 1.2; }
 .neg-quote-date { font-size: 10.5px; color: #9ca3af; }
 .neg-quote-detail { font-size: 11px; color: #6b7280; }
+.neg-quote-line { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; padding: 3px 0; }
+.neg-quote-line + .neg-quote-line { border-top: 1px dashed #f0f2f5; }
+.neg-quote-line-label { font-size: 11px; font-weight: 600; color: #6b7280; }
 
 .neg-financiero-fields { display: flex; gap: 28px; flex-wrap: wrap; }
 .neg-financiero-field { display: flex; flex-direction: column; gap: 4px; }
