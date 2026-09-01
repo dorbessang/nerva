@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { logActivity } from '../lib/activity'
+import Field from './FieldLabel'
 // Reusa clases .neg-note-input/.neg-add-task-btn/.neg-tasks-list/.neg-task-row/.detail-empty
 // ya definidas en Negotiations.css.
 
@@ -151,37 +152,45 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
             if (isEditing) {
               return (
                 <div key={m.id} className="neg-task-row neg-milestone-edit-row">
-                  <input
-                    type="text"
-                    className="neg-note-input neg-milestone-name-input"
-                    value={editForm.name}
-                    onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                    onKeyDown={e => handleEditKeyDown(e, m.id)}
-                    autoFocus
-                  />
-                  <input
-                    type="number"
-                    className="neg-note-date-input neg-milestone-amount-input"
-                    value={editForm.amount}
-                    onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
-                    onKeyDown={e => handleEditKeyDown(e, m.id)}
-                    step="0.01"
-                  />
-                  <input
-                    type="date"
-                    className="neg-note-date-input neg-milestone-date-input"
-                    value={editForm.estimated_date}
-                    onChange={e => setEditForm(f => ({ ...f, estimated_date: e.target.value }))}
-                    onKeyDown={e => handleEditKeyDown(e, m.id)}
-                  />
-                  <input
-                    type="text"
-                    className="neg-note-input neg-milestone-timing-input"
-                    placeholder="Momento (si no hay fecha exacta)"
-                    value={editForm.timing_note}
-                    onChange={e => setEditForm(f => ({ ...f, timing_note: e.target.value }))}
-                    onKeyDown={e => handleEditKeyDown(e, m.id)}
-                  />
+                  <Field label="Nombre del hito" style={{ flex: 1.5, minWidth: 160 }}>
+                    <input
+                      type="text"
+                      className="neg-note-input neg-milestone-name-input"
+                      value={editForm.name}
+                      onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                      onKeyDown={e => handleEditKeyDown(e, m.id)}
+                      autoFocus
+                    />
+                  </Field>
+                  <Field label="Monto" style={{ width: 120, flexShrink: 0 }}>
+                    <input
+                      type="number"
+                      className="neg-note-date-input neg-milestone-amount-input"
+                      value={editForm.amount}
+                      onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
+                      onKeyDown={e => handleEditKeyDown(e, m.id)}
+                      step="0.01"
+                    />
+                  </Field>
+                  <Field label="Fecha estimada" style={{ width: 150, flexShrink: 0 }}>
+                    <input
+                      type="date"
+                      className="neg-note-date-input neg-milestone-date-input"
+                      value={editForm.estimated_date}
+                      onChange={e => setEditForm(f => ({ ...f, estimated_date: e.target.value }))}
+                      onKeyDown={e => handleEditKeyDown(e, m.id)}
+                    />
+                  </Field>
+                  <Field label="Momento" style={{ flex: 1.5, minWidth: 160 }}>
+                    <input
+                      type="text"
+                      className="neg-note-input neg-milestone-timing-input"
+                      placeholder="Si no hay fecha exacta"
+                      value={editForm.timing_note}
+                      onChange={e => setEditForm(f => ({ ...f, timing_note: e.target.value }))}
+                      onKeyDown={e => handleEditKeyDown(e, m.id)}
+                    />
+                  </Field>
                   <button className="neg-add-task-btn" onClick={() => handleSaveEdit(m.id)}>Guardar</button>
                   <button className="neg-milestone-delete" onClick={cancelEdit} title="Cancelar">✕</button>
                 </div>
@@ -216,38 +225,46 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
       {actionError && <p className="form-error">{actionError}</p>}
       {canEdit && (
         <div className="neg-milestone-add">
-          <input
-            type="text"
-            className="neg-note-input neg-milestone-name-input"
-            placeholder="Nombre del hito (ej: Upfront, Milestone Fase 2...)"
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            onKeyDown={handleAddKeyDown}
-          />
-          <input
-            type="number"
-            className="neg-note-date-input neg-milestone-amount-input"
-            placeholder="Monto (negativo = pago a hacer)"
-            value={newAmount}
-            onChange={e => setNewAmount(e.target.value)}
-            onKeyDown={handleAddKeyDown}
-            step="0.01"
-          />
-          <input
-            type="date"
-            className="neg-note-date-input neg-milestone-date-input"
-            value={newDate}
-            onChange={e => setNewDate(e.target.value)}
-            onKeyDown={handleAddKeyDown}
-          />
-          <input
-            type="text"
-            className="neg-note-input neg-milestone-timing-input"
-            placeholder="Momento (si no hay fecha exacta, ej: al lanzamiento)"
-            value={newTiming}
-            onChange={e => setNewTiming(e.target.value)}
-            onKeyDown={handleAddKeyDown}
-          />
+          <Field label="Nombre del hito" style={{ flex: 1.5, minWidth: 160 }}>
+            <input
+              type="text"
+              className="neg-note-input neg-milestone-name-input"
+              placeholder="Ej: Upfront, Milestone Fase 2..."
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              onKeyDown={handleAddKeyDown}
+            />
+          </Field>
+          <Field label="Monto" style={{ width: 120, flexShrink: 0 }}>
+            <input
+              type="number"
+              className="neg-note-date-input neg-milestone-amount-input"
+              placeholder="Negativo = pago"
+              value={newAmount}
+              onChange={e => setNewAmount(e.target.value)}
+              onKeyDown={handleAddKeyDown}
+              step="0.01"
+            />
+          </Field>
+          <Field label="Fecha estimada" style={{ width: 150, flexShrink: 0 }}>
+            <input
+              type="date"
+              className="neg-note-date-input neg-milestone-date-input"
+              value={newDate}
+              onChange={e => setNewDate(e.target.value)}
+              onKeyDown={handleAddKeyDown}
+            />
+          </Field>
+          <Field label="Momento" style={{ flex: 1.5, minWidth: 160 }}>
+            <input
+              type="text"
+              className="neg-note-input neg-milestone-timing-input"
+              placeholder="Si no hay fecha exacta, ej: al lanzamiento"
+              value={newTiming}
+              onChange={e => setNewTiming(e.target.value)}
+              onKeyDown={handleAddKeyDown}
+            />
+          </Field>
           <button className="neg-add-task-btn" onClick={handleAdd} disabled={saving || !newName.trim() || !newAmount}>
             + Agregar
           </button>

@@ -11,6 +11,7 @@ import NotesPostIts from '../components/NotesPostIts'
 import ActivityTimeline from '../components/ActivityTimeline'
 import DealMilestones, { formatAmount } from '../components/DealMilestones'
 import PriceHistory from '../components/PriceHistory'
+import Field from '../components/FieldLabel'
 import Documents from '../components/Documents'
 import { isTaskBlocked, notifySuccessors, notifyTaskAssigned, dismissNotificationsForTask, createTask, fetchPredecessorCandidates } from '../lib/tasks'
 import { notifyNegotiationStatusChanged } from '../lib/notifications'
@@ -1792,13 +1793,21 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
               <>
                 <label style={{ marginTop: 14, display: 'block' }}>HITOS</label>
                 <div className="neg-milestone-add" style={{ marginTop: 0 }}>
-                  <input type="text" className="neg-note-input neg-milestone-name-input" value={newMilestoneName} onChange={e => setNewMilestoneName(e.target.value)}
-                    placeholder="Ej: Upfront, Milestone Fase 2, Royalties Año 1..." />
-                  <input type="number" className="neg-note-date-input neg-milestone-amount-input" value={newMilestoneAmount} onChange={e => setNewMilestoneAmount(e.target.value)}
-                    placeholder="Monto (negativo = pago a hacer)" step="0.01" />
-                  <input type="date" className="neg-note-date-input neg-milestone-date-input" value={newMilestoneDate} onChange={e => setNewMilestoneDate(e.target.value)} />
-                  <input type="text" className="neg-note-input neg-milestone-timing-input" value={newMilestoneTiming} onChange={e => setNewMilestoneTiming(e.target.value)}
-                    placeholder="Momento (si no hay fecha exacta, ej: al lanzamiento)" />
+                  <Field label="Nombre del hito" style={{ flex: 1.5, minWidth: 160 }}>
+                    <input type="text" className="neg-note-input neg-milestone-name-input" value={newMilestoneName} onChange={e => setNewMilestoneName(e.target.value)}
+                      placeholder="Ej: Upfront, Milestone Fase 2..." />
+                  </Field>
+                  <Field label="Monto" style={{ width: 120, flexShrink: 0 }}>
+                    <input type="number" className="neg-note-date-input neg-milestone-amount-input" value={newMilestoneAmount} onChange={e => setNewMilestoneAmount(e.target.value)}
+                      placeholder="Negativo = pago" step="0.01" />
+                  </Field>
+                  <Field label="Fecha estimada" style={{ width: 150, flexShrink: 0 }}>
+                    <input type="date" className="neg-note-date-input neg-milestone-date-input" value={newMilestoneDate} onChange={e => setNewMilestoneDate(e.target.value)} />
+                  </Field>
+                  <Field label="Momento" style={{ flex: 1.5, minWidth: 160 }}>
+                    <input type="text" className="neg-note-input neg-milestone-timing-input" value={newMilestoneTiming} onChange={e => setNewMilestoneTiming(e.target.value)}
+                      placeholder="Si no hay fecha exacta, ej: al lanzamiento" />
+                  </Field>
                   <button type="button" className="btn-secondary" onClick={() => {
                     const amount = parseFloat(newMilestoneAmount)
                     if (!newMilestoneName.trim() || Number.isNaN(amount) || amount === 0) return
