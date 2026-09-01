@@ -1787,6 +1787,64 @@
 .neg-milestone-date-input { width: 130px; flex-shrink: 0; }
 .neg-milestone-timing-input { flex: 1.5; min-width: 160px; }
 
+.neg-projection-section {
+  background: #F9FAFB;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.neg-projection-meta,
+.neg-projection-split,
+.neg-projection-years {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.neg-projection-total {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.neg-milestone-groups { display: flex; flex-direction: column; gap: 14px; }
+
+.neg-milestone-group {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.neg-milestone-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 8px 14px;
+  background: #F3F4F6;
+}
+
+.neg-milestone-group-title { font-size: 13px; font-weight: 700; color: #111827; }
+
+.neg-milestone-group-stats {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.neg-milestone-group-diff { font-weight: 700; color: #111827; }
+.neg-milestone-group-diff--positive { color: #059669; }
+.neg-milestone-group-diff--negative { color: #DC2626; }
+
 .price-history-summary {
   display: flex;
   flex-direction: column;

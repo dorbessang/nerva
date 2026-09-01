@@ -1342,7 +1342,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
     product_ids: [], // [{ id }]
     tasks: [],
     currency: 'USD', milestones: [], custom_fields: {},
-    unit_of_measure: '', payment_terms: '', estimated_value: '',
+    unit_of_measure: '', payment_terms: '',
   }
   const [form, setForm] = useState(initial ? {
     ...empty, ...initial,
@@ -1484,7 +1484,6 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
       currency: form.currency,
       unit_of_measure: form.unit_of_measure || null,
       payment_terms: form.payment_terms || null,
-      estimated_value: form.estimated_value ? parseFloat(form.estimated_value) : null,
     }
     const jsonbValues = {}
     for (const def of gridDefs) {
@@ -1780,14 +1779,15 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
                     placeholder="Ej: 50% anticipo, 50% contra entrega" />
                 </div>
               )}
-              {financialConfig.valor_estimado && (
-                <div className="form-group">
-                  <label>VALOR ESTIMADO DEL DEAL</label>
-                  <input type="number" step="0.01" value={form.estimated_value} onChange={e => set('estimated_value', e.target.value)}
-                    placeholder="Cifra a mano, si todavía no hay hitos" />
-                </div>
-              )}
             </div>
+
+            {financialConfig.valor_estimado && (
+              <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>
+                {initial
+                  ? 'La proyección de valor del deal por año se carga desde la vista de detalle del proyecto.'
+                  : 'La proyección de valor del deal por año se carga desde la vista de detalle, una vez creado el proyecto.'}
+              </p>
+            )}
 
             {financialConfig.hitos && (
               <>
@@ -1936,10 +1936,10 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   const [inlineCurrency, setInlineCurrency] = useState(neg.currency || 'USD')
   const [inlineUnit, setInlineUnit] = useState(neg.unit_of_measure || '')
   const [inlinePaymentTerms, setInlinePaymentTerms] = useState(neg.payment_terms || '')
-  const [inlineEstimatedValue, setInlineEstimatedValue] = useState(neg.estimated_value ?? '')
   const [activeTab, setActiveTab] = useState('bitacora')
   const [financialConfig, setFinancialConfig] = useState(resolveFinancialConfig(null))
   const [milestonesTotal, setMilestonesTotal] = useState(null)
+  const [projectedTotal, setProjectedTotal] = useState(null)
   const [latestPrice, setLatestPrice] = useState(null)
   const [customFieldValues, setCustomFieldValues] = useState(neg.custom_fields || {})
   const [columnValues, setColumnValues] = useState(() => {
@@ -1975,10 +1975,16 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
 
   useEffect(() => { fetchMilestonesTotal() }, [neg.id, activityRefresh])
   useEffect(() => { fetchLatestPrice() }, [neg.id, activityRefresh])
+  useEffect(() => { if (financialConfig.valor_estimado) fetchProjectedTotal() }, [neg.id, activityRefresh, financialConfig.valor_estimado])
 
   async function fetchMilestonesTotal() {
     const { data } = await supabase.from('deal_milestones').select('amount').eq('negotiation_id', neg.id)
     if (data) setMilestonesTotal(data.reduce((sum, m) => sum + Number(m.amount), 0))
+  }
+
+  async function fetchProjectedTotal() {
+    const { data } = await supabase.from('negotiation_value_projections').select('amount').eq('negotiation_id', neg.id)
+    if (data) setProjectedTotal(data.length > 0 ? data.reduce((sum, p) => sum + Number(p.amount), 0) : null)
   }
 
   // Una cotización es una sola aunque tenga varias presentaciones -- este
@@ -2182,7 +2188,20 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                   <div className="neg-resumen-num">{pendingTasksCount}</div>
                   <div className="neg-resumen-label">tarea{pendingTasksCount !== 1 ? 's' : ''} pendiente{pendingTasksCount !== 1 ? 's' : ''}</div>
                 </div>
-                {financialConfig.hitos && milestonesTotal !== null && (
+                {financialConfig.valor_estimado && projectedTotal !== null ? (
+                  <>
+                    <div className="neg-resumen-tile neg-resumen-tile--wide">
+                      <div className="neg-resumen-num">{formatAmount(projectedTotal)}{inlineCurrency ? ` ${inlineCurrency}` : ''}</div>
+                      <div className="neg-resumen-label">proyectado</div>
+                    </div>
+                    {financialConfig.hitos && milestonesTotal !== null && (
+                      <div className="neg-resumen-tile neg-resumen-tile--wide">
+                        <div className="neg-resumen-num">{formatAmount(milestonesTotal)}{inlineCurrency ? ` ${inlineCurrency}` : ''}</div>
+                        <div className="neg-resumen-label">real a la fecha (hitos)</div>
+                      </div>
+                    )}
+                  </>
+                ) : financialConfig.hitos && milestonesTotal !== null && (
                   <div className="neg-resumen-tile neg-resumen-tile--wide">
                     <div className="neg-resumen-num">{formatAmount(milestonesTotal)}{inlineCurrency ? ` ${inlineCurrency}` : ''}</div>
                     <div className="neg-resumen-label">total del deal (hitos)</div>
@@ -2356,24 +2375,6 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                       )}
                     </div>
                   )}
-                  {financialConfig.valor_estimado && (
-                    <div className="neg-financiero-field">
-                      <div className="detail-section-title">Valor estimado del deal</div>
-                      {canEditInline ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          className="neg-inline-text-input"
-                          value={inlineEstimatedValue}
-                          placeholder="Cifra a mano, si todavía no hay hitos"
-                          onChange={e => setInlineEstimatedValue(e.target.value)}
-                          onBlur={() => saveInlineField('estimated_value', inlineEstimatedValue === '' ? null : parseFloat(inlineEstimatedValue))}
-                        />
-                      ) : (
-                        <span className="neg-detail-value">{inlineEstimatedValue ? `${formatAmount(inlineEstimatedValue)} ${inlineCurrency}` : 'Sin especificar'}</span>
-                      )}
-                    </div>
-                  )}
                 </div>
 
                 {financialConfig.historial_precio && (
@@ -2398,13 +2399,19 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
 
                 {financialConfig.hitos && (
                   <>
-                    <div className="detail-section-title" style={{ marginTop: 18 }}>Hitos</div>
+                    <div className="detail-section-title" style={{ marginTop: 18 }}>
+                      {financialConfig.valor_estimado ? 'Hitos y proyección' : 'Hitos'}
+                    </div>
                     <DealMilestones
                       negotiationId={neg.id}
                       workspaceId={neg.workspace_id || workspaceId}
                       currency={inlineCurrency}
                       canEdit={canNote}
                       onChanged={() => { setActivityRefresh(v => v + 1); onActivityChanged?.() }}
+                      showProjection={financialConfig.valor_estimado}
+                      dealStartDate={neg.deal_start_date}
+                      dealDurationYears={neg.deal_duration_years}
+                      onSaveDealMeta={saveInlineField}
                     />
                   </>
                 )}
