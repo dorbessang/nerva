@@ -1059,8 +1059,9 @@
 .neg-quote-value { font-size: 16px; font-weight: 700; color: #111827; line-height: 1.2; }
 .neg-quote-date { font-size: 10.5px; color: #9ca3af; }
 .neg-quote-detail { font-size: 11px; color: #6b7280; }
-.neg-quote-line { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; padding: 3px 0; }
+.neg-quote-line { display: flex; flex-direction: column; gap: 1px; padding: 3px 0; }
 .neg-quote-line + .neg-quote-line { border-top: 1px dashed #f0f2f5; }
+.neg-quote-line-main { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
 .neg-quote-line-label { font-size: 11px; font-weight: 600; color: #6b7280; }
 
 .neg-financiero-fields { display: flex; gap: 28px; flex-wrap: wrap; }
@@ -1834,17 +1835,19 @@
   border-bottom: 1px solid #f0f2f5;
 }
 
-.price-history-quote-note { flex: 1; font-size: 12.5px; color: #6b7280; }
+.price-history-quote-note { flex: 1; font-size: 12.5px; font-weight: 600; color: #374151; }
 
 .price-history-quote-line {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 1px;
   padding: 4px 0;
 }
 .price-history-quote-line + .price-history-quote-line { border-top: 1px dashed #f0f2f5; }
 
+.price-history-quote-line-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .price-history-quote-line-label { font-size: 12.5px; font-weight: 600; color: #374151; min-width: 90px; }
+.price-history-quote-line-moq { font-size: 11px; color: #6b7280; }
 
 .price-history-quote-actions { display: flex; align-items: center; gap: 8px; }
 

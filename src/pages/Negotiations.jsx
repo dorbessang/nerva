@@ -39,6 +39,15 @@ import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
 
+// "1 de sept. 2026" -- mismo helper que PriceHistory.jsx, a mano porque
+// toLocaleDateString varía el formato (cero adelante, punto en el mes)
+// según el motor.
+const QUOTE_MONTHS_ABBR = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sept.', 'oct.', 'nov.', 'dic.']
+function formatQuoteDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00')
+  return `${d.getDate()} de ${QUOTE_MONTHS_ABBR[d.getMonth()]} ${d.getFullYear()}`
+}
+
 // Columnas que NO son un campo custom configurable (calculadas o legacy) —
 // product/entities/status/description/companies/participants viven en
 // custom_field_definitions y su label sale de ahí, nunca de acá, para no
@@ -2176,20 +2185,22 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                 <p className="neg-sidebar-label">Última cotización</p>
                 <div className="neg-quote-summary">
                   <span className="neg-quote-date">
-                    {latestPrice[0].note ? `${latestPrice[0].note} · ` : ''}
-                    {new Date(latestPrice[0].entry_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {latestPrice[0].note ? `${latestPrice[0].note} - ` : ''}
+                    {formatQuoteDate(latestPrice[0].entry_date)}
                   </span>
                   {latestPrice.map(e => {
                     const productName = e.product_id ? quoteProducts.find(p => p.id === e.product_id)?.name : null
                     const label = [productName, e.presentation].filter(Boolean).join(' — ')
                     return (
                       <div key={e.id} className="neg-quote-line">
-                        {label && <span className="neg-quote-line-label">{label}</span>}
-                        <span className="neg-quote-value">
-                          {formatAmount(e.value)}{inlineCurrency ? ` ${inlineCurrency}` : ''}{inlineUnit ? `/${inlineUnit}` : ''}
-                        </span>
+                        <div className="neg-quote-line-main">
+                          <span className="neg-quote-line-label">{label ? `${label}: ` : ''}</span>
+                          <span className="neg-quote-value">
+                            {formatAmount(e.value)}{inlineCurrency ? ` ${inlineCurrency}` : ''}{inlineUnit ? `/${inlineUnit}` : ''}
+                          </span>
+                        </div>
                         {financialConfig.volumen && e.quantity && (
-                          <span className="neg-quote-detail">A partir de {formatAmount(e.quantity)} {inlineUnit || ''}</span>
+                          <span className="neg-quote-detail">MOQ: {formatAmount(e.quantity)} {inlineUnit || ''}</span>
                         )}
                       </div>
                     )

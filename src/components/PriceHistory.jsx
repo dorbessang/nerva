@@ -12,6 +12,15 @@ function formatAmount(n) {
   return Number(n).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
+// "1 de sept. 2026" -- toLocaleDateString da formatos que varían según el
+// motor (con o sin cero adelante, con o sin punto en el mes abreviado), se
+// arma a mano para que quede siempre igual.
+const QUOTE_MONTHS_ABBR = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sept.', 'oct.', 'nov.', 'dic.']
+function formatQuoteDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00')
+  return `${d.getDate()} de ${QUOTE_MONTHS_ABBR[d.getMonth()]} ${d.getFullYear()}`
+}
+
 // Historial de precio negociado: fecha + valor (+ cantidad, si el workspace
 // usa "Volumen") + motivo del cambio — separado de los Hitos (que son pagos
 // parciales) porque esto es la evolución del precio/cantidad acordados, no
@@ -425,6 +434,15 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
                         />
                       )}
                       <input
+                        type="text"
+                        className="neg-note-input neg-milestone-timing-input"
+                        placeholder="Presentación (opcional)"
+                        list="price-history-presentations"
+                        value={line.presentation}
+                        onChange={ev => updateEditLine(idx, { presentation: ev.target.value })}
+                        onKeyDown={handleEditKeyDown}
+                      />
+                      <input
                         type="number"
                         className="neg-note-date-input neg-milestone-amount-input"
                         placeholder={`Precio${unit ? ` por ${unit}` : ''}`}
@@ -437,22 +455,13 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
                         <input
                           type="number"
                           className="neg-note-date-input neg-milestone-amount-input"
-                          placeholder={`Volumen mínimo${unit ? ` (${unit})` : ''}`}
+                          placeholder={`MOQ${unit ? ` (${unit})` : ''}`}
                           value={line.quantity}
                           onChange={ev => updateEditLine(idx, { quantity: ev.target.value })}
                           onKeyDown={handleEditKeyDown}
                           step="0.01"
                         />
                       )}
-                      <input
-                        type="text"
-                        className="neg-note-input neg-milestone-timing-input"
-                        placeholder="Presentación (opcional)"
-                        list="price-history-presentations"
-                        value={line.presentation}
-                        onChange={ev => updateEditLine(idx, { presentation: ev.target.value })}
-                        onKeyDown={handleEditKeyDown}
-                      />
                       <input
                         type="number"
                         className="neg-note-date-input neg-milestone-amount-input"
@@ -478,8 +487,9 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
             return (
               <div key={quote.key} className="price-history-quote-card">
                 <div className="price-history-quote-header">
-                  <span className="neg-task-date">{new Date(quote.entry_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                  <span className="price-history-quote-note">{quote.note || '—'}</span>
+                  <span className="price-history-quote-note">
+                    {quote.note ? `${quote.note} - ` : ''}{formatQuoteDate(quote.entry_date)}
+                  </span>
                   {canEdit && (
                     <>
                       <button className="neg-milestone-edit" onClick={() => startEditQuote(quote)} title="Editar cotización">✏️</button>
@@ -489,24 +499,28 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
                 </div>
                 {quote.lines.map(e => (
                   <div key={e.id} className="price-history-quote-line">
-                    {e.presentation && <span className="price-history-quote-line-label">{e.presentation}</span>}
-                    <span className="neg-milestone-amount">
-                      {formatAmount(e.value)}{currency ? ` ${currency}` : ''}{unit ? `/${unit}` : ''}
-                      {showQuantity && e.quantity ? ` · desde ${formatAmount(e.quantity)} ${unit || ''}` : ''}
-                    </span>
-                    {e.commission_pct !== null && e.commission_pct !== undefined && (
-                      <span className="neg-milestone-timing-inline">
-                        Comisión {formatAmount(e.commission_pct)}%
-                        {e.commission_approval_status === 'pending' && <span className="commission-approval-badge commission-approval-badge--pending">⏳ Pendiente de aprobación</span>}
-                        {e.commission_approval_status === 'approved' && <span className="commission-approval-badge commission-approval-badge--approved">✓ Aprobada</span>}
-                        {e.commission_approval_status === 'rejected' && <span className="commission-approval-badge commission-approval-badge--rejected">✕ Rechazada</span>}
+                    <div className="price-history-quote-line-main">
+                      <span className="price-history-quote-line-label">{e.presentation ? `${e.presentation}: ` : ''}</span>
+                      <span className="neg-milestone-amount">
+                        {formatAmount(e.value)}{currency ? ` ${currency}` : ''}{unit ? `/${unit}` : ''}
                       </span>
-                    )}
-                    {isApprover && e.commission_approval_status === 'pending' && (
-                      <>
-                        <button className="neg-milestone-edit" onClick={() => handleApprove(e)} title="Aprobar">✓ Aprobar</button>
-                        <button className="neg-milestone-delete" onClick={() => handleReject(e)} title="Rechazar">✕ Rechazar</button>
-                      </>
+                      {e.commission_pct !== null && e.commission_pct !== undefined && (
+                        <span className="neg-milestone-timing-inline">
+                          Comisión {formatAmount(e.commission_pct)}%
+                          {e.commission_approval_status === 'pending' && <span className="commission-approval-badge commission-approval-badge--pending">⏳ Pendiente de aprobación</span>}
+                          {e.commission_approval_status === 'approved' && <span className="commission-approval-badge commission-approval-badge--approved">✓ Aprobada</span>}
+                          {e.commission_approval_status === 'rejected' && <span className="commission-approval-badge commission-approval-badge--rejected">✕ Rechazada</span>}
+                        </span>
+                      )}
+                      {isApprover && e.commission_approval_status === 'pending' && (
+                        <>
+                          <button className="neg-milestone-edit" onClick={() => handleApprove(e)} title="Aprobar">✓ Aprobar</button>
+                          <button className="neg-milestone-delete" onClick={() => handleReject(e)} title="Rechazar">✕ Rechazar</button>
+                        </>
+                      )}
+                    </div>
+                    {showQuantity && e.quantity && (
+                      <span className="price-history-quote-line-moq">MOQ: {formatAmount(e.quantity)} {unit || ''}</span>
                     )}
                   </div>
                 ))}
@@ -556,7 +570,7 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
                   <span className="price-history-staged-presentation">{l.presentation || 'Sin presentación'}</span>
                   <span className="price-history-staged-value">
                     {formatAmount(l.value)}{currency ? ` ${currency}` : ''}{unit ? `/${unit}` : ''}
-                    {showQuantity && l.quantity ? ` · desde ${formatAmount(l.quantity)} ${unit || ''}` : ''}
+                    {showQuantity && l.quantity ? ` · MOQ ${formatAmount(l.quantity)} ${unit || ''}` : ''}
                     {l.commissionPct !== null && l.commissionPct !== undefined ? ` · Comisión ${formatAmount(l.commissionPct)}%` : ''}
                   </span>
                   <button type="button" className="neg-milestone-delete" onClick={() => removeLine(idx)} title="Quitar">✕</button>
@@ -566,6 +580,15 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
           )}
 
           <div className="neg-milestone-add">
+            <input
+              type="text"
+              className="neg-note-input neg-milestone-timing-input"
+              placeholder="Presentación (opcional)"
+              list="price-history-presentations"
+              value={linePresentation}
+              onChange={e => setLinePresentation(e.target.value)}
+              onKeyDown={handleLineKeyDown}
+            />
             <input
               type="number"
               className="neg-note-date-input neg-milestone-amount-input"
@@ -579,22 +602,13 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
               <input
                 type="number"
                 className="neg-note-date-input neg-milestone-amount-input"
-                placeholder={`Volumen mínimo (${unit || 'unidad de medida'})`}
+                placeholder={`MOQ (${unit || 'unidad de medida'})`}
                 value={lineQuantity}
                 onChange={e => setLineQuantity(e.target.value)}
                 onKeyDown={handleLineKeyDown}
                 step="0.01"
               />
             )}
-            <input
-              type="text"
-              className="neg-note-input neg-milestone-timing-input"
-              placeholder="Presentación (opcional)"
-              list="price-history-presentations"
-              value={linePresentation}
-              onChange={e => setLinePresentation(e.target.value)}
-              onKeyDown={handleLineKeyDown}
-            />
             <input
               type="number"
               className="neg-note-date-input neg-milestone-amount-input"
