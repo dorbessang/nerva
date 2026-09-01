@@ -1813,6 +1813,17 @@
   color: #111827;
 }
 
+.neg-projection-mismatch {
+  font-size: 12px;
+  font-weight: 600;
+  color: #B45309;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin: 0;
+}
+
 .neg-milestone-groups { display: flex; flex-direction: column; gap: 14px; }
 
 .neg-milestone-group {

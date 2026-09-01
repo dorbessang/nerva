@@ -44,7 +44,7 @@ function suggestPeriod(dateStr, startDateStr, duration) {
 // "Valor estimado del deal"), se suma la proyección por año de vida del
 // deal: duración + un monto neto esperado por año, contra la cual se
 // comparan los hitos reales agrupados por el período que se les asignó.
-export default function DealMilestones({ negotiationId, workspaceId, currency, canEdit, onChanged, showProjection, dealStartDate, dealDurationYears, onSaveDealMeta }) {
+export default function DealMilestones({ negotiationId, workspaceId, currency, canEdit, onChanged, showProjection, dealStartDate, dealDurationYears, dealTargetValue, onSaveDealMeta }) {
   const { user } = useAuth()
   const [milestones, setMilestones] = useState([])
   const [newName, setNewName] = useState('')
@@ -59,7 +59,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
 
   const [projections, setProjections] = useState([])
   const [yearInputs, setYearInputs] = useState({})
-  const [totalHelper, setTotalHelper] = useState('')
+  const [localTargetValue, setLocalTargetValue] = useState(dealTargetValue != null ? String(dealTargetValue) : '')
   const [localStartDate, setLocalStartDate] = useState(dealStartDate || '')
   const [localDuration, setLocalDuration] = useState(dealDurationYears ? String(dealDurationYears) : '')
 
@@ -67,6 +67,9 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
   const periodRange = Array.from({ length: duration }, (_, i) => i + 1)
   const projectedByPeriod = Object.fromEntries(projections.map(p => [p.period_index, Number(p.amount)]))
   const projectedTotal = projections.reduce((sum, p) => sum + Number(p.amount), 0)
+  const targetValueNum = localTargetValue !== '' ? parseFloat(localTargetValue) : null
+  // Margen chico para no marcar diferencia por puro redondeo de centavos.
+  const targetMismatch = targetValueNum != null && !Number.isNaN(targetValueNum) && Math.abs(targetValueNum - projectedTotal) > 0.01
 
   useEffect(() => {
     fetchMilestones()
@@ -112,7 +115,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
   // redondeo se absorbe en el último año para que la suma cierre exacto con
   // el total cargado.
   async function handleSplitEvenly() {
-    const total = parseFloat(totalHelper)
+    const total = parseFloat(localTargetValue)
     if (Number.isNaN(total) || duration <= 0) return
     const per = Math.round((total / duration) * 100) / 100
     const amounts = periodRange.map((_, i) =>
@@ -135,6 +138,10 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
 
   function handleSaveStartDate() {
     onSaveDealMeta?.('deal_start_date', localStartDate || null)
+  }
+
+  function handleSaveTargetValue() {
+    onSaveDealMeta?.('deal_target_value', localTargetValue === '' ? null : parseFloat(localTargetValue))
   }
 
   function handleNewDateChange(value) {
@@ -369,18 +376,19 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
           {duration > 0 && (
             <>
               <div className="neg-projection-split">
-                <Field label="Repartir un total" style={{ flex: 1, minWidth: 160 }}>
+                <Field label="Valor total del deal" style={{ flex: 1, minWidth: 160 }}>
                   <input
                     type="number"
                     step="0.01"
                     className="neg-note-date-input"
                     placeholder="Ej: 5.000.000"
-                    value={totalHelper}
-                    onChange={e => setTotalHelper(e.target.value)}
+                    value={localTargetValue}
+                    onChange={e => setLocalTargetValue(e.target.value)}
+                    onBlur={handleSaveTargetValue}
                     disabled={!canEdit}
                   />
                 </Field>
-                <button type="button" className="btn-secondary" disabled={!canEdit || !totalHelper} onClick={handleSplitEvenly}>
+                <button type="button" className="btn-secondary" disabled={!canEdit || !localTargetValue} onClick={handleSplitEvenly}>
                   Repartir en partes iguales
                 </button>
               </div>
@@ -400,8 +408,13 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
                 ))}
               </div>
               <div className="neg-projection-total">
-                Total proyectado: {formatAmount(projectedTotal)}{currency ? ` ${currency}` : ''}
+                Total proyectado (suma de los años): {formatAmount(projectedTotal)}{currency ? ` ${currency}` : ''}
               </div>
+              {targetMismatch && (
+                <p className="neg-projection-mismatch">
+                  ⚠ No coincide con el valor total del deal cargado arriba ({formatAmount(targetValueNum)}{currency ? ` ${currency}` : ''}) — diferencia de {formatAmount(Math.abs(targetValueNum - projectedTotal))}{currency ? ` ${currency}` : ''}.
+                </p>
+              )}
             </>
           )}
         </div>

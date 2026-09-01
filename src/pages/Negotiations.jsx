@@ -2411,6 +2411,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                       showProjection={financialConfig.valor_estimado}
                       dealStartDate={neg.deal_start_date}
                       dealDurationYears={neg.deal_duration_years}
+                      dealTargetValue={neg.deal_target_value}
                       onSaveDealMeta={saveInlineField}
                     />
                   </>
