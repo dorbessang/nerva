@@ -1935,6 +1935,8 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   const [inlineObs, setInlineObs] = useState(neg.observations || '')
   const [inlineCurrency, setInlineCurrency] = useState(neg.currency || 'USD')
   const [inlineUnit, setInlineUnit] = useState(neg.unit_of_measure || '')
+  const [inlinePaymentTerms, setInlinePaymentTerms] = useState(neg.payment_terms || '')
+  const [inlineEstimatedValue, setInlineEstimatedValue] = useState(neg.estimated_value ?? '')
   const [activeTab, setActiveTab] = useState('bitacora')
   const [financialConfig, setFinancialConfig] = useState(resolveFinancialConfig(null))
   const [milestonesTotal, setMilestonesTotal] = useState(null)
@@ -2337,13 +2339,42 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                       )}
                     </div>
                   )}
+                  {financialConfig.condiciones_pago && (
+                    <div className="neg-financiero-field">
+                      <div className="detail-section-title">Condiciones de pago</div>
+                      {canEditInline ? (
+                        <input
+                          type="text"
+                          className="neg-inline-text-input"
+                          value={inlinePaymentTerms}
+                          placeholder="Ej: 50% anticipo, 50% contra entrega"
+                          onChange={e => setInlinePaymentTerms(e.target.value)}
+                          onBlur={() => saveInlineField('payment_terms', inlinePaymentTerms || null)}
+                        />
+                      ) : (
+                        <span className="neg-detail-value">{inlinePaymentTerms || 'Sin especificar'}</span>
+                      )}
+                    </div>
+                  )}
+                  {financialConfig.valor_estimado && (
+                    <div className="neg-financiero-field">
+                      <div className="detail-section-title">Valor estimado del deal</div>
+                      {canEditInline ? (
+                        <input
+                          type="number"
+                          step="0.01"
+                          className="neg-inline-text-input"
+                          value={inlineEstimatedValue}
+                          placeholder="Cifra a mano, si todavía no hay hitos"
+                          onChange={e => setInlineEstimatedValue(e.target.value)}
+                          onBlur={() => saveInlineField('estimated_value', inlineEstimatedValue === '' ? null : parseFloat(inlineEstimatedValue))}
+                        />
+                      ) : (
+                        <span className="neg-detail-value">{inlineEstimatedValue ? `${formatAmount(inlineEstimatedValue)} ${inlineCurrency}` : 'Sin especificar'}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {neg.payment_terms && (
-                  <p className="neg-financiero-meta">Condiciones de pago: {neg.payment_terms}</p>
-                )}
-                {financialConfig.valor_estimado && neg.estimated_value && (
-                  <p className="neg-financiero-meta">Valor estimado: {formatAmount(neg.estimated_value)} {inlineCurrency}</p>
-                )}
 
                 {financialConfig.historial_precio && (
                   <>
