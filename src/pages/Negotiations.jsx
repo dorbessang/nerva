@@ -2176,6 +2176,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                 <p className="neg-sidebar-label">Última cotización</p>
                 <div className="neg-quote-summary">
                   <span className="neg-quote-date">
+                    {latestPrice[0].note ? `${latestPrice[0].note} · ` : ''}
                     {new Date(latestPrice[0].entry_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </span>
                   {latestPrice.map(e => {
@@ -2193,7 +2194,6 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                       </div>
                     )
                   })}
-                  {latestPrice[0].note && <span className="neg-quote-detail">{latestPrice[0].note}</span>}
                 </div>
               </div>
             )}
