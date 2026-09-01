@@ -118,7 +118,7 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
             user_id: taskApprovalRule.approver_id,
             type: 'task_approval_requested',
             title: 'Tarea pendiente de autorización',
-            body: `"${title.trim()}"${amountValue != null ? ` — ${amountValue}` : ''} necesita tu autorización.`,
+            body: `"${title.trim()}"${amountValue != null ? ` — ${Number(amountValue).toLocaleString('es-AR', { maximumFractionDigits: 2 })}` : ''} necesita tu autorización.`,
             task_id: task.id,
           })
         }
@@ -268,7 +268,7 @@ export default function TaskDrawer({ task, onClose, onUpdated }) {
 
           {task.approval_status === 'pending' && (
             <p className="drawer-blocked-note">
-              ⏳ Pendiente de autorización{task.amount != null ? ` (${task.amount})` : ''} — no se puede completar hasta que se resuelva.
+              ⏳ Pendiente de autorización{task.amount != null ? ` (${Number(task.amount).toLocaleString('es-AR', { maximumFractionDigits: 2 })})` : ''} — no se puede completar hasta que se resuelva.
             </p>
           )}
           {task.approval_status === 'approved' && <p className="drawer-blocked-note">✓ Autorizada</p>}

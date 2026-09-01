@@ -172,7 +172,7 @@ export async function createTask(supabase, {
         user_id: approverId,
         type: 'task_approval_requested',
         title: 'Tarea pendiente de autorización',
-        body: `"${data.title}"${amount != null ? ` — ${amount}` : ''} necesita tu autorización.`,
+        body: `"${data.title}"${amount != null ? ` — ${Number(amount).toLocaleString('es-AR', { maximumFractionDigits: 2 })}` : ''} necesita tu autorización.`,
         task_id: data.id,
       })
     }

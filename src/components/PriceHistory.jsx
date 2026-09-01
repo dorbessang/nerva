@@ -385,7 +385,7 @@ export default function PriceHistory({ negotiationId, workspaceId, negotiationTi
                 </div>
                 {pctChange !== null && (
                   <span className={`price-history-delta ${pctChange < 0 ? 'price-history-delta--down' : pctChange > 0 ? 'price-history-delta--up' : ''}`}>
-                    {pctChange < 0 ? '▼' : pctChange > 0 ? '▲' : '·'} {Math.abs(pctChange).toFixed(1)}% desde la primera entrada
+                    {pctChange < 0 ? '▼' : pctChange > 0 ? '▲' : '·'} {Math.abs(pctChange).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% desde la primera entrada
                   </span>
                 )}
               </div>

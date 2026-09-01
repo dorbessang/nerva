@@ -72,6 +72,9 @@ export function renderCustomFieldDisplay(def, rawValue, members) {
   if (rawValue === undefined || rawValue === null || rawValue === '') return '—'
   const underlyingType = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
 
+  if (underlyingType === 'number' && !Number.isNaN(Number(rawValue))) {
+    return Number(rawValue).toLocaleString('es-AR', { maximumFractionDigits: 2 })
+  }
   if (underlyingType === 'multiselect' && Array.isArray(rawValue)) {
     return rawValue.length ? rawValue.map(id => resolveChoiceLabel(def, id)).join(', ') : '—'
   }
