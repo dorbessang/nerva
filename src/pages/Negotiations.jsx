@@ -1343,6 +1343,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
     tasks: [],
     currency: 'USD', milestones: [], custom_fields: {},
     unit_of_measure: '', payment_terms: '',
+    deal_start_date: '', deal_duration_years: '', deal_target_value: '',
   }
   const [form, setForm] = useState(initial ? {
     ...empty, ...initial,
@@ -1484,6 +1485,9 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
       currency: form.currency,
       unit_of_measure: form.unit_of_measure || null,
       payment_terms: form.payment_terms || null,
+      deal_start_date: form.deal_start_date || null,
+      deal_duration_years: form.deal_duration_years ? parseInt(form.deal_duration_years, 10) : null,
+      deal_target_value: form.deal_target_value ? parseFloat(form.deal_target_value) : null,
     }
     const jsonbValues = {}
     for (const def of gridDefs) {
@@ -1782,59 +1786,74 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
             </div>
 
             {financialConfig.valor_estimado && (
-              <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>
-                {initial
-                  ? 'La proyección de valor del deal por año se carga desde la vista de detalle del proyecto.'
-                  : 'La proyección de valor del deal por año se carga desde la vista de detalle, una vez creado el proyecto.'}
-              </p>
+              !initial ? (
+                <>
+                  <label style={{ marginTop: 14, display: 'block' }}>PROYECCIÓN DEL DEAL (opcional)</label>
+                  <div className="entity-fields-grid">
+                    <Field label="Fecha de inicio del deal">
+                      <input type="date" value={form.deal_start_date} onChange={e => set('deal_start_date', e.target.value)} />
+                    </Field>
+                    <Field label="Duración (años)">
+                      <input type="number" min="1" max="50" placeholder="Ej: 5" value={form.deal_duration_years} onChange={e => set('deal_duration_years', e.target.value)} />
+                    </Field>
+                    <Field label="Valor total del deal">
+                      <input type="number" step="0.01" placeholder="Ej: 5.000.000" value={form.deal_target_value} onChange={e => set('deal_target_value', e.target.value)} />
+                    </Field>
+                  </div>
+                  <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>El desglose año por año se completa desde la vista de detalle, una vez creado el proyecto. Ninguno de estos campos es obligatorio.</p>
+                </>
+              ) : (
+                <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>La proyección de valor del deal se gestiona desde la vista de detalle del proyecto.</p>
+              )
             )}
 
             {financialConfig.hitos && (
-              <>
-                <label style={{ marginTop: 14, display: 'block' }}>HITOS</label>
-                <div className="neg-milestone-add" style={{ marginTop: 0 }}>
-                  <Field label="Nombre del hito" style={{ flex: 1.5, minWidth: 160 }}>
-                    <input type="text" className="neg-note-input neg-milestone-name-input" value={newMilestoneName} onChange={e => setNewMilestoneName(e.target.value)}
-                      placeholder="Ej: Upfront, Milestone Fase 2..." />
-                  </Field>
-                  <Field label="Monto" style={{ width: 120, flexShrink: 0 }}>
-                    <input type="number" className="neg-note-date-input neg-milestone-amount-input" value={newMilestoneAmount} onChange={e => setNewMilestoneAmount(e.target.value)}
-                      placeholder="Negativo = pago" step="0.01" />
-                  </Field>
-                  <Field label="Fecha estimada" style={{ width: 150, flexShrink: 0 }}>
-                    <input type="date" className="neg-note-date-input neg-milestone-date-input" value={newMilestoneDate} onChange={e => setNewMilestoneDate(e.target.value)} />
-                  </Field>
-                  <Field label="Momento" style={{ flex: 1.5, minWidth: 160 }}>
-                    <input type="text" className="neg-note-input neg-milestone-timing-input" value={newMilestoneTiming} onChange={e => setNewMilestoneTiming(e.target.value)}
-                      placeholder="Si no hay fecha exacta, ej: al lanzamiento" />
-                  </Field>
-                  <button type="button" className="btn-secondary" onClick={() => {
-                    const amount = parseFloat(newMilestoneAmount)
-                    if (!newMilestoneName.trim() || Number.isNaN(amount) || amount === 0) return
-                    set('milestones', [...form.milestones, { id: Date.now(), name: newMilestoneName.trim(), amount, estimated_date: newMilestoneDate, timing_note: newMilestoneTiming.trim() }])
-                    setNewMilestoneName(''); setNewMilestoneAmount(''); setNewMilestoneDate(''); setNewMilestoneTiming('')
-                  }}>
-                    + Agregar
-                  </button>
-                </div>
-                {form.milestones.map(m => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, border: '1px solid #e5e7eb', marginTop: 6 }}>
-                    <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>
-                      {m.name}
-                      {(m.estimated_date || m.timing_note) && (
-                        <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 8, fontWeight: 400 }}>
-                          {[m.estimated_date ? new Date(m.estimated_date + 'T00:00:00').toLocaleDateString('es-AR') : null, m.timing_note].filter(Boolean).join(' · ')}
-                        </span>
-                      )}
-                    </span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: Number(m.amount) < 0 ? '#DC2626' : '#059669', textAlign: 'right', minWidth: 90 }}>{Number(m.amount).toLocaleString('es-AR')} {form.currency}</span>
-                    <button type="button" onClick={() => set('milestones', form.milestones.filter(x => x.id !== m.id))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 16 }}>×</button>
+              !initial ? (
+                <>
+                  <label style={{ marginTop: 14, display: 'block' }}>HITOS INICIALES</label>
+                  <div className="neg-milestone-add" style={{ marginTop: 0 }}>
+                    <Field label="Nombre del hito" style={{ flex: 1.5, minWidth: 160 }}>
+                      <input type="text" className="neg-note-input neg-milestone-name-input" value={newMilestoneName} onChange={e => setNewMilestoneName(e.target.value)}
+                        placeholder="Ej: Upfront, Milestone Fase 2..." />
+                    </Field>
+                    <Field label="Monto" style={{ width: 120, flexShrink: 0 }}>
+                      <input type="number" className="neg-note-date-input neg-milestone-amount-input" value={newMilestoneAmount} onChange={e => setNewMilestoneAmount(e.target.value)}
+                        placeholder="Negativo = pago" step="0.01" />
+                    </Field>
+                    <Field label="Fecha estimada" style={{ width: 150, flexShrink: 0 }}>
+                      <input type="date" className="neg-note-date-input neg-milestone-date-input" value={newMilestoneDate} onChange={e => setNewMilestoneDate(e.target.value)} />
+                    </Field>
+                    <Field label="Momento" style={{ flex: 1.5, minWidth: 160 }}>
+                      <input type="text" className="neg-note-input neg-milestone-timing-input" value={newMilestoneTiming} onChange={e => setNewMilestoneTiming(e.target.value)}
+                        placeholder="Si no hay fecha exacta, ej: al lanzamiento" />
+                    </Field>
+                    <button type="button" className="btn-secondary" onClick={() => {
+                      const amount = parseFloat(newMilestoneAmount)
+                      if (!newMilestoneName.trim() || Number.isNaN(amount) || amount === 0) return
+                      set('milestones', [...form.milestones, { id: Date.now(), name: newMilestoneName.trim(), amount, estimated_date: newMilestoneDate, timing_note: newMilestoneTiming.trim() }])
+                      setNewMilestoneName(''); setNewMilestoneAmount(''); setNewMilestoneDate(''); setNewMilestoneTiming('')
+                    }}>
+                      + Agregar
+                    </button>
                   </div>
-                ))}
-                {initial && (
-                  <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>Los hitos ya existentes se editan desde la vista de detalle del proyecto.</p>
-                )}
-              </>
+                  {form.milestones.map(m => (
+                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, border: '1px solid #e5e7eb', marginTop: 6 }}>
+                      <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>
+                        {m.name}
+                        {(m.estimated_date || m.timing_note) && (
+                          <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 8, fontWeight: 400 }}>
+                            {[m.estimated_date ? new Date(m.estimated_date + 'T00:00:00').toLocaleDateString('es-AR') : null, m.timing_note].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: Number(m.amount) < 0 ? '#DC2626' : '#059669', textAlign: 'right', minWidth: 90 }}>{Number(m.amount).toLocaleString('es-AR')} {form.currency}</span>
+                      <button type="button" onClick={() => set('milestones', form.milestones.filter(x => x.id !== m.id))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 16 }}>×</button>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 14 }}>Los hitos se gestionan desde la vista de detalle del proyecto.</p>
+              )
             )}
           </div>
 
@@ -1850,26 +1869,32 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
 
           <div className="form-group">
             <label>TAREAS INICIALES</label>
-            <div className="neg-newtask-row">
-              <input type="text" value={newTask} onChange={e => setNewTask(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && newTask.trim()) { set('tasks', [...form.tasks, { id: Date.now(), text: newTask.trim(), assignee: newTaskAssignee }]); setNewTask(''); setNewTaskAssignee('') }}}
-                placeholder="Describí la tarea y presioná Enter..." style={{ flex: 1, minWidth: 0 }} />
-              <select className="neg-newtask-select" value={newTaskAssignee} onChange={e => setNewTaskAssignee(e.target.value)}>
-                <option value="">Sin asignar</option>
-                {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email || 'Usuario'}</option>)}
-              </select>
-              <button type="button" className="btn-secondary"
-                onClick={() => { if (!newTask.trim()) return; set('tasks', [...form.tasks, { id: Date.now(), text: newTask.trim(), assignee: newTaskAssignee }]); setNewTask(''); setNewTaskAssignee('') }}>
-                + Agregar
-              </button>
-            </div>
-            {form.tasks.map(t => (
-              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, border: '1px solid #e5e7eb', marginBottom: 6 }}>
-                <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>{t.text}</span>
-                {t.assignee && <span style={{ fontSize: 11, background: '#EFF6FF', color: '#1D4ED8', padding: '2px 8px', borderRadius: 99 }}>{members.find(m => m.user_id === t.assignee)?.profile?.full_name || 'Usuario'}</span>}
-                <button type="button" onClick={() => set('tasks', form.tasks.filter(x => x.id !== t.id))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 16 }}>×</button>
-              </div>
-            ))}
+            {!initial ? (
+              <>
+                <div className="neg-newtask-row">
+                  <input type="text" value={newTask} onChange={e => setNewTask(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && newTask.trim()) { set('tasks', [...form.tasks, { id: Date.now(), text: newTask.trim(), assignee: newTaskAssignee }]); setNewTask(''); setNewTaskAssignee('') }}}
+                    placeholder="Describí la tarea y presioná Enter..." style={{ flex: 1, minWidth: 0 }} />
+                  <select className="neg-newtask-select" value={newTaskAssignee} onChange={e => setNewTaskAssignee(e.target.value)}>
+                    <option value="">Sin asignar</option>
+                    {members.map(m => <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email || 'Usuario'}</option>)}
+                  </select>
+                  <button type="button" className="btn-secondary"
+                    onClick={() => { if (!newTask.trim()) return; set('tasks', [...form.tasks, { id: Date.now(), text: newTask.trim(), assignee: newTaskAssignee }]); setNewTask(''); setNewTaskAssignee('') }}>
+                    + Agregar
+                  </button>
+                </div>
+                {form.tasks.map(t => (
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, border: '1px solid #e5e7eb', marginBottom: 6 }}>
+                    <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>{t.text}</span>
+                    {t.assignee && <span style={{ fontSize: 11, background: '#EFF6FF', color: '#1D4ED8', padding: '2px 8px', borderRadius: 99 }}>{members.find(m => m.user_id === t.assignee)?.profile?.full_name || 'Usuario'}</span>}
+                    <button type="button" onClick={() => set('tasks', form.tasks.filter(x => x.id !== t.id))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: 16 }}>×</button>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>Las tareas se gestionan desde la pestaña Tareas del proyecto.</p>
+            )}
           </div>
         </div>
       </div>
