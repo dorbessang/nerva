@@ -1961,7 +1961,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   const [inlineCurrency, setInlineCurrency] = useState(neg.currency || 'USD')
   const [inlineUnit, setInlineUnit] = useState(neg.unit_of_measure || '')
   const [inlinePaymentTerms, setInlinePaymentTerms] = useState(neg.payment_terms || '')
-  const [activeTab, setActiveTab] = useState('bitacora')
+  const [activeTab, setActiveTab] = useState('resumen')
   const [financialConfig, setFinancialConfig] = useState(resolveFinancialConfig(null))
   const [milestonesTotal, setMilestonesTotal] = useState(null)
   const [projectedTotal, setProjectedTotal] = useState(null)
@@ -1985,7 +1985,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
   const entitiesLinkDef = customFieldDefs.find(d => d.field_type === 'entities_link')
   const productsLinkDef = customFieldDefs.find(d => d.field_type === 'products_link')
-  const inlineDetailDefs = gridDefs.filter(d => d.field_type !== 'status' && d.field_type !== 'entities_link' && d.field_type !== 'products_link' && d.key !== 'product')
+  const inlineDetailDefs = gridDefs.filter(d => d.field_type !== 'status' && d.field_type !== 'entities_link' && d.field_type !== 'products_link' && d.key !== 'product' && d.storage_column !== 'description' && d.storage_column !== 'participants' && d.storage_column !== 'companies')
 
   function fieldValue(def) {
     return def.storage_column ? columnValues[def.key] : getCustomFieldValue(customFieldValues, def.key)
@@ -2150,6 +2150,21 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   const pendingTasksCount = tasks.filter(t => t.status !== 'done').length
   const daysSinceActivity = neg.last_activity_at ? Math.floor((Date.now() - new Date(neg.last_activity_at)) / 86400000) : null
 
+  // Próximo evento del proyecto: la tarea pendiente con fecha más próxima
+  // (mismas tareas que ya alimentan la pestaña Tareas y la Agenda general,
+  // no hace falta un fetch aparte).
+  const upcomingTask = tasks
+    .filter(t => t.status !== 'done' && t.due_date)
+    .map(t => ({ ...t, _at: new Date(`${t.due_date}T${t.due_time || '23:59'}`) }))
+    .filter(t => t._at >= new Date())
+    .sort((a, b) => a._at - b._at)[0] || null
+  const daysUntilUpcoming = upcomingTask ? Math.ceil((upcomingTask._at - new Date()) / 86400000) : null
+
+  const descriptionDef = customFieldDefs.find(d => d.storage_column === 'description')
+  const participantsDef = customFieldDefs.find(d => d.storage_column === 'participants')
+  const participantIds = participantsDef ? (fieldValue(participantsDef) || []) : []
+  const participantNames = resolveMemberNames(members, participantIds)
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="neg-detail-card" onClick={e => e.stopPropagation()}>
@@ -2179,179 +2194,245 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
             )}
           </div>
         )}
-        <div className="neg-detail-body neg-detail-body--split">
-          <aside className="neg-detail-sidebar">
-            <div className="neg-detail-hero">
-              <div className="neg-detail-entity">
-                {flag && <img src={flag} alt="" className="neg-flag-large" />}
-                <span className="neg-detail-entity-name">{entityNames}</span>
-              </div>
-              {canEditInline ? (
-                <select
-                  className="neg-inline-select"
-                  value={inlineStatus}
-                  style={{ backgroundColor: cfg.bg_color, color: cfg.color }}
-                  onChange={e => { setInlineStatus(e.target.value); saveInlineField('status', e.target.value) }}
-                >
-                  {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-                </select>
-              ) : (
-                <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{inlineStatus}</span>
-              )}
-              <StatusDaysBadge neg={neg} />
-            </div>
-            {customFieldError && <p className="form-error">{customFieldError}</p>}
+        <div className="neg-detail-body neg-detail-body--full">
+          <div className="neg-tabs">
+            <button className={`neg-tab ${activeTab === 'resumen' ? 'active' : ''}`} onClick={() => setActiveTab('resumen')}>Resumen</button>
+            <button className={`neg-tab ${activeTab === 'financiero' ? 'active' : ''}`} onClick={() => setActiveTab('financiero')}>Financiero</button>
+            <button className={`neg-tab ${activeTab === 'bitacora' ? 'active' : ''}`} onClick={() => setActiveTab('bitacora')}>Bitácora</button>
+            <button className={`neg-tab ${activeTab === 'actividad' ? 'active' : ''}`} onClick={() => setActiveTab('actividad')}>Actividad</button>
+            <button className={`neg-tab ${activeTab === 'tareas' ? 'active' : ''}`} onClick={() => setActiveTab('tareas')}>Tareas ({tasks.length})</button>
+            <button className={`neg-tab ${activeTab === 'documentos' ? 'active' : ''}`} onClick={() => setActiveTab('documentos')}>Documentos</button>
+          </div>
 
-            <div className="neg-sidebar-section">
-              <p className="neg-sidebar-label">Resumen</p>
-              <div className="neg-resumen-grid">
+          {activeTab === 'resumen' && (
+            <div className="neg-tab-panel neg-resumen-tab">
+              {customFieldError && <p className="form-error">{customFieldError}</p>}
+
+              <div className="neg-resumen-top">
+                <div>
+                  <p className="neg-sidebar-label">Descripción</p>
+                  <p className="detail-empty" style={{ maxWidth: 640 }}>
+                    {descriptionDef ? (fieldValue(descriptionDef) || 'Sin descripción.') : 'Sin descripción.'}
+                  </p>
+                </div>
+                <div className="neg-resumen-status">
+                  <p className="neg-sidebar-label">Estado</p>
+                  {canEditInline ? (
+                    <select
+                      className="neg-inline-select"
+                      value={inlineStatus}
+                      style={{ backgroundColor: cfg.bg_color, color: cfg.color }}
+                      onChange={e => { setInlineStatus(e.target.value); saveInlineField('status', e.target.value) }}
+                    >
+                      {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                    </select>
+                  ) : (
+                    <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{inlineStatus}</span>
+                  )}
+                  <StatusDaysBadge neg={neg} />
+                </div>
+              </div>
+
+              <div className="neg-resumen-stat-row">
                 <div className={`neg-resumen-tile ${daysSinceActivity !== null && daysSinceActivity <= 7 ? 'neg-resumen-tile--ok' : ''}`}>
                   <div className="neg-resumen-num">{daysSinceActivity !== null ? `${daysSinceActivity}d` : '—'}</div>
                   <div className="neg-resumen-label">desde última actividad</div>
                 </div>
-                <div className={`neg-resumen-tile ${pendingTasksCount > 0 ? 'neg-resumen-tile--warn' : ''}`}>
-                  <div className="neg-resumen-num">{pendingTasksCount}</div>
-                  <div className="neg-resumen-label">tarea{pendingTasksCount !== 1 ? 's' : ''} pendiente{pendingTasksCount !== 1 ? 's' : ''}</div>
-                </div>
-                {financialConfig.valor_estimado && projectedTotal !== null ? (
-                  <>
-                    <div className="neg-resumen-tile neg-resumen-tile--wide">
-                      <div className="neg-resumen-num">{formatAmount(projectedTotal)}{inlineCurrency ? ` ${inlineCurrency}` : ''}</div>
-                      <div className="neg-resumen-label">proyectado</div>
-                    </div>
-                    {financialConfig.hitos && milestonesTotal !== null && (
-                      <div className="neg-resumen-tile neg-resumen-tile--wide">
-                        <div className="neg-resumen-num">{formatAmount(milestonesTotal)}{inlineCurrency ? ` ${inlineCurrency}` : ''}</div>
-                        <div className="neg-resumen-label">real a la fecha (hitos)</div>
-                      </div>
-                    )}
-                  </>
-                ) : financialConfig.hitos && milestonesTotal !== null && (
-                  <div className="neg-resumen-tile neg-resumen-tile--wide">
-                    <div className="neg-resumen-num">{formatAmount(milestonesTotal)}{inlineCurrency ? ` ${inlineCurrency}` : ''}</div>
-                    <div className="neg-resumen-label">total del deal (hitos)</div>
+                <a
+                  href={`/tasks?negotiation=${neg.id}&status=active`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`neg-resumen-tile neg-resumen-tile--link ${pendingTasksCount > 0 ? 'neg-resumen-tile--warn' : ''}`}
+                >
+                  <div className="neg-resumen-tile-head">
+                    <div className="neg-resumen-num">{pendingTasksCount}</div>
+                    <span className="neg-resumen-tile-arrow">↗</span>
                   </div>
-                )}
+                  <div className="neg-resumen-label">tarea{pendingTasksCount !== 1 ? 's' : ''} pendiente{pendingTasksCount !== 1 ? 's' : ''} · ver en Tareas</div>
+                </a>
+                <div className="neg-resumen-tile">
+                  {upcomingTask ? (
+                    <>
+                      <div className="neg-resumen-event-row">
+                        <span className="neg-resumen-event-date">{formatQuoteDate(upcomingTask.due_date)}{upcomingTask.due_time ? ` · ${upcomingTask.due_time.slice(0, 5)}` : ''}</span>
+                        <span className="neg-resumen-days-chip">{daysUntilUpcoming === 0 ? 'hoy' : daysUntilUpcoming === 1 ? 'mañana' : `en ${daysUntilUpcoming} días`}</span>
+                      </div>
+                      <div className="neg-resumen-label">próximo evento — {upcomingTask.title}</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="neg-resumen-num">—</div>
+                      <div className="neg-resumen-label">sin próximo evento con fecha</div>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {financialConfig.historial_precio && latestPrice?.length > 0 && (
-              <div className="neg-sidebar-section">
-                <p className="neg-sidebar-label">Última cotización</p>
-                <div className="neg-quote-summary">
-                  <span className="neg-quote-date">
-                    {latestPrice[0].note ? `${latestPrice[0].note} - ` : ''}
-                    {formatQuoteDate(latestPrice[0].entry_date)}
-                  </span>
-                  {latestPrice.map(e => {
-                    const productName = e.product_id ? quoteProducts.find(p => p.id === e.product_id)?.name : null
-                    const label = [productName, e.presentation].filter(Boolean).join(' — ')
-                    return (
-                      <div key={e.id} className="neg-quote-line">
-                        <div className="neg-quote-line-main">
-                          <span className="neg-quote-line-label">{label ? `${label}: ` : ''}</span>
-                          <span className="neg-quote-value">
-                            {formatAmount(e.value)}{inlineCurrency ? ` ${inlineCurrency}` : ''}{inlineUnit ? `/${inlineUnit}` : ''}
-                          </span>
+              <div className="neg-resumen-cols">
+                <div className="neg-resumen-col">
+                  {participantsDef && (
+                    <div className="neg-sidebar-section">
+                      <p className="neg-sidebar-label">Participantes</p>
+                      {canEditInline ? (
+                        <CustomFieldInput def={participantsDef} value={fieldValue(participantsDef)} onChange={v => saveField(participantsDef, v)} members={members} />
+                      ) : participantNames.length > 0 ? (
+                        <div className="neg-participant-chips">
+                          {participantNames.map(name => (
+                            <span key={name} className="neg-participant-chip">
+                              <span className="neg-participant-avatar">{name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()}</span>
+                              {name}
+                            </span>
+                          ))}
                         </div>
-                        {financialConfig.volumen && e.quantity && (
-                          <span className="neg-quote-detail">MOQ: {formatAmount(e.quantity)} {inlineUnit || ''}</span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {entitiesLinkDef && entityTypes.some(et => getEntitiesOfType(neg, et.id).length > 0) && (
-              <div className="neg-sidebar-section">
-                <p className="neg-sidebar-label">{entitiesLinkDef.label}</p>
-                <div className="neg-secondary-entities">
-                  {entityTypes.map(et => {
-                    const ents = getEntitiesOfType(neg, et.id)
-                    if (ents.length === 0) return null
-                    return (
-                      <div key={et.id} className="neg-secondary-entity-row">
-                        {ents[0].country_code && (
-                          <img src={`https://flagcdn.com/w20/${ents[0].country_code.toLowerCase()}.png`} alt="" className="neg-flag" />
-                        )}
-                        <span className="neg-secondary-entity-name">{ents.map(e => e.name).join(', ')}</span>
-                        <span className="neg-secondary-entity-role">{et.name}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {productsLinkDef && (primaryProduct || secondaryProducts.length > 0) && (
-              <div className="neg-sidebar-section">
-                <p className="neg-sidebar-label">{productsLinkDef.label}</p>
-                <div className="neg-secondary-entities">
-                  {primaryProduct && (
-                    <div key={primaryProduct.id} className="neg-secondary-entity-row">
-                      <span className="neg-secondary-entity-name">{primaryProduct.name}</span>
-                      <span className="neg-secondary-entity-role">★ Principal</span>
+                      ) : (
+                        <p className="detail-empty">Sin participantes asignados.</p>
+                      )}
                     </div>
                   )}
-                  {secondaryProducts.map(np => (
-                    <div key={np.product.id} className="neg-secondary-entity-row">
-                      <span className="neg-secondary-entity-name">{np.product.name}</span>
+
+                  {entitiesLinkDef && entityTypes.some(et => getEntitiesOfType(neg, et.id).length > 0) && (
+                    <div className="neg-sidebar-section">
+                      <p className="neg-sidebar-label">{entitiesLinkDef.label}</p>
+                      <div className="neg-secondary-entities">
+                        {entityTypes.map(et => {
+                          const ents = getEntitiesOfType(neg, et.id)
+                          if (ents.length === 0) return null
+                          return (
+                            <div key={et.id} className="neg-secondary-entity-row">
+                              {ents[0].country_code && (
+                                <img src={`https://flagcdn.com/w20/${ents[0].country_code.toLowerCase()}.png`} alt="" className="neg-flag" />
+                              )}
+                              <span className="neg-secondary-entity-name">{ents.map(e => e.name).join(', ')}</span>
+                              <span className="neg-secondary-entity-role">{et.name}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {productsLinkDef && (primaryProduct || secondaryProducts.length > 0) && (
+                    <div className="neg-sidebar-section">
+                      <p className="neg-sidebar-label">{productsLinkDef.label}</p>
+                      <div className="neg-secondary-entities">
+                        {primaryProduct && (
+                          <div key={primaryProduct.id} className="neg-secondary-entity-row">
+                            <span className="neg-secondary-entity-name">{primaryProduct.name}</span>
+                            <span className="neg-secondary-entity-role">★ Principal</span>
+                          </div>
+                        )}
+                        {secondaryProducts.map(np => (
+                          <div key={np.product.id} className="neg-secondary-entity-row">
+                            <span className="neg-secondary-entity-name">{np.product.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="neg-resumen-col">
+                  <div className="neg-sidebar-section">
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                      <p className="neg-sidebar-label">Resumen financiero</p>
+                      <button type="button" className="neg-resumen-link-btn" onClick={() => setActiveTab('financiero')}>Ver Financiero →</button>
+                    </div>
+                    <div className="neg-resumen-fin-cards">
+                      {financialConfig.valor_estimado && projectedTotal !== null && (
+                        <div className="neg-resumen-fin-card">
+                          <div className="neg-resumen-num">{formatAmount(projectedTotal)}{inlineCurrency ? ` ${inlineCurrency}` : ''}</div>
+                          <div className="neg-resumen-label">proyectado{neg.deal_duration_years ? ` / ${neg.deal_duration_years} año${neg.deal_duration_years !== 1 ? 's' : ''}` : ''}</div>
+                        </div>
+                      )}
+                      {financialConfig.hitos && milestonesTotal !== null && (
+                        <div className="neg-resumen-fin-card">
+                          <div className="neg-resumen-num">{formatAmount(milestonesTotal)}{inlineCurrency ? ` ${inlineCurrency}` : ''}</div>
+                          <div className="neg-resumen-label">real a la fecha (hitos)</div>
+                        </div>
+                      )}
+                      {financialConfig.historial_precio && latestPrice?.length > 0 && (
+                        <div className="neg-resumen-fin-card">
+                          <span className="neg-quote-date">
+                            {latestPrice[0].note ? `${latestPrice[0].note} - ` : ''}
+                            {formatQuoteDate(latestPrice[0].entry_date)}
+                          </span>
+                          {latestPrice.map(e => {
+                            const productName = e.product_id ? quoteProducts.find(p => p.id === e.product_id)?.name : null
+                            const label = [productName, e.presentation].filter(Boolean).join(' — ')
+                            return (
+                              <div key={e.id} className="neg-quote-line">
+                                <div className="neg-quote-line-main">
+                                  <span className="neg-quote-line-label">{label ? `${label}: ` : ''}</span>
+                                  <span className="neg-quote-value">
+                                    {formatAmount(e.value)}{inlineCurrency ? ` ${inlineCurrency}` : ''}{inlineUnit ? `/${inlineUnit}` : ''}
+                                  </span>
+                                </div>
+                                {financialConfig.volumen && e.quantity && (
+                                  <span className="neg-quote-detail">MOQ: {formatAmount(e.quantity)} {inlineUnit || ''}</span>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                      {!(financialConfig.valor_estimado && projectedTotal !== null) && !(financialConfig.hitos && milestonesTotal !== null) && !(financialConfig.historial_precio && latestPrice?.length > 0) && (
+                        <p className="detail-empty">Sin datos financieros cargados todavía.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {inlineDetailDefs.length > 0 && (
+                <div className="neg-sidebar-section">
+                  <p className="neg-sidebar-label">Información</p>
+                  {inlineDetailDefs.map(def => (
+                    <div key={def.key} className="neg-detail-section">
+                      <div className="detail-section-title">{def.label}{def.required ? ' *' : ''}</div>
+                      {canEditInline ? (
+                        <CustomFieldInput def={def} value={fieldValue(def)} onChange={v => saveField(def, v)} />
+                      ) : (
+                        <p className="detail-empty"><CustomFieldReadOnly def={def} value={fieldValue(def)} members={members} /></p>
+                      )}
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {inlineDetailDefs.length > 0 && (
-              <div className="neg-sidebar-section">
-                <p className="neg-sidebar-label">Información</p>
-                {inlineDetailDefs.map(def => (
-                  <div key={def.key} className="neg-detail-section">
-                    <div className="detail-section-title">{def.label}{def.required ? ' *' : ''}</div>
-                    {canEditInline ? (
-                      <CustomFieldInput def={def} value={fieldValue(def)} onChange={v => saveField(def, v)} />
-                    ) : (
-                      <p className="detail-empty"><CustomFieldReadOnly def={def} value={fieldValue(def)} members={members} /></p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="neg-sidebar-section">
-              <p className="neg-sidebar-label">Observaciones internas</p>
-              {canEditInline ? (
-                <textarea
-                  className="neg-inline-obs"
-                  value={inlineObs}
-                  onChange={e => setInlineObs(e.target.value)}
-                  onBlur={() => saveInlineField('observations', inlineObs)}
-                  placeholder="Sin observaciones todavía."
-                  rows={3}
-                />
-              ) : (
-                <p className="detail-empty" style={{ whiteSpace: 'pre-wrap' }}>{inlineObs || 'Sin observaciones todavía.'}</p>
               )}
+
+              <div className="neg-sidebar-section">
+                <p className="neg-sidebar-label">Observaciones internas</p>
+                {canEditInline ? (
+                  <textarea
+                    className="neg-inline-obs"
+                    value={inlineObs}
+                    onChange={e => setInlineObs(e.target.value)}
+                    onBlur={() => saveInlineField('observations', inlineObs)}
+                    placeholder="Sin observaciones todavía."
+                    rows={3}
+                  />
+                ) : (
+                  <p className="detail-empty" style={{ whiteSpace: 'pre-wrap' }}>{inlineObs || 'Sin observaciones todavía.'}</p>
+                )}
+              </div>
             </div>
-          </aside>
+          )}
 
-          <section className="neg-detail-rightpane">
-            <div className="neg-tabs">
-              <button className={`neg-tab ${activeTab === 'financiero' ? 'active' : ''}`} onClick={() => setActiveTab('financiero')}>Financiero</button>
-              <button className={`neg-tab ${activeTab === 'bitacora' ? 'active' : ''}`} onClick={() => setActiveTab('bitacora')}>Bitácora</button>
-              <button className={`neg-tab ${activeTab === 'actividad' ? 'active' : ''}`} onClick={() => setActiveTab('actividad')}>Actividad</button>
-              <button className={`neg-tab ${activeTab === 'tareas' ? 'active' : ''}`} onClick={() => setActiveTab('tareas')}>Tareas ({tasks.length})</button>
-              <button className={`neg-tab ${activeTab === 'documentos' ? 'active' : ''}`} onClick={() => setActiveTab('documentos')}>Documentos</button>
-            </div>
+          {activeTab === 'financiero' && (
+            <div className="neg-tab-panel">
+              <NotesPostIts negotiationId={neg.id} workspaceId={neg.workspace_id || workspaceId} page="financiero" canEdit={canNote} hideComposer
+                onChanged={() => { setActivityRefresh(v => v + 1); onNotesChanged?.() }} contextLabel={neg.product || neg.title} />
 
-            {activeTab === 'financiero' && (
-              <div className="neg-tab-panel">
-                <NotesPostIts negotiationId={neg.id} workspaceId={neg.workspace_id || workspaceId} page="financiero" canEdit={canNote} hideComposer
-                  onChanged={() => { setActivityRefresh(v => v + 1); onNotesChanged?.() }} contextLabel={neg.product || neg.title} />
-
-                <div className="neg-financiero-fields">
+              <div className="neg-fin-section">
+                <div className="neg-fin-section-head">
+                  <span className="neg-fin-icon-badge neg-fin-icon-badge--config">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"></path></svg>
+                  </span>
+                  <div>
+                    <div className="neg-fin-section-title">Configuración</div>
+                    <div className="neg-fin-section-sub">Moneda, unidad de medida y condiciones de pago del deal</div>
+                  </div>
+                </div>
+                <div className="neg-fin-section-body neg-financiero-fields">
                   <div className="neg-financiero-field">
                     <div className="detail-section-title">Moneda</div>
                     {canEditInline ? (
@@ -2401,10 +2482,20 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                     </div>
                   )}
                 </div>
+              </div>
 
-                {financialConfig.historial_precio && (
-                  <>
-                    <div className="detail-section-title" style={{ marginTop: 18 }}>Historial de precio</div>
+              {financialConfig.historial_precio && (
+                <div className="neg-fin-section">
+                  <div className="neg-fin-section-head">
+                    <span className="neg-fin-icon-badge neg-fin-icon-badge--quotes">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                    </span>
+                    <div>
+                      <div className="neg-fin-section-title">Historial de cotizaciones</div>
+                      <div className="neg-fin-section-sub">Cómo evolucionó el precio negociado por presentación</div>
+                    </div>
+                  </div>
+                  <div className="neg-fin-section-body">
                     {financialConfig.volumen && !inlineUnit && (
                       <p className="neg-financiero-meta">⚠ Elegí una unidad arriba antes de cargar cantidades — si no, la cantidad queda sin saber a qué se refiere.</p>
                     )}
@@ -2419,14 +2510,24 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                       canEdit={canNote}
                       onChanged={() => setActivityRefresh(v => v + 1)}
                     />
-                  </>
-                )}
+                  </div>
+                </div>
+              )}
 
-                {financialConfig.hitos && (
-                  <>
-                    <div className="detail-section-title" style={{ marginTop: 18 }}>
-                      {financialConfig.valor_estimado ? 'Hitos y proyección' : 'Hitos'}
+              {financialConfig.hitos && (
+                <div className="neg-fin-section">
+                  <div className="neg-fin-section-head">
+                    <span className="neg-fin-icon-badge neg-fin-icon-badge--hitos">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+                    </span>
+                    <div>
+                      <div className="neg-fin-section-title">{financialConfig.valor_estimado ? 'Proyección y Hitos' : 'Hitos'}</div>
+                      <div className="neg-fin-section-sub">
+                        {financialConfig.valor_estimado ? 'Valor esperado por año del deal, comparado contra los hitos reales' : 'Pagos parciales del deal, con monto y fecha'}
+                      </div>
                     </div>
+                  </div>
+                  <div className="neg-fin-section-body">
                     <DealMilestones
                       negotiationId={neg.id}
                       workspaceId={neg.workspace_id || workspaceId}
@@ -2439,12 +2540,13 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                       dealTargetValue={neg.deal_target_value}
                       onSaveDealMeta={saveInlineField}
                     />
-                  </>
-                )}
-              </div>
-            )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
-            {activeTab === 'bitacora' && (
+          {activeTab === 'bitacora' && (
               <div className="neg-tab-panel">
                 <NotesPostIts
                   negotiationId={neg.id}
@@ -2584,7 +2686,6 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                 />
               </div>
             )}
-          </section>
         </div>
         <div className="detail-footer">
           {canPause && (

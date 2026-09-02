@@ -40,6 +40,17 @@ export default function Tasks() {
   const [dropConfirm, setDropConfirm] = useState(null) // { dragged, target }
   const [dropError, setDropError] = useState(null)
 
+  // Deep-link desde otras pantallas (ej: "tareas pendientes" del resumen de
+  // un proyecto) — abre Tareas ya filtrado, sin tener que rearmar el filtro
+  // a mano.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const neg = params.get('negotiation')
+    const status = params.get('status')
+    if (neg) setFilterNegotiation(neg)
+    if (status) setFilter(status)
+  }, [])
+
   useEffect(() => {
     if (!workspaceId) return
     fetchEntities()

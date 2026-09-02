@@ -43,10 +43,20 @@ const STRUCTURAL_NEGOTIATION_FIELDS = [
   { key: 'status', label: 'Estado', field_type: 'status', storage_column: 'status', required: true, filterable: true },
 ]
 
-const REGULAR_NEGOTIATION_FIELDS = [
+// Description/Participantes no son estructurales en el sentido de que el
+// código dependa de ellos para funcionar, pero como los widgets del Resumen
+// del proyecto los buscan por storage_column (no por key/label, que el
+// usuario puede cambiar), solo se pueden recrear con el storage_column
+// correcto por SQL — no desde "+ Agregar campo" de Configuración. Por eso
+// se siembran en los dos presets: el owner los puede borrar si no los
+// quiere, pero no puede "agregarlos de vuelta" solo.
+const RESUMEN_NEGOTIATION_FIELDS = [
   { key: 'description', label: 'Descripción', field_type: 'textarea', storage_column: 'description' },
-  { key: 'entities', label: 'Entidades vinculadas', field_type: 'entities_link', storage_column: null },
   { key: 'participants', label: 'Participantes', field_type: 'user', storage_column: 'participants', options: { multiple: true }, filterable: true },
+]
+
+const REGULAR_NEGOTIATION_FIELDS = [
+  { key: 'entities', label: 'Entidades vinculadas', field_type: 'entities_link', storage_column: null },
   { key: 'companies', label: 'Clientes / Potenciales clientes', field_type: 'multiselect', storage_column: 'companies', options: { choices: [] }, filterable: true },
   { key: 'financial', label: 'Financiero', field_type: 'financial', storage_column: null },
 ]
@@ -83,6 +93,7 @@ async function insertStructuralFields(workspaceId) {
   const rows = [
     ...fieldRows(workspaceId, 'entity', STRUCTURAL_ENTITY_FIELDS, true, 0),
     ...fieldRows(workspaceId, 'negotiation', STRUCTURAL_NEGOTIATION_FIELDS, true, 0),
+    ...fieldRows(workspaceId, 'negotiation', RESUMEN_NEGOTIATION_FIELDS, false, STRUCTURAL_NEGOTIATION_FIELDS.length),
   ]
   const { error } = await supabase.from('custom_field_definitions').insert(rows)
   if (error) throw error
@@ -103,7 +114,7 @@ export async function seedWorkspaceRecommended(workspaceId) {
 
   const regularRows = [
     ...fieldRows(workspaceId, 'entity', REGULAR_ENTITY_FIELDS, false, STRUCTURAL_ENTITY_FIELDS.length),
-    ...fieldRows(workspaceId, 'negotiation', REGULAR_NEGOTIATION_FIELDS, false, STRUCTURAL_NEGOTIATION_FIELDS.length),
+    ...fieldRows(workspaceId, 'negotiation', REGULAR_NEGOTIATION_FIELDS, false, STRUCTURAL_NEGOTIATION_FIELDS.length + RESUMEN_NEGOTIATION_FIELDS.length),
   ]
   const { error: regularError } = await supabase.from('custom_field_definitions').insert(regularRows)
   if (regularError) throw regularError

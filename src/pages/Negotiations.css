@@ -986,6 +986,55 @@
   overflow-y: auto;
 }
 
+/* Rediseño: una sola columna con tabs, el "Resumen" pasa a ser una pantalla
+   completa (antes era una barra lateral angosta donde no entraba todo). */
+.neg-detail-body--full {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.neg-resumen-tab { padding: 22px 28px 32px; gap: 20px; }
+
+.neg-resumen-top { display: flex; gap: 20px; align-items: flex-start; }
+.neg-resumen-status { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+
+.neg-resumen-stat-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.neg-resumen-tile--link { text-decoration: none; color: inherit; display: block; cursor: pointer; }
+.neg-resumen-tile--link:hover { border-color: #0B1F3A; }
+.neg-resumen-tile-head { display: flex; align-items: baseline; justify-content: space-between; }
+.neg-resumen-tile-arrow { color: #9ca3af; font-size: 13px; }
+.neg-resumen-event-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.neg-resumen-event-date { font-size: 14px; font-weight: 700; color: #111827; }
+.neg-resumen-days-chip { background: #FEF3C7; color: #92400E; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+
+.neg-resumen-cols { display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; align-items: start; }
+.neg-resumen-col { display: flex; flex-direction: column; gap: 16px; }
+
+.neg-resumen-link-btn { background: none; border: none; padding: 0; color: #0B1F3A; font-size: 11px; font-weight: 600; cursor: pointer; }
+.neg-resumen-link-btn:hover { color: #1a3a6b; }
+
+.neg-participant-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.neg-participant-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 500; padding: 4px 10px 4px 4px; border-radius: 99px; background: #f9fafb; border: 1px solid #e5e7eb; color: #374151; }
+.neg-participant-avatar { width: 20px; height: 20px; border-radius: 99px; background: #0B1F3A; color: #fff; font-size: 9.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+.neg-resumen-fin-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.neg-resumen-fin-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+
+/* Financiero reorganizado en tarjetas diferenciadas (ícono + título + subtítulo
+   propios) en vez de todo apilado sin separación visual. */
+.neg-fin-section { border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+.neg-fin-section-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #f0f2f5; background: #fff; }
+.neg-fin-icon-badge { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.neg-fin-icon-badge--config { background: #EFF6FF; color: #0B1F3A; }
+.neg-fin-icon-badge--quotes { background: #FEF3C7; color: #92400E; }
+.neg-fin-icon-badge--hitos { background: #D1FAE5; color: #047857; }
+.neg-fin-section-title { font-size: 14.5px; font-weight: 700; color: #111827; }
+.neg-fin-section-sub { font-size: 11.5px; color: #6b7280; margin-top: 1px; }
+.neg-fin-section-body { padding: 18px 20px; }
+.neg-fin-section-body .neg-financiero-fields { gap: 28px; }
+
 .neg-tabs {
   display: flex;
   gap: 4px;
@@ -1099,6 +1148,11 @@
     overflow-y: visible;
     flex-shrink: 0;
   }
+
+  .neg-resumen-top { flex-direction: column; }
+  .neg-resumen-status { align-items: flex-start; }
+  .neg-resumen-stat-row { grid-template-columns: 1fr; }
+  .neg-resumen-cols { grid-template-columns: 1fr; gap: 16px; }
 }
 
 .neg-detail-hero {
