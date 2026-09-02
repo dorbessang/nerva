@@ -183,6 +183,7 @@ export default function Negotiations() {
   const [entityTypes, setEntityTypes] = useState([])
   const [products, setProducts] = useState([])
   const [members, setMembers] = useState([])
+  const [namedParticipants, setNamedParticipants] = useState([])
   const [customStates, setCustomStates] = useState([])
   const [customFieldDefs, setCustomFieldDefs] = useState([])
   const [fieldOrder, setFieldOrder] = useState(null)
@@ -274,12 +275,13 @@ export default function Negotiations() {
 
   async function fetchAll() {
     setLoading(true)
-    const [negsRes, entitiesRes, entityTypesRes, productsRes, membersRes, statesRes, milestonesRes, customFieldsRes] = await Promise.all([
+    const [negsRes, entitiesRes, entityTypesRes, productsRes, membersRes, namedParticipantsRes, statesRes, milestonesRes, customFieldsRes] = await Promise.all([
       supabase.from('negotiations').select('*, primary_entity:primary_entity_id(id, name, country_code), primary_product:primary_product_id(id, name)').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
       supabase.from('entities').select('id, name, country_code, entity_type_id, secondary_entity_type_id').eq('workspace_id', workspaceId).order('name'),
       supabase.from('entity_types').select('id, name, plural').eq('workspace_id', workspaceId).order('sort_order'),
       supabase.from('products').select('id, name, entity:entity_id(name)').eq('workspace_id', workspaceId).order('name'),
       supabase.from('workspace_members').select(`user_id, profile:user_id ( full_name )`).eq('workspace_id', workspaceId).eq('status', 'active'),
+      supabase.from('workspace_named_participants').select('id, name').eq('workspace_id', workspaceId).order('name'),
       supabase.from('custom_states').select('*').eq('workspace_id', workspaceId).eq('object_type', 'negotiation').order('sort_order'),
       supabase.from('deal_milestones').select('negotiation_id, amount').eq('workspace_id', workspaceId),
       supabase.from('custom_field_definitions').select('*').eq('workspace_id', workspaceId).eq('object_type', 'negotiation').order('sort_order'),
@@ -342,6 +344,7 @@ export default function Negotiations() {
     if (entityTypesRes.data) setEntityTypes(entityTypesRes.data)
     if (productsRes.data) setProducts(naturalSortByName(productsRes.data))
     if (membersRes.data) setMembers(membersRes.data)
+    if (namedParticipantsRes.data) setNamedParticipants(namedParticipantsRes.data)
     if (statesRes.data) setCustomStates(statesRes.data)
     setLoading(false)
   }
@@ -880,6 +883,7 @@ export default function Negotiations() {
           customStates={customStates}
           customFieldDefs={customFieldDefs}
           members={members}
+          namedParticipants={namedParticipants}
           getStateConfig={getStateConfig}
           getEntityFlag={getEntityFlag}
           highlightTaskId={highlightTaskId}
@@ -1902,7 +1906,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
   )
 }
 
-export function NegotiationDetail({ neg, entities, entityTypes = [], customStates, customFieldDefs = [], members = [], getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
+export function NegotiationDetail({ neg, entities, entityTypes = [], customStates, customFieldDefs = [], members = [], namedParticipants = [], getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
   const { effectiveRole, role, user, isStaff, workspaceId, activeWorkspace } = useAuth()
   useEscapeToClose(onClose)
   const negTerminalNames = terminalStatusNames(customStates)
@@ -2158,18 +2162,34 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
     .map(t => ({ ...t, _at: new Date(`${t.due_date}T${t.due_time || '23:59'}`) }))
     .filter(t => t._at >= new Date())
     .sort((a, b) => a._at - b._at)[0] || null
-  const daysUntilUpcoming = upcomingTask ? Math.ceil((upcomingTask._at - new Date()) / 86400000) : null
+  // Diferencia en DÍAS DE CALENDARIO, no en horas exactas — con la resta de
+  // timestamps de arriba, cualquier tarea de hoy que todavía no venció
+  // (ej: son las 18hs y vence a las 23:59) quedaba a menos de 24hs y
+  // Math.ceil la redondeaba a "mañana" en vez de "hoy".
+  const daysUntilUpcoming = upcomingTask
+    ? Math.round((new Date(`${upcomingTask.due_date}T00:00:00`) - new Date(new Date().toDateString())) / 86400000)
+    : null
 
   const descriptionDef = customFieldDefs.find(d => d.storage_column === 'description')
   const participantsDef = customFieldDefs.find(d => d.storage_column === 'participants')
   const participantIds = participantsDef ? (fieldValue(participantsDef) || []) : []
-  const participantNames = resolveMemberNames(members, participantIds)
+  // Un id de participante puede ser un usuario real (workspace_members) o
+  // una "persona sin cuenta" (workspace_named_participants) — se busca en
+  // los dos, distinguiendo cuál es cuál para poder marcar el chip "sin
+  // cuenta" en el resumen.
+  const participantEntries = participantIds.map(id => {
+    const member = members.find(m => m.user_id === id)
+    if (member) return { id, name: member.profile?.full_name || 'Usuario', hasAccount: true }
+    const named = namedParticipants.find(np => np.id === id)
+    if (named) return { id, name: named.name, hasAccount: false }
+    return null
+  }).filter(Boolean)
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="neg-detail-card" onClick={e => e.stopPropagation()}>
         <div className="modal-header modal-header--sticky">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
             <h2 className="modal-title"><span className="card-tile-number">#{neg.display_number}</span> {neg.product || neg.title}</h2>
             {activityStatus === 'paused' && (
               <span className="neg-activity-badge paused">⏸ Pausado</span>
@@ -2177,6 +2197,21 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
             {activityStatus === 'inactive' && (
               <span className="neg-activity-badge inactive">💤 Inactivo</span>
             )}
+            <div className="neg-header-status">
+              {canEditInline ? (
+                <select
+                  className="neg-inline-select"
+                  value={inlineStatus}
+                  style={{ backgroundColor: cfg.bg_color, color: cfg.color }}
+                  onChange={e => { setInlineStatus(e.target.value); saveInlineField('status', e.target.value) }}
+                >
+                  {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                </select>
+              ) : (
+                <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{inlineStatus}</span>
+              )}
+              <StatusDaysBadge neg={neg} />
+            </div>
           </div>
           <div className="modal-header-actions">
             {canEdit && <button className="btn-edit" onClick={onEdit}>✏️ Editar</button>}
@@ -2214,22 +2249,6 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                   <p className="detail-empty" style={{ maxWidth: 640 }}>
                     {descriptionDef ? (fieldValue(descriptionDef) || 'Sin descripción.') : 'Sin descripción.'}
                   </p>
-                </div>
-                <div className="neg-resumen-status">
-                  <p className="neg-sidebar-label">Estado</p>
-                  {canEditInline ? (
-                    <select
-                      className="neg-inline-select"
-                      value={inlineStatus}
-                      style={{ backgroundColor: cfg.bg_color, color: cfg.color }}
-                      onChange={e => { setInlineStatus(e.target.value); saveInlineField('status', e.target.value) }}
-                    >
-                      {customStates.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-                    </select>
-                  ) : (
-                    <span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{inlineStatus}</span>
-                  )}
-                  <StatusDaysBadge neg={neg} />
                 </div>
               </div>
 
@@ -2274,13 +2293,13 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                     <div className="neg-sidebar-section">
                       <p className="neg-sidebar-label">Participantes</p>
                       {canEditInline ? (
-                        <CustomFieldInput def={participantsDef} value={fieldValue(participantsDef)} onChange={v => saveField(participantsDef, v)} members={members} />
-                      ) : participantNames.length > 0 ? (
+                        <CustomFieldInput def={participantsDef} value={fieldValue(participantsDef)} onChange={v => saveField(participantsDef, v)} />
+                      ) : participantEntries.length > 0 ? (
                         <div className="neg-participant-chips">
-                          {participantNames.map(name => (
-                            <span key={name} className="neg-participant-chip">
-                              <span className="neg-participant-avatar">{name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()}</span>
-                              {name}
+                          {participantEntries.map(p => (
+                            <span key={p.id} className={`neg-participant-chip ${!p.hasAccount ? 'neg-participant-chip--noaccount' : ''}`}>
+                              <span className="neg-participant-avatar">{p.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}</span>
+                              {p.name}{!p.hasAccount ? ' · sin cuenta' : ''}
                             </span>
                           ))}
                         </div>

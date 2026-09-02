@@ -420,51 +420,6 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
         </div>
       )}
 
-      {milestones.length === 0 ? (
-        <p className="detail-empty">Sin hitos de pago todavía.</p>
-      ) : grouped ? (
-        <div className="neg-milestone-groups">
-          {periodRange.map(p => {
-            const items = groupsByPeriod[p] || []
-            const real = items.reduce((sum, m) => sum + Number(m.amount), 0)
-            const proj = projectedByPeriod[p] || 0
-            const diff = real - proj
-            return (
-              <div key={p} className="neg-milestone-group">
-                <div className="neg-milestone-group-header">
-                  <span className="neg-milestone-group-title">Año {p}</span>
-                  <span className="neg-milestone-group-stats">
-                    <span>Proyectado: {formatAmount(proj)}{currency ? ` ${currency}` : ''}</span>
-                    <span>Real: {formatAmount(real)}{currency ? ` ${currency}` : ''}</span>
-                    <span className={`neg-milestone-group-diff ${diff < 0 ? 'neg-milestone-group-diff--negative' : diff > 0 ? 'neg-milestone-group-diff--positive' : ''}`}>
-                      Diferencia: {diff > 0 ? '+' : ''}{formatAmount(diff)}{currency ? ` ${currency}` : ''}
-                    </span>
-                  </span>
-                </div>
-                {items.length > 0 && (
-                  <div className="neg-tasks-list">{items.map(renderMilestoneRow)}</div>
-                )}
-              </div>
-            )
-          })}
-          {ungrouped.length > 0 && (
-            <div className="neg-milestone-group">
-              <div className="neg-milestone-group-header">
-                <span className="neg-milestone-group-title">Sin período asignado</span>
-              </div>
-              <div className="neg-tasks-list">{ungrouped.map(renderMilestoneRow)}</div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="neg-tasks-list">{milestones.map(renderMilestoneRow)}</div>
-      )}
-
-      {milestones.length > 0 && (
-        <div className={`neg-milestone-total ${total < 0 ? 'neg-milestone-total--negative' : ''}`}>
-          Total real: {formatAmount(total)}{currency ? ` ${currency}` : ''}
-        </div>
-      )}
       {actionError && <p className="form-error">{actionError}</p>}
       {canEdit && (
         <div className="neg-milestone-add">
@@ -512,6 +467,63 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
           <button className="neg-add-task-btn" onClick={handleAdd} disabled={saving || !newName.trim() || !newAmount}>
             + Agregar
           </button>
+        </div>
+      )}
+
+      {milestones.length === 0 ? (
+        <p className="detail-empty">Sin hitos de pago todavía.</p>
+      ) : grouped ? (
+        <div className="neg-milestone-groups">
+          {periodRange.map(p => {
+            const items = groupsByPeriod[p] || []
+            const real = items.reduce((sum, m) => sum + Number(m.amount), 0)
+            const proj = projectedByPeriod[p] || 0
+            const diff = real - proj
+            const diffPct = proj !== 0 ? Math.round((diff / Math.abs(proj)) * 100) : null
+            return (
+              <div key={p} className="neg-milestone-group">
+                <div className="neg-milestone-group-header">
+                  <span className="neg-milestone-group-title">Año {p}</span>
+                  <span className="neg-milestone-group-stats">
+                    <span>Proyectado: {formatAmount(proj)}{currency ? ` ${currency}` : ''}</span>
+                    <span>Real: {formatAmount(real)}{currency ? ` ${currency}` : ''}</span>
+                    <span className={`neg-milestone-group-diff ${diff < 0 ? 'neg-milestone-group-diff--negative' : diff > 0 ? 'neg-milestone-group-diff--positive' : ''}`}>
+                      Diferencia: {diff > 0 ? '+' : ''}{formatAmount(diff)}{currency ? ` ${currency}` : ''}{diffPct !== null ? ` (${diffPct > 0 ? '+' : ''}${diffPct}%)` : ''}
+                    </span>
+                  </span>
+                </div>
+                {items.length > 0 && (
+                  <div className="neg-tasks-list">
+                    {items.map(renderMilestoneRow)}
+                    <div className="neg-milestone-group-total">
+                      Total: {formatAmount(real)}{currency ? ` ${currency}` : ''}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {ungrouped.length > 0 && (
+            <div className="neg-milestone-group">
+              <div className="neg-milestone-group-header">
+                <span className="neg-milestone-group-title">Sin período asignado</span>
+              </div>
+              <div className="neg-tasks-list">
+                {ungrouped.map(renderMilestoneRow)}
+                <div className="neg-milestone-group-total">
+                  Total: {formatAmount(ungrouped.reduce((sum, m) => sum + Number(m.amount), 0))}{currency ? ` ${currency}` : ''}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="neg-tasks-list">{milestones.map(renderMilestoneRow)}</div>
+      )}
+
+      {milestones.length > 0 && (
+        <div className={`neg-milestone-total ${total < 0 ? 'neg-milestone-total--negative' : ''}`}>
+          Total real: {formatAmount(total)}{currency ? ` ${currency}` : ''}
         </div>
       )}
     </div>

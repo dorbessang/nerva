@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { isPrivileged } from '../lib/roles'
 import CountrySelector, { getAllCountries, getCountryName } from './CountrySelector'
 import { renderCustomFieldDisplay } from '../lib/customFields'
 
@@ -79,36 +80,96 @@ function useWorkspaceMembers() {
   return members
 }
 
-function UserMultiSelect({ value, onChange }) {
+// Roster de "personas sin cuenta" del workspace (gente del equipo que no
+// usa Nerva pero se quiere poder marcar como participante de un proyecto).
+// `bump` fuerza un refetch después de crear una nueva.
+function useWorkspaceNamedParticipants() {
+  const { workspaceId } = useAuth()
+  const [named, setNamed] = useState([])
+  const [bump, setBump] = useState(0)
+  useEffect(() => {
+    if (!workspaceId) return
+    supabase
+      .from('workspace_named_participants')
+      .select('id, name')
+      .eq('workspace_id', workspaceId)
+      .order('name')
+      .then(({ data }) => setNamed(data || []))
+  }, [workspaceId, bump])
+  return [named, () => setBump(b => b + 1)]
+}
+
+// `allowNamedParticipants` solo se prende para el campo "Participantes"
+// (storage_column fijo) — no para cualquier campo custom tipo usuario que
+// un workspace arme por su cuenta, donde no necesariamente tiene sentido
+// mezclar gente sin cuenta.
+function UserMultiSelect({ value, onChange, allowNamedParticipants }) {
   const members = useWorkspaceMembers()
+  const { workspaceId, user, effectiveRole } = useAuth()
+  const [namedParticipants, refetchNamed] = useWorkspaceNamedParticipants()
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
   const selected = Array.isArray(value) ? value : []
+  const canCreateNamed = allowNamedParticipants && isPrivileged(effectiveRole)
   const name = m => m.profile?.full_name || 'Usuario'
-  const filtered = members
+
+  const memberOptions = members
     .filter(m => !selected.includes(m.user_id))
     .filter(m => name(m).toLowerCase().includes(query.toLowerCase()))
-    .slice(0, 8)
+    .map(m => ({ id: m.user_id, label: name(m), hasAccount: true }))
+  const namedOptions = allowNamedParticipants
+    ? namedParticipants
+      .filter(np => !selected.includes(np.id))
+      .filter(np => np.name.toLowerCase().includes(query.toLowerCase()))
+      .map(np => ({ id: np.id, label: np.name, hasAccount: false }))
+    : []
+  const options = [...memberOptions, ...namedOptions].slice(0, 8)
+  const queryTrimmed = query.trim().toLowerCase()
+  const hasExactMatch = [...members.map(name), ...namedParticipants.map(np => np.name)]
+    .some(n => n.toLowerCase() === queryTrimmed)
 
-  function add(userId) {
-    if (!selected.includes(userId)) onChange([...selected, userId])
+  function add(id) {
+    if (!selected.includes(id)) onChange([...selected, id])
     setQuery('')
     setOpen(false)
   }
-  function remove(userId) {
-    onChange(selected.filter(id => id !== userId))
+  function remove(id) {
+    onChange(selected.filter(x => x !== id))
+  }
+  function resolve(id) {
+    const m = members.find(m => m.user_id === id)
+    if (m) return { label: name(m), hasAccount: true }
+    const np = namedParticipants.find(np => np.id === id)
+    if (np) return { label: np.name, hasAccount: false }
+    return { label: 'Usuario', hasAccount: true }
+  }
+  async function createNamed() {
+    const trimmed = query.trim()
+    if (!trimmed) return
+    setCreating(true)
+    const { data, error } = await supabase.from('workspace_named_participants')
+      .insert({ workspace_id: workspaceId, name: trimmed, created_by: user?.id })
+      .select('id, name').single()
+    setCreating(false)
+    if (error) { console.error('createNamedParticipant error:', error.message); return }
+    refetchNamed()
+    add(data.id)
   }
 
   return (
     <div className="cf-country-multi">
       {selected.length > 0 && (
         <div className="cf-country-chips">
-          {selected.map(userId => (
-            <span key={userId} className="neg-chip neg-chip-blue">
-              {members.find(m => m.user_id === userId)?.profile?.full_name || 'Usuario'}
-              <button type="button" className="cf-chip-remove" onClick={() => remove(userId)}>✕</button>
-            </span>
-          ))}
+          {selected.map(id => {
+            const r = resolve(id)
+            return (
+              <span key={id} className={`neg-chip neg-chip-blue ${!r.hasAccount ? 'neg-chip-dashed' : ''}`}>
+                {r.label}{!r.hasAccount ? ' · sin cuenta' : ''}
+                <button type="button" className="cf-chip-remove" onClick={() => remove(id)}>✕</button>
+              </span>
+            )
+          })}
         </div>
       )}
       <div className="cf-country-combobox">
@@ -120,14 +181,19 @@ function UserMultiSelect({ value, onChange }) {
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
         />
-        {open && filtered.length > 0 && (
+        {open && (options.length > 0 || (canCreateNamed && queryTrimmed && !hasExactMatch)) && (
           <div className="country-dropdown">
             <div className="country-list">
-              {filtered.map(m => (
-                <div key={m.user_id} className="country-option" onMouseDown={e => { e.preventDefault(); add(m.user_id) }}>
-                  <span>{name(m)}</span>
+              {options.map(o => (
+                <div key={o.id} className="country-option" onMouseDown={e => { e.preventDefault(); add(o.id) }}>
+                  <span>{o.label}{!o.hasAccount ? ' · sin cuenta' : ''}</span>
                 </div>
               ))}
+              {canCreateNamed && queryTrimmed && !hasExactMatch && (
+                <div className="country-option" onMouseDown={e => { e.preventDefault(); createNamed() }}>
+                  <span>{creating ? 'Creando...' : `+ Crear "${query.trim()}" (sin cuenta)`}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -191,7 +257,7 @@ export function CustomFieldInput({ def, value, onChange }) {
     return <CountrySelector value={value || ''} onChange={onChange} />
   }
   if (type === 'user') {
-    if (def.options?.multiple) return <UserMultiSelect value={value} onChange={onChange} />
+    if (def.options?.multiple) return <UserMultiSelect value={value} onChange={onChange} allowNamedParticipants={def.storage_column === 'participants'} />
     return <UserFieldSelect value={value} onChange={onChange} />
   }
   if (type === 'link') {
