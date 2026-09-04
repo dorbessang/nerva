@@ -50,7 +50,7 @@ function formatQuoteDate(dateStr) {
 }
 
 // Columnas que NO son un campo custom configurable (calculadas o legacy) —
-// product/entities/status/description/companies/participants viven en
+// product/entities/status/description/participants viven en
 // custom_field_definitions y su label sale de ahí, nunca de acá, para no
 // duplicar la columna con un label viejo que ignore lo que se configuró en
 // Settings (bug real: esta lista tenía esos 6 keys hardcodeados y `.find()`
@@ -102,7 +102,6 @@ function getExportValue(key, neg, getEntityName, customFieldDefs, members) {
     case 'products': { const name = getProductName(neg); return name === '—' ? '' : name }
     case 'status': return neg.status || ''
     case 'description': return neg.description || ''
-    case 'companies': return (neg.companies || []).join(', ')
     case 'target_date': return neg.target_date || ''
     case 'participants': return resolveMemberNames(members, neg.participants).join(', ')
     case 'notes': return (neg.notes_list || []).map(n => `${n.note_date}: ${n.content}`).join(' | ')
@@ -130,7 +129,6 @@ function getNegSortValue(key, neg, getEntityName, customFieldDefs, members) {
     case 'products': { const name = getProductName(neg); return name !== '—' ? name.toLowerCase() : null }
     case 'status': return neg.status?.toLowerCase() || null
     case 'description': return neg.description?.toLowerCase() || null
-    case 'companies': return neg.companies?.length ? neg.companies.join(', ').toLowerCase() : null
     case 'target_date': { const t = neg.target_date ? new Date(neg.target_date).getTime() : NaN; return Number.isNaN(t) ? null : t }
     case 'participants': { const names = resolveMemberNames(members, neg.participants); return names.length ? names.join(', ').toLowerCase() : null }
     case 'notes': return neg.notes_list?.length || null
@@ -229,7 +227,7 @@ export default function Negotiations() {
     ? plainFieldDefs
     : computeFieldOrder('negotiation', fieldOrder, plainFieldDefs).map(key => plainFieldDefs.find(d => d.key === key)).filter(Boolean)
   const columnFieldDefs = [...orderedFieldDefs, ...entityTypeColumnDefs]
-  const defaultVisible = ['product', ...entityTypeColumnDefs.map(d => d.key), 'status', 'companies', 'target_date']
+  const defaultVisible = ['product', ...entityTypeColumnDefs.map(d => d.key), 'status', 'target_date']
   const [cols, saveCols] = useColumnPrefs({
     storageKey: `nerva_col_prefs_${user?.id}`,
     staticColumns: ALL_COLUMNS,
@@ -284,7 +282,7 @@ export default function Negotiations() {
       supabase.from('workspace_named_participants').select('id, name').eq('workspace_id', workspaceId).order('name'),
       supabase.from('custom_states').select('*').eq('workspace_id', workspaceId).eq('object_type', 'negotiation').order('sort_order'),
       supabase.from('deal_milestones').select('negotiation_id, amount').eq('workspace_id', workspaceId),
-      supabase.from('custom_field_definitions').select('*').eq('workspace_id', workspaceId).eq('object_type', 'negotiation').order('sort_order'),
+      supabase.from('custom_field_definitions').select('*').eq('workspace_id', workspaceId).eq('object_type', 'negotiation').eq('enabled', true).order('sort_order'),
     ])
     setCustomFieldDefs(customFieldsRes.data || [])
 
@@ -944,15 +942,6 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
       return <td key={key}>{getProductName(neg)}</td>
     case 'status':
       return <td key={key}><span className="neg-status-badge" style={{ backgroundColor: cfg.bg_color, color: cfg.color }}>{neg.status}</span> <StatusDaysBadge neg={neg} /></td>
-    case 'companies':
-      return (
-        <td key={key}>
-          <div className="neg-chips">
-            {neg.companies?.slice(0, 2).map(c => <span key={c} className="neg-chip neg-chip-purple">{c}</span>)}
-            {neg.companies?.length > 2 && <span className="neg-chip neg-chip-gray">+{neg.companies.length - 2}</span>}
-          </div>
-        </td>
-      )
     case 'target_date':
       return <td key={key} className="neg-td-date">{neg.target_date || '—'}</td>
     case 'participants': {
@@ -1058,14 +1047,6 @@ function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag,
       if (name === '—') return null
       return <div key={key} className="neg-card-entity">{name}</div>
     }
-    case 'companies':
-      if (!neg.companies?.length) return null
-      return (
-        <div key={key} className="neg-chips neg-card-field">
-          {neg.companies.slice(0, 2).map(c => <span key={c} className="neg-chip neg-chip-purple">{c}</span>)}
-          {neg.companies.length > 2 && <span className="neg-chip neg-chip-gray">+{neg.companies.length - 2}</span>}
-        </div>
-      )
     case 'participants': {
       const names = resolveMemberNames(members, neg.participants)
       if (!names.length) return null
@@ -1341,7 +1322,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
   const empty = {
     title: '', product: '', status: customStates[0]?.name || 'Contactado',
     target_date: '', description: '', observations: '',
-    companies: [], participants: [],
+    participants: [],
     entity_by_type: presetEntity?.entity_type_id ? { [presetEntity.entity_type_id]: presetEntity.id } : {}, // { [entityTypeId]: entityId }
     product_ids: [], // [{ id }]
     tasks: [],
@@ -1989,7 +1970,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
   const gridDefs = customFieldDefs.filter(d => d.field_type !== 'financial')
   const entitiesLinkDef = customFieldDefs.find(d => d.field_type === 'entities_link')
   const productsLinkDef = customFieldDefs.find(d => d.field_type === 'products_link')
-  const inlineDetailDefs = gridDefs.filter(d => d.field_type !== 'status' && d.field_type !== 'entities_link' && d.field_type !== 'products_link' && d.key !== 'product' && d.storage_column !== 'description' && d.storage_column !== 'participants' && d.storage_column !== 'companies')
+  const inlineDetailDefs = gridDefs.filter(d => d.field_type !== 'status' && d.field_type !== 'entities_link' && d.field_type !== 'products_link' && d.key !== 'product' && d.storage_column !== 'description' && d.storage_column !== 'participants')
 
   function fieldValue(def) {
     return def.storage_column ? columnValues[def.key] : getCustomFieldValue(customFieldValues, def.key)

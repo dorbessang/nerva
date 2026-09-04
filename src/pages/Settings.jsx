@@ -8,7 +8,7 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import Avatar from '../components/Avatar'
 import InfoTooltip from '../components/InfoTooltip'
 import { notifyRoleChanged } from '../lib/notifications'
-import { computeFieldOrder, isCardFilterable } from '../lib/customFields'
+import { computeFieldOrder, isCardFilterable, isPredefinedField } from '../lib/customFields'
 import { extractFunctionError } from '../lib/edgeFunctionError'
 import { FINANCIAL_FEATURES, resolveFinancialConfig } from '../lib/financialConfig'
 import { isOwner as isOwnerRole, isPrivileged } from '../lib/roles'
@@ -1605,6 +1605,14 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
     ? orderableFields.map(f => f.key)
     : computeFieldOrder(objectType, fieldOrder, orderableFields)
 
+  // Predefinidos (estructura fija, storage_column o widget bespoke) no se
+  // reordenan entre sí acá — su posición en los formularios queda fija.
+  // Solo los campos custom (libres) se pueden arrastrar; al soltar, se
+  // reescribe únicamente la posición relativa de esos slots dentro del
+  // orden general guardado, sin tocar dónde caen los predefinidos.
+  const predefinedOrderedKeys = orderedKeys.filter(key => isPredefinedField(orderableFields.find(f => f.key === key)))
+  const customOrderedKeys = orderedKeys.filter(key => !isPredefinedField(orderableFields.find(f => f.key === key)))
+
   async function persistOrder(newOrderedKeys) {
     const updated = { ...(fieldOrder || {}), [objectType]: newOrderedKeys }
     setFieldOrder(updated)
@@ -1623,12 +1631,19 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
 
   function handleDrop(idx) {
     if (dragSrc === null || dragSrc === idx) { setDragSrc(null); setDragOver(null); return }
-    const next = [...orderedKeys]
-    const [moved] = next.splice(dragSrc, 1)
-    next.splice(idx, 0, moved)
-    persistOrder(next)
+    const nextCustom = [...customOrderedKeys]
+    const [moved] = nextCustom.splice(dragSrc, 1)
+    nextCustom.splice(idx, 0, moved)
+    let ci = 0
+    const nextFull = orderedKeys.map(key => customOrderedKeys.includes(key) ? nextCustom[ci++] : key)
+    persistOrder(nextFull)
     setDragSrc(null)
     setDragOver(null)
+  }
+
+  async function handleToggleEnabled(f) {
+    await supabase.from('custom_field_definitions').update({ enabled: !f.enabled }).eq('id', f.id)
+    fetchFields()
   }
 
   async function fetchFields() {
@@ -1814,6 +1829,7 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
                   {f.field_type === 'country' && f.options.multiple && ' · varios países'}
                   {f.required && ' · obligatorio'}
                   {f.card_filter && ' · tarjetas de filtro'}
+                  {f.enabled === false && ' · desactivado'}
                 </div>
               </div>
             </div>
@@ -1821,7 +1837,11 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
               <button className="settings-btn-secondary" onClick={() => setEditing({ id: f.id, label: f.label, options: f.options, required: f.required, card_filter: f.card_filter })}>
                 Editar
               </button>
-              {!f.is_structural && (
+              {f.is_structural ? null : isPredefinedField(f) ? (
+                <button className={f.enabled === false ? 'settings-btn-primary' : 'settings-btn-secondary'} onClick={() => handleToggleEnabled(f)}>
+                  {f.enabled === false ? 'Activar' : 'Desactivar'}
+                </button>
+              ) : (
                 confirmDelete === f.id ? (
                   <div className="delete-confirm-inline">
                     <span>¿Seguro?</span>
@@ -1844,6 +1864,26 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
       <div className="settings-block">
         <div className="settings-block-header">
           <div className="settings-block-title-row">
+            <h2 className="settings-block-title">Campos predefinidos</h2>
+            <InfoTooltip text="Campos con una estructura fija definida por la app (guardan en una columna propia o usan un widget especial). No se pueden renombrar su forma ni borrar, pero sí activar o desactivar según los necesites." />
+          </div>
+        </div>
+
+        {loading ? <div className="settings-loading">Cargando...</div> : (
+          <div className="settings-table">
+            {predefinedOrderedKeys.map(key => {
+              const f = orderableFields.find(x => x.key === key)
+              if (!f) return null
+              return renderFieldRow(f, null, false)
+            })}
+            {pinnedField && renderFieldRow(pinnedField, null, false)}
+          </div>
+        )}
+      </div>
+
+      <div className="settings-block">
+        <div className="settings-block-header">
+          <div className="settings-block-title-row">
             <h2 className="settings-block-title">Campos personalizados</h2>
             <InfoTooltip text="El nombre de cada campo es libre — vos decidís cómo llamarlo, el tipo define cómo se guarda y se muestra. Eliminar un campo no borra los valores ya cargados, solo deja de mostrarlo." />
           </div>
@@ -1851,13 +1891,13 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
 
         {loading ? <div className="settings-loading">Cargando...</div> : (
           <div className="settings-table">
-            <p className="settings-hint" style={{ marginBottom: 6 }}>Arrastrá para reordenar cómo se ven en el formulario de alta.</p>
-            {orderedKeys.map((key, idx) => {
+            {customOrderedKeys.length > 0 && <p className="settings-hint" style={{ marginBottom: 6 }}>Arrastrá para reordenar cómo se ven en el formulario de alta.</p>}
+            {customOrderedKeys.map((key, idx) => {
               const f = orderableFields.find(x => x.key === key)
               if (!f) return null
               return renderFieldRow(f, idx, true)
             })}
-            {pinnedField && renderFieldRow(pinnedField, null, false)}
+            {customOrderedKeys.length === 0 && <p className="settings-hint">Todavía no armaste ningún campo propio.</p>}
           </div>
         )}
 

@@ -195,6 +195,7 @@ export default function Products() {
       .from('custom_field_definitions')
       .select('*')
       .eq('workspace_id', workspaceId)
+      .eq('enabled', true)
       .order('sort_order')
     setProductFieldDefs((data || []).filter(d => d.object_type === 'product'))
     setNegotiationFieldDefs((data || []).filter(d => d.object_type === 'negotiation'))

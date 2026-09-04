@@ -213,6 +213,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
       .from('custom_field_definitions')
       .select('*')
       .eq('workspace_id', workspaceId)
+      .eq('enabled', true)
       .order('sort_order')
     setEntityFieldDefs((data || []).filter(d => d.object_type === 'entity'))
     setNegotiationFieldDefs((data || []).filter(d => d.object_type === 'negotiation'))

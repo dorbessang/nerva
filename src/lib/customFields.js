@@ -14,6 +14,15 @@ import { getCountryName, getAllCountries } from '../components/CountrySelector'
 // "+ Agregar campo" de Settings, solo se siembran por SQL.
 export const SPECIAL_FIELD_TYPES = ['entity_type', 'status', 'entities_link', 'financial', 'contacts', 'product_type', 'product_entity', 'products_link']
 
+// "Predefinido" = tiene una estructura fija definida por el código: o guarda
+// en una columna real (storage_column) o usa uno de los widgets bespoke de
+// arriba. El usuario puede prenderlo/apagarlo (columna `enabled`) pero no
+// puede cambiar su forma. Todo lo demás es un campo "custom": libre, 100%
+// definido por el usuario desde "+ Agregar campo", vive en el jsonb.
+export function isPredefinedField(def) {
+  return !!def.storage_column || SPECIAL_FIELD_TYPES.includes(def.field_type)
+}
+
 function countryFlagEmoji(code) {
   if (!code || code.length !== 2) return ''
   return String.fromCodePoint(...code.toUpperCase().split('').map(c => 127397 + c.charCodeAt(0)))

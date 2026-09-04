@@ -105,7 +105,6 @@ function drawProjectPage(doc, neg, { index, customStates, getPrimaryEntity, task
   rows.push(['Proveedor', providerLine])
   const participantNames = resolveMemberNames(members, neg.participants)
   if (participantNames.length) rows.push(['Participantes', participantNames.join(', ')])
-  if (neg.companies?.length) rows.push(['Empresas', neg.companies.join(', ')])
   if (neg.description) rows.push(['Descripción', neg.description])
   if (neg.notes_list?.length) {
     rows.push(['Notas', neg.notes_list.map(n => `${formatDatePdf(n.note_date)}: ${n.content}`).join('\n')])

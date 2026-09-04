@@ -57,7 +57,6 @@ const RESUMEN_NEGOTIATION_FIELDS = [
 
 const REGULAR_NEGOTIATION_FIELDS = [
   { key: 'entities', label: 'Entidades vinculadas', field_type: 'entities_link', storage_column: null },
-  { key: 'companies', label: 'Clientes / Potenciales clientes', field_type: 'multiselect', storage_column: 'companies', options: { choices: [] }, filterable: true },
   { key: 'financial', label: 'Financiero', field_type: 'financial', storage_column: null },
 ]
 

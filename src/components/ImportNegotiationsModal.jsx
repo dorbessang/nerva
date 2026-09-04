@@ -119,7 +119,6 @@ export default function ImportNegotiationsModal({ workspaceId, entities, entityT
         primary_entity_id: resolvedEntityId(r),
         currency: 'USD',
         participants: [],
-        companies: [],
       }
       const customFields = {}
       for (const def of importFields) {
