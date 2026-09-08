@@ -47,12 +47,12 @@ const ENTITY_DEFAULT_VISIBLE = ['name', 'entity_type', 'country', 'projects_tota
 
 // Valor comparable por columna para el click-para-ordenar del encabezado —
 // null siempre ordena al final, ver sortRows en lib/tableSort.js.
-function getEntitySortValue(key, entity, entityFieldDefs, members) {
+function getEntitySortValue(key, entity, entityFieldDefs, members, refLists) {
   switch (key) {
     case 'name': return entity.name?.toLowerCase() || null
     case 'entity_type': return entity.entity_type?.name?.toLowerCase() || null
     case 'projects_total': return entity.negotiation_entities?.length || null
-    default: return customFieldSortValue(entityFieldDefs?.find(d => d.key === key), entity, members, getCustomFieldValue, renderCustomFieldDisplay)
+    default: return customFieldSortValue(entityFieldDefs?.find(d => d.key === key), entity, members, getCustomFieldValue, renderCustomFieldDisplay, refLists)
   }
 }
 
@@ -194,6 +194,20 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
     supabase.from('entity_types').select('id, name, plural').eq('workspace_id', workspaceId).order('sort_order')
       .then(({ data }) => setAllEntityTypes(data || []))
   }, [workspaceId])
+
+  // Listas livianas { id, name } para resolver campos custom tipo Proyecto/
+  // Producto del workspace (Entidad ya sale de allEntities) — solo hacen
+  // falta acá para mostrar esos campos en tabla/tarjetas/detalle.
+  const [refNegotiations, setRefNegotiations] = useState([])
+  const [refProducts, setRefProducts] = useState([])
+  useEffect(() => {
+    if (!workspaceId) return
+    supabase.from('negotiations').select('id, product, title').eq('workspace_id', workspaceId)
+      .then(({ data }) => setRefNegotiations((data || []).map(n => ({ id: n.id, name: n.product || n.title || 'Sin nombre' }))))
+    supabase.from('products').select('id, name').eq('workspace_id', workspaceId).order('name')
+      .then(({ data }) => setRefProducts(data || []))
+  }, [workspaceId])
+  const refLists = { entities: allEntities, negotiations: refNegotiations, products: refProducts }
 
   useEffect(() => {
     supabase.from('workspace_members')
@@ -379,7 +393,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
   // Orden por columna (click en el encabezado de Tabla, o el selector de
   // Tarjetas) — mismo estado para ambas vistas, así se mantienen en sync.
   const sorted = sortKey
-    ? sortRows(filtered, e => getEntitySortValue(sortKey, e, entityFieldDefs, members), sortDir)
+    ? sortRows(filtered, e => getEntitySortValue(sortKey, e, entityFieldDefs, members, refLists), sortDir)
     : filtered
 
   const pageTitle = entityTypeId ? (entityTypeName || 'Proveedores') : 'Todas las entidades'
@@ -577,6 +591,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           cols={safeCols}
           allColumns={allColumns}
           members={members}
+          refLists={refLists}
           onSelect={setSelectedEntity}
           canBulkDelete={canBulkDelete}
           selectedIds={selectedIds}
@@ -652,6 +667,7 @@ export default function Entities({ entityTypeId, entityTypeName, entityTypeSingu
           entities={entities}
           allEntities={allEntities}
           allEntityTypes={allEntityTypes}
+          refLists={refLists}
           onClose={() => setSelectedEntity(null)}
           onUpdated={fetchEntities}
           entityTypeName={selectedEntity.entity_type?.name}
@@ -697,7 +713,7 @@ function renderProjectsTotalCell(negotiationLinks, getStateConfig) {
 // que renderCell en Negotiations.jsx: primero los casos especiales (no son
 // un campo custom simple: nombre con bandera, tipo resuelto vía el join,
 // el calculado de ENTITY_STATIC_COLUMNS) y default a `entityFieldDefs`.
-function renderEntityCell(key, entity, entityFieldDefs, members, getStateConfig) {
+function renderEntityCell(key, entity, entityFieldDefs, members, getStateConfig, refLists) {
   switch (key) {
     case 'name':
       return (
@@ -714,7 +730,7 @@ function renderEntityCell(key, entity, entityFieldDefs, members, getStateConfig)
       const def = entityFieldDefs?.find(d => d.key === key)
       if (!def) return <td key={key}>—</td>
       const raw = def.storage_column ? entity[def.storage_column] : getCustomFieldValue(entity.custom_fields, key)
-      return <td key={key} className="entities-td-text">{renderCustomFieldDisplay(def, raw, members)}</td>
+      return <td key={key} className="entities-td-text">{renderCustomFieldDisplay(def, raw, members, refLists)}</td>
     }
   }
 }
@@ -723,7 +739,7 @@ function renderEntityCell(key, entity, entityFieldDefs, members, getStateConfig)
 // la vieja `EntitiesTable` de filas fijas. Reusa las clases `neg-table-*`
 // de Negotiations.css: son estilos de tabla genéricos, ya bundleados en la
 // misma hoja de estilos global de la app.
-function EntitiesGridTable({ entities, allRows, getFacetRows, entityFieldDefs, cols, allColumns, members, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
+function EntitiesGridTable({ entities, allRows, getFacetRows, entityFieldDefs, cols, allColumns, members, refLists, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
   function getColumnFilter(key) {
     const fieldDef = entityFieldDefs.find(d => d.key === key)
     if (!fieldDef || !isFieldFilterable(fieldDef)) return null
@@ -741,7 +757,7 @@ function EntitiesGridTable({ entities, allRows, getFacetRows, entityFieldDefs, c
       rowKey={entity => entity.id}
       cols={cols}
       allColumns={allColumns}
-      renderCell={(key, entity) => renderEntityCell(key, entity, entityFieldDefs, members, getStateConfig)}
+      renderCell={(key, entity) => renderEntityCell(key, entity, entityFieldDefs, members, getStateConfig, refLists)}
       getColumnFilter={getColumnFilter}
       sortKey={sortKey}
       sortDir={sortDir}
@@ -758,7 +774,7 @@ function EntitiesGridTable({ entities, allRows, getFacetRows, entityFieldDefs, c
   )
 }
 
-function EntityDetailModal({ entity, negotiationStates, entities, allEntities = [], allEntityTypes = [], onClose, onUpdated, entityTypeName, entityTypeSingular, getStateConfig, entityFieldDefs = [], negotiationFieldDefs = [], productFieldDefs = [] }) {
+function EntityDetailModal({ entity, negotiationStates, entities, allEntities = [], allEntityTypes = [], refLists, onClose, onUpdated, entityTypeName, entityTypeSingular, getStateConfig, entityFieldDefs = [], negotiationFieldDefs = [], productFieldDefs = [] }) {
   const { workspaceId, user, effectiveRole } = useAuth()
   useEscapeToClose(onClose)
   const canDelete = isOwner(effectiveRole)
@@ -955,7 +971,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
                 return (
                   <div key={key} className="entity-info-row">
                     <span className="entity-info-label">{def.label}</span>
-                    <span className="entity-info-val"><CustomFieldReadOnly def={def} value={value} members={members} /></span>
+                    <span className="entity-info-val"><CustomFieldReadOnly def={def} value={value} members={members} refLists={refLists} /></span>
                   </div>
                 )
               })}
@@ -1316,6 +1332,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
           customStates={customStates}
           customFieldDefs={negotiationFieldDefs}
           members={members}
+          refLists={refLists}
           getStateConfig={getStateConfig}
           getEntityFlag={getEntityFlagForNeg}
           onClose={() => setSelectedNeg(null)}
@@ -1337,6 +1354,7 @@ function EntityDetailModal({ entity, negotiationStates, entities, allEntities = 
           getStateConfig={getStateConfig}
           productFieldDefs={productFieldDefs}
           negotiationFieldDefs={negotiationFieldDefs}
+          refLists={refLists}
         />
       )}
     </div>

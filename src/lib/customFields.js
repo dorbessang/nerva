@@ -76,8 +76,11 @@ function resolveChoiceLabel(def, id) {
 // Representación en texto plano de un valor, para tabla/tarjetas/exports —
 // resuelve ids de opciones (select/multiselect) a sus labels. `members`
 // (workspace_members con profile:user_id(full_name)) es opcional, solo hace
-// falta para resolver el nombre de un campo tipo "usuario".
-export function renderCustomFieldDisplay(def, rawValue, members) {
+// falta para resolver el nombre de un campo tipo "usuario". `refLists`
+// (opcional) es { entities, negotiations, products }, cada uno una lista
+// liviana [{ id, name }] — hace falta para resolver campos tipo Entidad/
+// Proyecto/Producto del workspace.
+export function renderCustomFieldDisplay(def, rawValue, members, refLists) {
   if (rawValue === undefined || rawValue === null || rawValue === '') return '—'
   const underlyingType = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
 
@@ -102,7 +105,21 @@ export function renderCustomFieldDisplay(def, rawValue, members) {
     }
     return resolveMemberName(members, rawValue) || '—'
   }
+  if (underlyingType === 'entity_ref') return resolveRefNames(refLists?.entities, def, rawValue)
+  if (underlyingType === 'negotiation_ref') return resolveRefNames(refLists?.negotiations, def, rawValue)
+  if (underlyingType === 'product_ref') return resolveRefNames(refLists?.products, def, rawValue)
   return String(rawValue)
+}
+
+// Campos "referencia" (Entidad/Proyecto/Producto del workspace): mismo
+// patrón que Usuario, pero contra una lista genérica { id, name } que arma
+// cada página con los datos que ya tiene cargados (no hace falta un fetch
+// aparte acá — sin lista, degrada a "—" en vez de romper).
+function resolveRefNames(list, def, rawValue) {
+  const ids = def.options?.multiple ? (Array.isArray(rawValue) ? rawValue : []) : [rawValue].filter(Boolean)
+  if (!ids.length) return '—'
+  const names = ids.map(id => list?.find(x => x.id === id)?.name).filter(Boolean)
+  return names.length ? names.join(', ') : '—'
 }
 
 // Orden final de un formulario — mergea el orden guardado por el workspace
@@ -135,7 +152,8 @@ export function getMissingRequiredFields(defs, values) {
 export function isWideCustomField(def) {
   const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
   if (SPECIAL_FIELD_TYPES.includes(def.field_type)) return true
-  return type === 'textarea' || type === 'multiselect' || ((type === 'country' || type === 'user') && def.options?.multiple)
+  const refTypes = ['country', 'user', 'entity_ref', 'negotiation_ref', 'product_ref']
+  return type === 'textarea' || type === 'multiselect' || (refTypes.includes(type) && def.options?.multiple)
 }
 
 // Tipos con una lista de opciones predefinida (elegida al crear el campo,

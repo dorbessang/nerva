@@ -32,19 +32,19 @@ const PRODUCT_STATIC_COLUMNS = [
 ]
 const PRODUCT_DEFAULT_VISIBLE = ['name', 'product_type', 'entity', 'projects_total']
 
-function getProductSortValue(key, product, productFieldDefs) {
+function getProductSortValue(key, product, productFieldDefs, members, refLists) {
   switch (key) {
     case 'name': return product.name?.toLowerCase() || null
     case 'product_type': return product.product_type?.name?.toLowerCase() || null
     case 'entity': return product.entity?.name?.toLowerCase() || null
     case 'projects_total': return product.negotiation_products?.length || null
-    default: return customFieldSortValue(productFieldDefs?.find(d => d.key === key), product, null, getCustomFieldValue, renderCustomFieldDisplay)
+    default: return customFieldSortValue(productFieldDefs?.find(d => d.key === key), product, members, getCustomFieldValue, renderCustomFieldDisplay, refLists)
   }
 }
 
 // Valor de texto plano por columna para el export Excel — separado de
 // renderProductCell porque ese devuelve JSX con badges.
-function getProductExportValue(key, product, productFieldDefs, members) {
+function getProductExportValue(key, product, productFieldDefs, members, refLists) {
   switch (key) {
     case 'name': return product.name || ''
     case 'product_type': return product.product_type?.name || ''
@@ -54,7 +54,7 @@ function getProductExportValue(key, product, productFieldDefs, members) {
       const def = productFieldDefs?.find(d => d.key === key)
       if (!def) return ''
       const raw = def.storage_column ? product[def.storage_column] : getCustomFieldValue(product.custom_fields, key)
-      const val = renderCustomFieldDisplay(def, raw, members)
+      const val = renderCustomFieldDisplay(def, raw, members, refLists)
       return val === '—' ? '' : val
     }
   }
@@ -63,13 +63,13 @@ function getProductExportValue(key, product, productFieldDefs, members) {
 // Excel real (.xlsx), mismo motivo que en Proyectos: evita problemas de
 // delimitador/codificación de un CSV plano. xlsx se carga bajo demanda
 // (import dinámico) para no sumarlo al bundle inicial de /products.
-async function exportProductsXlsx(products, cols, allColumns, productFieldDefs, members) {
+async function exportProductsXlsx(products, cols, allColumns, productFieldDefs, members, refLists) {
   const XLSX = await import('xlsx')
   const visibleCols = cols.filter(c => c.visible)
   const headers = visibleCols.map(c => allColumns.find(x => x.key === c.key)?.label || c.key)
   const rows = [
     headers,
-    ...products.map(p => visibleCols.map(c => getProductExportValue(c.key, p, productFieldDefs, members))),
+    ...products.map(p => visibleCols.map(c => getProductExportValue(c.key, p, productFieldDefs, members, refLists))),
   ]
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = visibleCols.map(() => ({ wch: 22 }))
@@ -184,6 +184,20 @@ export default function Products() {
       .eq('status', 'active')
       .then(({ data }) => setMembers(data || []))
   }, [workspaceId])
+
+  // Listas livianas { id, name } para resolver campos custom tipo Entidad/
+  // Proyecto del workspace (Producto ya sale de `products`) — solo hacen
+  // falta acá para mostrar esos campos en tabla/tarjetas/detalle.
+  const [refEntities, setRefEntities] = useState([])
+  const [refNegotiations, setRefNegotiations] = useState([])
+  useEffect(() => {
+    if (!workspaceId) return
+    supabase.from('entities').select('id, name').eq('workspace_id', workspaceId).order('name')
+      .then(({ data }) => setRefEntities(data || []))
+    supabase.from('negotiations').select('id, product, title').eq('workspace_id', workspaceId)
+      .then(({ data }) => setRefNegotiations((data || []).map(n => ({ id: n.id, name: n.product || n.title || 'Sin nombre' }))))
+  }, [workspaceId])
+  const refLists = { entities: refEntities, negotiations: refNegotiations, products }
 
   useEffect(() => {
     supabase.from('workspaces').select('field_order').eq('id', workspaceId).single()
@@ -324,7 +338,7 @@ export default function Products() {
   }
 
   const sorted = sortKey
-    ? sortRows(filtered, p => getProductSortValue(sortKey, p, productFieldDefs), sortDir)
+    ? sortRows(filtered, p => getProductSortValue(sortKey, p, productFieldDefs, members, refLists), sortDir)
     : filtered
 
   function exportRows() {
@@ -332,7 +346,7 @@ export default function Products() {
   }
 
   function handleExportExcel() {
-    exportProductsXlsx(exportRows(), cols, allColumns, productFieldDefs, members)
+    exportProductsXlsx(exportRows(), cols, allColumns, productFieldDefs, members, refLists)
   }
 
   return (
@@ -489,6 +503,7 @@ export default function Products() {
           cols={cols}
           allColumns={allColumns}
           members={members}
+          refLists={refLists}
           onSelect={setSelectedProduct}
           canBulkDelete={canBulkDelete}
           selectedIds={selectedIds}
@@ -559,6 +574,7 @@ export default function Products() {
           getStateConfig={getStateConfig}
           productFieldDefs={productFieldDefs}
           negotiationFieldDefs={negotiationFieldDefs}
+          refLists={refLists}
         />
       )}
     </div>
@@ -595,7 +611,7 @@ function renderProjectsTotalCell(negotiationLinks, getStateConfig) {
 // Celda de columna de la grilla de Productos — despacha por key, casos
 // especiales primero (nombre, tipo/proveedor resueltos vía join, el
 // calculado de PRODUCT_STATIC_COLUMNS) y default a `productFieldDefs`.
-function renderProductCell(key, product, productFieldDefs, members, getStateConfig) {
+function renderProductCell(key, product, productFieldDefs, members, getStateConfig, refLists) {
   switch (key) {
     case 'name':
       return <td key={key} className="entities-td-name">{product.name}</td>
@@ -609,12 +625,12 @@ function renderProductCell(key, product, productFieldDefs, members, getStateConf
       const def = productFieldDefs?.find(d => d.key === key)
       if (!def) return <td key={key}>—</td>
       const raw = def.storage_column ? product[def.storage_column] : getCustomFieldValue(product.custom_fields, key)
-      return <td key={key} className="entities-td-text">{renderCustomFieldDisplay(def, raw, members)}</td>
+      return <td key={key} className="entities-td-text">{renderCustomFieldDisplay(def, raw, members, refLists)}</td>
     }
   }
 }
 
-function ProductsGridTable({ products, allRows, getFacetRows, productFieldDefs, productTypes, cols, allColumns, members, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
+function ProductsGridTable({ products, allRows, getFacetRows, productFieldDefs, productTypes, cols, allColumns, members, refLists, getStateConfig, onSelect, canBulkDelete, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customFilterValues, onFilterChange, onColResize }) {
   function getColumnFilter(key) {
     const fieldDef = productFieldDefs.find(d => d.key === key)
     if (!fieldDef || !isFieldFilterable(fieldDef)) return null
@@ -632,7 +648,7 @@ function ProductsGridTable({ products, allRows, getFacetRows, productFieldDefs, 
       rowKey={product => product.id}
       cols={cols}
       allColumns={allColumns}
-      renderCell={(key, product) => renderProductCell(key, product, productFieldDefs, members, getStateConfig)}
+      renderCell={(key, product) => renderProductCell(key, product, productFieldDefs, members, getStateConfig, refLists)}
       getColumnFilter={getColumnFilter}
       sortKey={sortKey}
       sortDir={sortDir}
@@ -697,7 +713,7 @@ function groupPriceEntries(entries) {
   }).sort((a, b) => (a.presentation || '').localeCompare(b.presentation || ''))
 }
 
-export function ProductDetailModal({ product, negotiationStates, onClose, onUpdated, productTypeSingular, getStateConfig, productFieldDefs = [], negotiationFieldDefs = [] }) {
+export function ProductDetailModal({ product, negotiationStates, onClose, onUpdated, productTypeSingular, getStateConfig, productFieldDefs = [], negotiationFieldDefs = [], refLists }) {
   const { effectiveRole, workspaceId, user } = useAuth()
   useEscapeToClose(onClose)
   const canDelete = isOwner(effectiveRole)
@@ -839,7 +855,7 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
                 return (
                   <div key={key} className="entity-info-row">
                     <span className="entity-info-label">{def.label}</span>
-                    <span className="entity-info-val"><CustomFieldReadOnly def={def} value={value} members={members} /></span>
+                    <span className="entity-info-val"><CustomFieldReadOnly def={def} value={value} members={members} refLists={refLists} /></span>
                   </div>
                 )
               })}
@@ -1013,6 +1029,7 @@ export function ProductDetailModal({ product, negotiationStates, onClose, onUpda
           customStates={negotiationStates}
           customFieldDefs={negotiationFieldDefs}
           members={members}
+          refLists={refLists}
           getStateConfig={getStateConfig}
           getEntityFlag={() => null}
           onClose={() => setSelectedNeg(null)}

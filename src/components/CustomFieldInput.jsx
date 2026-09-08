@@ -99,10 +99,10 @@ function useWorkspaceNamedParticipants() {
   return [named, () => setBump(b => b + 1)]
 }
 
-// `allowNamedParticipants` solo se prende para el campo "Participantes"
-// (storage_column fijo) — no para cualquier campo custom tipo usuario que
-// un workspace arme por su cuenta, donde no necesariamente tiene sentido
-// mezclar gente sin cuenta.
+// `allowNamedParticipants` sale de `def.options.allow_named` — configurable
+// desde Configuración por campo (Editar → "Permitir agregar personas sin
+// cuenta"), no fijo al campo "Participantes": cualquier campo tipo Usuario
+// del workspace puede habilitarlo si tiene sentido para ese caso.
 function UserMultiSelect({ value, onChange, allowNamedParticipants }) {
   const members = useWorkspaceMembers()
   const { workspaceId, user, effectiveRole } = useAuth()
@@ -212,6 +212,134 @@ function UserFieldSelect({ value, onChange }) {
   )
 }
 
+// Fetches genéricos para los campos "referencia" (Entidad/Proyecto/Producto
+// del workspace) — mismo patrón que useWorkspaceMembers, cada uno trae solo
+// { id, name } (Proyecto usa product/title como nombre, igual que en el
+// resto de la app).
+function useWorkspaceEntities() {
+  const { workspaceId } = useAuth()
+  const [entities, setEntities] = useState([])
+  useEffect(() => {
+    if (!workspaceId) return
+    supabase.from('entities').select('id, name').eq('workspace_id', workspaceId).order('name')
+      .then(({ data }) => setEntities(data || []))
+  }, [workspaceId])
+  return entities
+}
+
+function useWorkspaceNegotiationsRef() {
+  const { workspaceId } = useAuth()
+  const [negotiations, setNegotiations] = useState([])
+  useEffect(() => {
+    if (!workspaceId) return
+    supabase.from('negotiations').select('id, product, title').eq('workspace_id', workspaceId)
+      .then(({ data }) => setNegotiations((data || []).map(n => ({ id: n.id, name: n.product || n.title || 'Sin nombre' }))))
+  }, [workspaceId])
+  return negotiations
+}
+
+function useWorkspaceProductsRef() {
+  const { workspaceId } = useAuth()
+  const [products, setProducts] = useState([])
+  useEffect(() => {
+    if (!workspaceId) return
+    supabase.from('products').select('id, name').eq('workspace_id', workspaceId).order('name')
+      .then(({ data }) => setProducts(data || []))
+  }, [workspaceId])
+  return products
+}
+
+// Combobox genérico contra una lista { id, name } — misma estructura visual
+// que UserMultiSelect/CountryMultiSelect, sin las particularidades de esos
+// (banderita, personas sin cuenta).
+function RefMultiSelect({ value, onChange, options, placeholder }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const selected = Array.isArray(value) ? value : []
+  const filtered = options
+    .filter(o => !selected.includes(o.id))
+    .filter(o => o.name.toLowerCase().includes(query.toLowerCase()))
+    .slice(0, 8)
+
+  function add(id) {
+    if (!selected.includes(id)) onChange([...selected, id])
+    setQuery('')
+    setOpen(false)
+  }
+  function remove(id) {
+    onChange(selected.filter(x => x !== id))
+  }
+  function resolve(id) {
+    return options.find(o => o.id === id)?.name || '—'
+  }
+
+  return (
+    <div className="cf-country-multi">
+      {selected.length > 0 && (
+        <div className="cf-country-chips">
+          {selected.map(id => (
+            <span key={id} className="neg-chip neg-chip-blue">
+              {resolve(id)}
+              <button type="button" className="cf-chip-remove" onClick={() => remove(id)}>✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="cf-country-combobox">
+        <input
+          type="text"
+          placeholder={placeholder}
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+        />
+        {open && filtered.length > 0 && (
+          <div className="country-dropdown">
+            <div className="country-list">
+              {filtered.map(o => (
+                <div key={o.id} className="country-option" onMouseDown={e => { e.preventDefault(); add(o.id) }}>
+                  <span>{o.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function RefFieldSelect({ value, onChange, options }) {
+  return (
+    <select className="neg-select" value={value || ''} onChange={e => onChange(e.target.value || null)}>
+      <option value="">—</option>
+      {options.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+    </select>
+  )
+}
+
+function EntityRefField({ value, onChange, multiple }) {
+  const entities = useWorkspaceEntities()
+  return multiple
+    ? <RefMultiSelect value={value} onChange={onChange} options={entities} placeholder="Buscar y agregar entidad..." />
+    : <RefFieldSelect value={value} onChange={onChange} options={entities} />
+}
+
+function NegotiationRefField({ value, onChange, multiple }) {
+  const negotiations = useWorkspaceNegotiationsRef()
+  return multiple
+    ? <RefMultiSelect value={value} onChange={onChange} options={negotiations} placeholder="Buscar y agregar proyecto..." />
+    : <RefFieldSelect value={value} onChange={onChange} options={negotiations} />
+}
+
+function ProductRefField({ value, onChange, multiple }) {
+  const products = useWorkspaceProductsRef()
+  return multiple
+    ? <RefMultiSelect value={value} onChange={onChange} options={products} placeholder="Buscar y agregar producto..." />
+    : <RefFieldSelect value={value} onChange={onChange} options={products} />
+}
+
 export function CustomFieldInput({ def, value, onChange }) {
   const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
   const choices = def.options?.choices || []
@@ -257,9 +385,12 @@ export function CustomFieldInput({ def, value, onChange }) {
     return <CountrySelector value={value || ''} onChange={onChange} />
   }
   if (type === 'user') {
-    if (def.options?.multiple) return <UserMultiSelect value={value} onChange={onChange} allowNamedParticipants={def.storage_column === 'participants'} />
+    if (def.options?.multiple) return <UserMultiSelect value={value} onChange={onChange} allowNamedParticipants={!!def.options?.allow_named} />
     return <UserFieldSelect value={value} onChange={onChange} />
   }
+  if (type === 'entity_ref') return <EntityRefField value={value} onChange={onChange} multiple={!!def.options?.multiple} />
+  if (type === 'negotiation_ref') return <NegotiationRefField value={value} onChange={onChange} multiple={!!def.options?.multiple} />
+  if (type === 'product_ref') return <ProductRefField value={value} onChange={onChange} multiple={!!def.options?.multiple} />
   if (type === 'link') {
     return <input type="url" value={value || ''} onChange={e => onChange(e.target.value)} placeholder="https://..." />
   }
@@ -295,8 +426,8 @@ function safeLinkHref(raw) {
 
 // mismo texto que renderCustomFieldDisplay, pero link/email/teléfono salen
 // clickeables (mismo patrón que ya usan los Contactos de una entidad).
-export function CustomFieldReadOnly({ def, value: rawValue, members }) {
-  const text = renderCustomFieldDisplay(def, rawValue, members)
+export function CustomFieldReadOnly({ def, value: rawValue, members, refLists }) {
+  const text = renderCustomFieldDisplay(def, rawValue, members, refLists)
   if (text === '—') return <>{text}</>
   if (def.field_type === 'link') {
     const href = safeLinkHref(rawValue)

@@ -40,13 +40,13 @@ export function naturalSortByName(rows) {
 // cada una (product/entities/status en Proyectos, name/entity_type en
 // Entidades, etc.). Números y fechas ordenan por su valor real; el resto
 // ordena por el string que ya se muestra (case-insensitive).
-export function customFieldSortValue(def, obj, members, getCustomFieldValue, renderCustomFieldDisplay) {
+export function customFieldSortValue(def, obj, members, getCustomFieldValue, renderCustomFieldDisplay, refLists) {
   if (!def) return null
   const type = def.field_type === 'tracked' ? def.options?.underlying_type : def.field_type
   const raw = def.storage_column ? obj[def.storage_column] : getCustomFieldValue(obj.custom_fields, def.key)
   if (raw === undefined || raw === null || raw === '' || (Array.isArray(raw) && raw.length === 0)) return null
   if (type === 'number') return Number(raw)
   if (type === 'date') { const t = new Date(raw).getTime(); return Number.isNaN(t) ? null : t }
-  const display = renderCustomFieldDisplay(def, raw, members)
+  const display = renderCustomFieldDisplay(def, raw, members, refLists)
   return display === '—' ? null : display.toLowerCase()
 }

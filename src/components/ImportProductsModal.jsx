@@ -165,7 +165,10 @@ export default function ImportProductsModal({ workspaceId, productFieldDefs = []
     supabase.from('entities').select('id, name').eq('workspace_id', workspaceId).order('name').then(({ data }) => setEntities(data || []))
   }, [])
 
-  const importFields = productFieldDefs
+  // Usuario/Entidad/Proyecto/Producto relacionado requerirían mapear texto
+  // libre contra otra tabla — mismo criterio que ya usan los otros dos
+  // imports, se dejan afuera hasta que algún preset lo necesite de verdad.
+  const importFields = productFieldDefs.filter(d => !['user', 'entity_ref', 'negotiation_ref', 'product_ref'].includes(d.field_type))
   const headers = importFields.map(d => d.label)
   const ctx = { productTypes, entities }
 

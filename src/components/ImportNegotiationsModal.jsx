@@ -13,7 +13,7 @@ import './ImportModal.css'
 // Participantes (usuario) requeriría mapear texto libre contra miembros
 // reales del workspace, igual que en el import de Entidades — se deja
 // afuera hasta que algún preset lo necesite de verdad.
-const SKIP_TYPES = ['entities_link', 'products_link', 'financial', 'user']
+const SKIP_TYPES = ['entities_link', 'products_link', 'financial', 'user', 'entity_ref', 'negotiation_ref', 'product_ref']
 
 function importFieldsOf(negotiationFieldDefs) {
   return (negotiationFieldDefs || []).filter(d => !SKIP_TYPES.includes(d.field_type))

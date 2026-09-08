@@ -95,7 +95,7 @@ function statusFilterIncludes(filterValue, name) {
 
 // Valor de texto plano por columna para el export CSV — separado de
 // renderCell/renderCardField porque esos devuelven JSX con badges/chips.
-function getExportValue(key, neg, getEntityName, customFieldDefs, members) {
+function getExportValue(key, neg, getEntityName, customFieldDefs, members, refLists) {
   if (key.startsWith('entity_type:')) return getEntitiesOfType(neg, key.slice('entity_type:'.length)).map(e => e.name).join(', ')
   switch (key) {
     case 'product': return neg.product || neg.title || ''
@@ -111,7 +111,7 @@ function getExportValue(key, neg, getEntityName, customFieldDefs, members) {
     default: {
       const def = customFieldDefs?.find(d => d.key === key)
       if (!def) return ''
-      const val = renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key), members)
+      const val = renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key), members, refLists)
       return val === '—' ? '' : val
     }
   }
@@ -119,7 +119,7 @@ function getExportValue(key, neg, getEntityName, customFieldDefs, members) {
 
 // Valor comparable por columna para el click-para-ordenar del encabezado —
 // null siempre ordena al final, ver sortRows en lib/tableSort.js.
-function getNegSortValue(key, neg, getEntityName, customFieldDefs, members) {
+function getNegSortValue(key, neg, getEntityName, customFieldDefs, members, refLists) {
   if (key.startsWith('entity_type:')) {
     const names = getEntitiesOfType(neg, key.slice('entity_type:'.length)).map(e => e.name)
     return names.length ? names.join(', ').toLowerCase() : null
@@ -135,7 +135,7 @@ function getNegSortValue(key, neg, getEntityName, customFieldDefs, members) {
     case 'observations': return neg.observations?.toLowerCase() || null
     case 'activity_status': return neg.activity_status || null
     case 'last_activity_at': { const t = neg.last_activity_at ? new Date(neg.last_activity_at).getTime() : NaN; return Number.isNaN(t) ? null : t }
-    default: return customFieldSortValue(customFieldDefs?.find(d => d.key === key), neg, members, getCustomFieldValue, renderCustomFieldDisplay)
+    default: return customFieldSortValue(customFieldDefs?.find(d => d.key === key), neg, members, getCustomFieldValue, renderCustomFieldDisplay, refLists)
   }
 }
 
@@ -145,7 +145,7 @@ function getNegSortValue(key, neg, getEntityName, customFieldDefs, members) {
 // xlsx/jspdf se cargan bajo demanda (import dinámico) para no sumarlos al
 // bundle inicial de /negotiations — son acciones ocasionales, no parte del
 // flujo principal de la página.
-async function exportNegotiationsXlsx(negotiations, cols, getEntityName, customFieldDefs, members, entityTypes = []) {
+async function exportNegotiationsXlsx(negotiations, cols, getEntityName, customFieldDefs, members, entityTypes = [], refLists) {
   const XLSX = await import('xlsx')
   const visibleCols = cols.filter(c => c.visible)
   const headers = visibleCols.map(c => {
@@ -157,7 +157,7 @@ async function exportNegotiationsXlsx(negotiations, cols, getEntityName, customF
   })
   const rows = [
     headers,
-    ...negotiations.map(neg => visibleCols.map(c => getExportValue(c.key, neg, getEntityName, customFieldDefs, members))),
+    ...negotiations.map(neg => visibleCols.map(c => getExportValue(c.key, neg, getEntityName, customFieldDefs, members, refLists))),
   ]
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = visibleCols.map(() => ({ wch: 22 }))
@@ -193,6 +193,16 @@ export default function Negotiations() {
   const [filterPendingTasks, setFilterPendingTasks] = useState(false)
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState(null)
+
+  // Listas livianas { id, name } para resolver campos custom tipo Entidad/
+  // Proyecto/Producto del workspace — entities/products ya tienen `.name`,
+  // a las negociaciones se les arma acá (product/title, igual que en el
+  // resto de la app).
+  const refLists = {
+    entities,
+    negotiations: negotiations.map(n => ({ id: n.id, name: n.product || n.title || 'Sin nombre' })),
+    products,
+  }
 
   function handleSort(key) {
     const dir = nextSortDir(key, sortKey, sortDir)
@@ -483,7 +493,7 @@ export default function Negotiations() {
   // Orden por columna (click en el encabezado de Tabla, o el selector de
   // Tarjetas) — mismo estado para ambas vistas, así se mantienen en sync.
   const sorted = sortKey
-    ? sortRows(filtered, n => getNegSortValue(sortKey, n, getEntityName, customFieldDefs, members), sortDir)
+    ? sortRows(filtered, n => getNegSortValue(sortKey, n, getEntityName, customFieldDefs, members, refLists), sortDir)
     : filtered
 
   // Suma los hitos de pago de un set de proyectos, agrupados por moneda (sin conversión)
@@ -520,7 +530,7 @@ export default function Negotiations() {
 
   function handleExportExcel() {
     setShowExportMenu(false)
-    exportNegotiationsXlsx(exportRows(), cols, getEntityName, customFieldDefs, members, entityTypes)
+    exportNegotiationsXlsx(exportRows(), cols, getEntityName, customFieldDefs, members, entityTypes, refLists)
   }
 
   async function handleExportPdf() {
@@ -837,12 +847,12 @@ export default function Negotiations() {
           sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
           customStates={customStates} customFilterValues={customFilterValues} onFilterChange={(key, v) => setCustomFilterValues(prev => ({ ...prev, [key]: v }))}
           entities={entities} entityTypeFilters={entityTypeFilters} onEntityTypeFilterChange={(typeId, v) => setEntityTypeFilters(prev => ({ ...prev, [typeId]: v }))}
-          onColResize={(key, width) => saveCols(cols.map(c => c.key === key ? { ...c, width } : c))} />
+          onColResize={(key, width) => saveCols(cols.map(c => c.key === key ? { ...c, width } : c))} refLists={refLists} />
       ) : view === 'cards' ? (
-        <CardsView negotiations={sorted} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} customFieldDefs={customFieldDefs} members={members}
+        <CardsView negotiations={sorted} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} onSelect={setSelectedNeg} cols={cols} customFieldDefs={customFieldDefs} members={members} refLists={refLists}
           selectedIds={selectedIds} onToggleSelect={toggleSelect} entityTypes={entityTypes} />
       ) : (
-        <KanbanView negotiations={filtered} customStates={customStates} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} cols={cols} customFieldDefs={customFieldDefs} members={members}
+        <KanbanView negotiations={filtered} customStates={customStates} getStateConfig={getStateConfig} getEntityName={getEntityName} getEntityFlag={getEntityFlag} cols={cols} customFieldDefs={customFieldDefs} members={members} refLists={refLists}
           onSelect={setSelectedNeg} canEdit={canCreateProject} onMove={handleKanbanMove} entityTypes={entityTypes} />
       )}
 
@@ -882,6 +892,7 @@ export default function Negotiations() {
           customFieldDefs={customFieldDefs}
           members={members}
           namedParticipants={namedParticipants}
+          refLists={refLists}
           getStateConfig={getStateConfig}
           getEntityFlag={getEntityFlag}
           highlightTaskId={highlightTaskId}
@@ -912,7 +923,7 @@ function StatusDaysBadge({ neg }) {
 
 // Editor de columnas — drag & drop para reordenar, toggle para mostrar/ocultar
 // Render de una celda según el key de columna
-function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members) {
+function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members, refLists) {
   const cfg = getStateConfig(neg.status)
 
   if (key.startsWith('entity_type:')) {
@@ -978,12 +989,12 @@ function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, cust
     default: {
       const def = customFieldDefs?.find(d => d.key === key)
       if (!def) return <td key={key}>—</td>
-      return <td key={key} className="neg-td-text">{renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key), members)}</td>
+      return <td key={key} className="neg-td-text">{renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key), members, refLists)}</td>
     }
   }
 }
 
-function TableView({ negotiations, allRows, getFacetRows, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customStates, customFilterValues, onFilterChange, entities, entityTypeFilters, onEntityTypeFilterChange, onColResize }) {
+function TableView({ negotiations, allRows, getFacetRows, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, allColumns, customFieldDefs, members, selectedIds, onToggleSelect, allVisibleSelected, onToggleSelectAll, sortKey, sortDir, onSort, customStates, customFilterValues, onFilterChange, entities, entityTypeFilters, onEntityTypeFilterChange, onColResize, refLists }) {
   function getColumnFilter(key) {
     if (key.startsWith('entity_type:')) {
       const typeId = key.slice('entity_type:'.length)
@@ -1009,7 +1020,7 @@ function TableView({ negotiations, allRows, getFacetRows, getStateConfig, getEnt
       rowKey={neg => neg.id}
       cols={cols}
       allColumns={allColumns}
-      renderCell={(key, neg) => renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members)}
+      renderCell={(key, neg) => renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members, refLists)}
       getColumnFilter={getColumnFilter}
       sortKey={sortKey}
       sortDir={sortDir}
@@ -1027,7 +1038,7 @@ function TableView({ negotiations, allRows, getFacetRows, getStateConfig, getEnt
   )
 }
 
-function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members, entityTypes) {
+function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members, entityTypes, refLists) {
   if (key.startsWith('entity_type:')) {
     const typeId = key.slice('entity_type:'.length)
     const ents = getEntitiesOfType(neg, typeId)
@@ -1085,14 +1096,14 @@ function renderCardField(key, neg, getStateConfig, getEntityName, getEntityFlag,
     default: {
       const def = customFieldDefs?.find(d => d.key === key)
       if (!def) return null
-      const rendered = renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key), members)
+      const rendered = renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key), members, refLists)
       if (rendered === '—') return null
       return <div key={key} className="neg-card-text neg-card-field">{rendered}</div>
     }
   }
 }
 
-function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, customFieldDefs, members, selectedIds, onToggleSelect, entityTypes }) {
+function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, customFieldDefs, members, selectedIds, onToggleSelect, entityTypes, refLists }) {
   // Columnas visibles excluyendo product y status (que van hardcodeados en el header)
   const visibleFields = cols.filter(c => c.visible && c.key !== 'product' && c.key !== 'status')
 
@@ -1103,7 +1114,7 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
         const actIcon = neg.activity_status === 'inactive' ? '💤' : neg.activity_status === 'paused' ? '⏸' : null
         const cardClass = neg.activity_status === 'paused' ? 'card-tile-paused' : neg.activity_status === 'inactive' ? 'card-tile-inactive' : ''
         const title = neg.product || neg.title
-        const fields = visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members, entityTypes)).filter(Boolean)
+        const fields = visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members, entityTypes, refLists)).filter(Boolean)
         return (
           <CardTile
             key={neg.id}
@@ -1130,7 +1141,7 @@ function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag,
   )
 }
 
-function KanbanView({ negotiations, customStates, getStateConfig, getEntityName, getEntityFlag, onSelect, canEdit, onMove, cols, customFieldDefs, members, entityTypes }) {
+function KanbanView({ negotiations, customStates, getStateConfig, getEntityName, getEntityFlag, onSelect, canEdit, onMove, cols, customFieldDefs, members, entityTypes, refLists }) {
   const [dragOverCol, setDragOverCol] = useState(null)
   // Mismos campos configurables que Tabla/Cards ("⚙ Vista"), product y status
   // van hardcodeados en el título de la card / la columna en la que cae.
@@ -1174,7 +1185,7 @@ function KanbanView({ negotiations, customStates, getStateConfig, getEntityName,
                       {actIcon && <span className="neg-kanban-card-icon">{actIcon}</span>}
                       {neg.product || neg.title}
                     </div>
-                    {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members, entityTypes))}
+                    {visibleFields.map(c => renderCardField(c.key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members, entityTypes, refLists))}
                     {canEdit && (
                       <div className="neg-kanban-card-actions" onClick={e => e.stopPropagation()}>
                         {colIdx > 0 && (
@@ -1887,7 +1898,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
   )
 }
 
-export function NegotiationDetail({ neg, entities, entityTypes = [], customStates, customFieldDefs = [], members = [], namedParticipants = [], getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
+export function NegotiationDetail({ neg, entities, entityTypes = [], customStates, customFieldDefs = [], members = [], namedParticipants = [], refLists, getStateConfig, getEntityFlag, highlightTaskId, onClose, onEdit, onDeleted, onActivityChanged, onNotesChanged }) {
   const { effectiveRole, role, user, isStaff, workspaceId, activeWorkspace } = useAuth()
   useEscapeToClose(onClose)
   const negTerminalNames = terminalStatusNames(customStates)
@@ -2392,7 +2403,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                       {canEditInline ? (
                         <CustomFieldInput def={def} value={fieldValue(def)} onChange={v => saveField(def, v)} />
                       ) : (
-                        <p className="detail-empty"><CustomFieldReadOnly def={def} value={fieldValue(def)} members={members} /></p>
+                        <p className="detail-empty"><CustomFieldReadOnly def={def} value={fieldValue(def)} members={members} refLists={refLists} /></p>
                       )}
                     </div>
                   ))}

@@ -12,7 +12,7 @@ import './ImportModal.css'
 // repetible (no una celda), y Usuario requeriría mapear texto libre contra
 // miembros reales del workspace — se deja fuera por ahora, ninguno de los
 // presets de Entidades lo usa hoy.
-const SKIP_TYPES = ['entity_type', 'contacts', 'user']
+const SKIP_TYPES = ['entity_type', 'contacts', 'user', 'entity_ref', 'negotiation_ref', 'product_ref']
 
 function importFieldsOf(entityFieldDefs) {
   return (entityFieldDefs || []).filter(d => !SKIP_TYPES.includes(d.field_type))

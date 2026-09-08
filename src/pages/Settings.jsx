@@ -1500,6 +1500,9 @@ const FIELD_TYPES = [
   { key: 'multiselect', label: 'Selección múltiple' },
   { key: 'country', label: 'País' },
   { key: 'user', label: 'Usuario del workspace' },
+  { key: 'entity_ref', label: 'Entidad del workspace' },
+  { key: 'negotiation_ref', label: 'Proyecto del workspace' },
+  { key: 'product_ref', label: 'Producto del workspace' },
   { key: 'link', label: 'Link' },
   { key: 'email', label: 'Email' },
   { key: 'phone', label: 'Teléfono' },
@@ -1583,6 +1586,8 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
   const [newAlertDays, setNewAlertDays] = useState(30)
   const [newCountryMultiple, setNewCountryMultiple] = useState(false)
   const [newCountryShowFlag, setNewCountryShowFlag] = useState(true)
+  const [newMultiple, setNewMultiple] = useState(true)
+  const [newAllowNamed, setNewAllowNamed] = useState(false)
   const [newRequired, setNewRequired] = useState(false)
   const [fieldOrder, setFieldOrder] = useState(null)
   const [dragSrc, setDragSrc] = useState(null)
@@ -1662,11 +1667,16 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
     setNewLabel(''); setNewType('text'); setNewChoices([])
     setNewUnderlyingType('select'); setNewTriggerMode('deadline'); setNewAlertDays(30)
     setNewCountryMultiple(false); setNewCountryShowFlag(true); setNewRequired(false)
+    setNewMultiple(true); setNewAllowNamed(false)
   }
 
-  function buildOptions(type, underlyingType, choices, triggerMode, alertDays, countryMultiple, countryShowFlag) {
+  const REF_TYPES = ['user', 'entity_ref', 'negotiation_ref', 'product_ref']
+
+  function buildOptions(type, underlyingType, choices, triggerMode, alertDays, countryMultiple, countryShowFlag, multiple, allowNamed) {
     if (type === 'select' || type === 'multiselect') return { choices }
     if (type === 'country') return { multiple: countryMultiple, show_flag: countryShowFlag }
+    if (type === 'user') return { multiple, allow_named: allowNamed }
+    if (REF_TYPES.includes(type)) return { multiple }
     if (type === 'tracked') {
       const opts = { underlying_type: underlyingType, trigger_mode: triggerMode, alert_days: Number(alertDays) || 30 }
       if (underlyingType === 'select') opts.choices = choices
@@ -1684,7 +1694,7 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
       key: genFieldKey(),
       label: newLabel.trim(),
       field_type: newType,
-      options: buildOptions(newType, newUnderlyingType, newChoices, newTriggerMode, newAlertDays, newCountryMultiple, newCountryShowFlag),
+      options: buildOptions(newType, newUnderlyingType, newChoices, newTriggerMode, newAlertDays, newCountryMultiple, newCountryShowFlag, newMultiple, newAllowNamed),
       required: newRequired,
       sort_order: fields.length,
     })
@@ -1768,6 +1778,31 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
                   </label>
                 </div>
               )}
+              {(f.field_type === 'user' || f.field_type === 'entity_ref' || f.field_type === 'negotiation_ref' || f.field_type === 'product_ref') && (
+                <div className="cf-tracked-config">
+                  <div className="cf-tracked-row">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={!!editing.options.multiple}
+                        onChange={e => setEditing(ed => ({ ...ed, options: { ...ed.options, multiple: e.target.checked } }))}
+                      /> Permite elegir varios
+                    </label>
+                  </div>
+                  {f.field_type === 'user' && (
+                    <div className="cf-tracked-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                      <label style={{ minWidth: 0 }}>
+                        <input
+                          type="checkbox"
+                          checked={!!editing.options.allow_named}
+                          onChange={e => setEditing(ed => ({ ...ed, options: { ...ed.options, allow_named: e.target.checked } }))}
+                        /> Permitir agregar personas sin cuenta
+                      </label>
+                      <span className="cf-hint">El owner o admin va a poder cargar gente del equipo que no usa Nerva, solo con el nombre</span>
+                    </div>
+                  )}
+                </div>
+              )}
               {f.field_type === 'tracked' && (
                 <>
                   {editing.options.underlying_type === 'select' && (
@@ -1827,6 +1862,8 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
                   {f.is_structural && ' · campo base'}
                   {f.field_type === 'tracked' && ` · ${f.options.trigger_mode === 'deadline' ? 'fecha límite' : 'inactividad'}, ${f.options.alert_days} días`}
                   {f.field_type === 'country' && f.options.multiple && ' · varios países'}
+                  {['user', 'entity_ref', 'negotiation_ref', 'product_ref'].includes(f.field_type) && f.options?.multiple && ' · permite varios'}
+                  {f.field_type === 'user' && f.options?.allow_named && ' · personas sin cuenta'}
                   {f.required && ' · obligatorio'}
                   {f.card_filter && ' · tarjetas de filtro'}
                   {f.enabled === false && ' · desactivado'}
@@ -1931,6 +1968,22 @@ function TabCamposPersonalizados({ workspaceId, objectType }) {
               <div className="cf-tracked-row">
                 <label><input type="checkbox" checked={newCountryShowFlag} onChange={e => setNewCountryShowFlag(e.target.checked)} /> Mostrar banderita</label>
               </div>
+            </div>
+          )}
+
+          {(newType === 'user' || newType === 'entity_ref' || newType === 'negotiation_ref' || newType === 'product_ref') && (
+            <div className="cf-tracked-config">
+              <div className="cf-tracked-row">
+                <label><input type="checkbox" checked={newMultiple} onChange={e => setNewMultiple(e.target.checked)} /> Permite elegir varios</label>
+              </div>
+              {newType === 'user' && (
+                <div className="cf-tracked-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                  <label style={{ minWidth: 0 }}>
+                    <input type="checkbox" checked={newAllowNamed} onChange={e => setNewAllowNamed(e.target.checked)} /> Permitir agregar personas sin cuenta
+                  </label>
+                  <span className="cf-hint">El owner o admin va a poder cargar gente del equipo que no usa Nerva, solo con el nombre</span>
+                </div>
+              )}
             </div>
           )}
 

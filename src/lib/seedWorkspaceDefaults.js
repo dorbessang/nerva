@@ -52,7 +52,7 @@ const STRUCTURAL_NEGOTIATION_FIELDS = [
 // quiere, pero no puede "agregarlos de vuelta" solo.
 const RESUMEN_NEGOTIATION_FIELDS = [
   { key: 'description', label: 'Descripción', field_type: 'textarea', storage_column: 'description' },
-  { key: 'participants', label: 'Participantes', field_type: 'user', storage_column: 'participants', options: { multiple: true }, filterable: true },
+  { key: 'participants', label: 'Participantes', field_type: 'user', storage_column: 'participants', options: { multiple: true, allow_named: true }, filterable: true },
 ]
 
 const REGULAR_NEGOTIATION_FIELDS = [
