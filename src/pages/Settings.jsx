@@ -8,7 +8,7 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import Avatar from '../components/Avatar'
 import InfoTooltip from '../components/InfoTooltip'
 import { notifyRoleChanged } from '../lib/notifications'
-import { computeFieldOrder, isCardFilterable, isPredefinedField } from '../lib/customFields'
+import { computeFieldOrder, isCardFilterable, isPredefinedField, mergeCustomFieldValue } from '../lib/customFields'
 import { extractFunctionError } from '../lib/edgeFunctionError'
 import { FINANCIAL_FEATURES, resolveFinancialConfig } from '../lib/financialConfig'
 import { isOwner as isOwnerRole, isPrivileged } from '../lib/roles'
@@ -386,6 +386,70 @@ function ModuloProductos({ workspaceId }) {
 
 // ─── TAB USUARIOS ────────────────────────────────────────────────────────────
 
+const NAMED_LINK_TABLES = { negotiation: 'negotiations', entity: 'entities', product: 'products' }
+
+// Vincular una "persona sin cuenta" a una cuenta real: reemplaza `namedId`
+// por `realUserId` en cada campo tipo Usuario (de cualquier objeto —
+// Proyectos/Entidades/Productos, storage_column o custom_fields) que la
+// tenga cargada. Se recorren las 3 tablas en vez de armar una query jsonb
+// compleja porque un valor "múltiple" vive adentro de un array dentro de
+// un jsonb — más simple y confiable resolverlo acá que con filtros de
+// Postgres. Devuelve cuántos campos se actualizaron, para el aviso.
+async function linkNamedParticipantToUser(workspaceId, namedId, realUserId) {
+  const { data: defs } = await supabase
+    .from('custom_field_definitions')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('field_type', 'user')
+  if (!defs || defs.length === 0) return 0
+
+  const byObjectType = { negotiation: [], entity: [], product: [] }
+  for (const def of defs) {
+    if (byObjectType[def.object_type]) byObjectType[def.object_type].push(def)
+  }
+
+  let updatedCount = 0
+  for (const [objectType, objDefs] of Object.entries(byObjectType)) {
+    if (objDefs.length === 0) continue
+    const table = NAMED_LINK_TABLES[objectType]
+    const storageCols = objDefs.filter(d => d.storage_column).map(d => d.storage_column)
+    const { data: rows } = await supabase.from(table).select(['id', 'custom_fields', ...storageCols].join(', ')).eq('workspace_id', workspaceId)
+    if (!rows) continue
+
+    for (const row of rows) {
+      const patch = {}
+      let customFields = row.custom_fields
+      let rowChanged = false
+
+      for (const def of objDefs) {
+        const current = def.storage_column ? row[def.storage_column] : customFields?.[def.key]?.value
+        if (current === undefined || current === null) continue
+        let next = current
+        let changed = false
+        if (def.options?.multiple) {
+          if (Array.isArray(current) && current.includes(namedId)) {
+            next = [...new Set(current.map(v => v === namedId ? realUserId : v))]
+            changed = true
+          }
+        } else if (current === namedId) {
+          next = realUserId
+          changed = true
+        }
+        if (!changed) continue
+        rowChanged = true
+        updatedCount++
+        if (def.storage_column) patch[def.storage_column] = next
+        else customFields = mergeCustomFieldValue(customFields, def.key, next)
+      }
+
+      if (!rowChanged) continue
+      if (customFields !== row.custom_fields) patch.custom_fields = customFields
+      await supabase.from(table).update(patch).eq('id', row.id)
+    }
+  }
+  return updatedCount
+}
+
 function TabUsuarios({ workspaceId, canManage, canManageNamed }) {
   const { user: currentUser, isStaff, role } = useAuth()
   const [members, setMembers] = useState([])
@@ -406,6 +470,10 @@ function TabUsuarios({ workspaceId, canManage, canManageNamed }) {
   const [newNamedName, setNewNamedName] = useState('')
   const [savingNamed, setSavingNamed] = useState(false)
   const [confirmDeleteNamed, setConfirmDeleteNamed] = useState(null)
+  const [linkingId, setLinkingId] = useState(null) // id de la persona sin cuenta que muestra el selector
+  const [linkTarget, setLinkTarget] = useState('')
+  const [linking, setLinking] = useState(false)
+  const [linkNotice, setLinkNotice] = useState(null)
 
   useEffect(() => {
     fetchMembers()
@@ -437,6 +505,24 @@ function TabUsuarios({ workspaceId, canManage, canManageNamed }) {
   async function handleDeleteNamed(id) {
     await supabase.from('workspace_named_participants').delete().eq('id', id)
     setConfirmDeleteNamed(null)
+    fetchNamedParticipants()
+  }
+
+  async function handleLinkAccount(namedId) {
+    if (!linkTarget) return
+    setLinking(true)
+    setLinkNotice(null)
+    const count = await linkNamedParticipantToUser(workspaceId, namedId, linkTarget)
+    await supabase.from('workspace_named_participants').delete().eq('id', namedId)
+    const named = namedParticipants.find(n => n.id === namedId)
+    const member = members.find(m => m.user_id === linkTarget)
+    setLinkNotice(
+      `${named?.name || 'La persona'} quedó vinculada a la cuenta de ${member?.profile?.full_name || 'el miembro elegido'}` +
+      (count > 0 ? ` — se actualizaron ${count} campo${count !== 1 ? 's' : ''} que la tenían cargada.` : '.')
+    )
+    setLinking(false)
+    setLinkingId(null)
+    setLinkTarget('')
     fetchNamedParticipants()
   }
 
@@ -699,26 +785,44 @@ function TabUsuarios({ workspaceId, canManage, canManageNamed }) {
           </div>
         </div>
 
+        {linkNotice && <p className="settings-success">{linkNotice}</p>}
+
         {namedParticipants.length === 0 ? (
           <p className="settings-hint">Todavía no hay ninguna cargada.</p>
         ) : (
           <div className="settings-table">
             {namedParticipants.map(np => (
-              <div key={np.id} className="settings-row">
+              <div key={np.id} className="settings-row" style={{ flexWrap: 'wrap', gap: 8 }}>
                 <div className="settings-row-info">
                   <div className="settings-row-text">
                     <div className="settings-row-name">{np.name}</div>
                   </div>
                 </div>
                 {canManageNamed && (
-                  confirmDeleteNamed === np.id ? (
+                  linkingId === np.id ? (
+                    <div className="delete-confirm-inline">
+                      <select className="settings-role-select" value={linkTarget} onChange={e => setLinkTarget(e.target.value)}>
+                        <option value="">Elegir cuenta...</option>
+                        {members.filter(m => m.status === 'active').map(m => (
+                          <option key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email}</option>
+                        ))}
+                      </select>
+                      <button className="settings-btn-primary" onClick={() => handleLinkAccount(np.id)} disabled={linking || !linkTarget}>
+                        {linking ? 'Vinculando...' : 'Confirmar'}
+                      </button>
+                      <button className="settings-btn-secondary" onClick={() => { setLinkingId(null); setLinkTarget('') }}>Cancelar</button>
+                    </div>
+                  ) : confirmDeleteNamed === np.id ? (
                     <div className="delete-confirm-inline">
                       <span>¿Seguro?</span>
                       <button className="settings-btn-danger" onClick={() => handleDeleteNamed(np.id)}>Sí</button>
                       <button className="settings-btn-secondary" onClick={() => setConfirmDeleteNamed(null)}>No</button>
                     </div>
                   ) : (
-                    <button className="settings-btn-danger" onClick={() => setConfirmDeleteNamed(np.id)}>Eliminar</button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="settings-btn-secondary" onClick={() => { setLinkingId(np.id); setLinkNotice(null) }}>Vincular con cuenta</button>
+                      <button className="settings-btn-danger" onClick={() => setConfirmDeleteNamed(np.id)}>Eliminar</button>
+                    </div>
                   )
                 )}
               </div>
