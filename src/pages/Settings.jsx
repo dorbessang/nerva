@@ -130,7 +130,7 @@ export default function Settings() {
 
         {/* Contenido según tab activo */}
         <div className="settings-content">
-          {activeTab === 'usuarios' && canViewUsuarios && <TabUsuarios workspaceId={workspaceId} canManage={isOwner} />}
+          {activeTab === 'usuarios' && canViewUsuarios && <TabUsuarios workspaceId={workspaceId} canManage={isOwner} canManageNamed={isAdminOrOwner} />}
           {activeTab === 'proyectos' && showModuleTabs && <ModuloProyectos workspaceId={workspaceId} />}
           {activeTab === 'entidades' && showModuleTabs && <ModuloEntidades workspaceId={workspaceId} />}
           {activeTab === 'productos' && showModuleTabs && <ModuloProductos workspaceId={workspaceId} />}
@@ -386,7 +386,7 @@ function ModuloProductos({ workspaceId }) {
 
 // ─── TAB USUARIOS ────────────────────────────────────────────────────────────
 
-function TabUsuarios({ workspaceId, canManage }) {
+function TabUsuarios({ workspaceId, canManage, canManageNamed }) {
   const { user: currentUser, isStaff, role } = useAuth()
   const [members, setMembers] = useState([])
   const [invitations, setInvitations] = useState([])
@@ -402,12 +402,43 @@ function TabUsuarios({ workspaceId, canManage }) {
   const [membershipLog, setMembershipLog] = useState([])
   const [showLog, setShowLog] = useState(false)
   const [requestNotice, setRequestNotice] = useState(null)
+  const [namedParticipants, setNamedParticipants] = useState([])
+  const [newNamedName, setNewNamedName] = useState('')
+  const [savingNamed, setSavingNamed] = useState(false)
+  const [confirmDeleteNamed, setConfirmDeleteNamed] = useState(null)
 
   useEffect(() => {
     fetchMembers()
     fetchInvitations()
     fetchMembershipLog()
+    fetchNamedParticipants()
   }, [workspaceId])
+
+  async function fetchNamedParticipants() {
+    const { data } = await supabase
+      .from('workspace_named_participants')
+      .select('id, name')
+      .eq('workspace_id', workspaceId)
+      .order('name')
+    if (data) setNamedParticipants(data)
+  }
+
+  async function handleAddNamed() {
+    if (!newNamedName.trim()) return
+    setSavingNamed(true)
+    await supabase.from('workspace_named_participants').insert({
+      workspace_id: workspaceId, name: newNamedName.trim(), created_by: currentUser?.id,
+    })
+    setNewNamedName('')
+    setSavingNamed(false)
+    fetchNamedParticipants()
+  }
+
+  async function handleDeleteNamed(id) {
+    await supabase.from('workspace_named_participants').delete().eq('id', id)
+    setConfirmDeleteNamed(null)
+    fetchNamedParticipants()
+  }
 
   async function fetchMembershipLog() {
     const { data } = await supabase
@@ -654,6 +685,66 @@ function TabUsuarios({ workspaceId, canManage }) {
             )
           })}
         </div>
+      </div>
+
+      {/* Personas sin cuenta — gente del equipo que no usa Nerva pero se
+          puede marcar como participante en un proyecto (solo el nombre,
+          sin acceso). Se pueden crear acá o al vuelo desde el propio campo
+          Participantes — mismo criterio en los dos lugares. */}
+      <div className="settings-block">
+        <div className="settings-block-header">
+          <div className="settings-block-title-row">
+            <h2 className="settings-block-title">Personas sin cuenta ({namedParticipants.length})</h2>
+            <InfoTooltip text="Gente del equipo que no tiene cuenta de Nerva pero necesitás poder marcar como participante en un proyecto. No tienen acceso a la app, solo aparecen para elegirlos por nombre." />
+          </div>
+        </div>
+
+        {namedParticipants.length === 0 ? (
+          <p className="settings-hint">Todavía no hay ninguna cargada.</p>
+        ) : (
+          <div className="settings-table">
+            {namedParticipants.map(np => (
+              <div key={np.id} className="settings-row">
+                <div className="settings-row-info">
+                  <div className="settings-row-text">
+                    <div className="settings-row-name">{np.name}</div>
+                  </div>
+                </div>
+                {canManageNamed && (
+                  confirmDeleteNamed === np.id ? (
+                    <div className="delete-confirm-inline">
+                      <span>¿Seguro?</span>
+                      <button className="settings-btn-danger" onClick={() => handleDeleteNamed(np.id)}>Sí</button>
+                      <button className="settings-btn-secondary" onClick={() => setConfirmDeleteNamed(null)}>No</button>
+                    </div>
+                  ) : (
+                    <button className="settings-btn-danger" onClick={() => setConfirmDeleteNamed(np.id)}>Eliminar</button>
+                  )
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {canManageNamed && (
+          <div className="invite-form">
+            <div className="form-row">
+              <div className="form-group">
+                <label>NOMBRE</label>
+                <input
+                  type="text"
+                  value={newNamedName}
+                  onChange={e => setNewNamedName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddNamed() } }}
+                  placeholder="Nombre y apellido"
+                />
+              </div>
+              <button className="settings-btn-primary" onClick={handleAddNamed} disabled={savingNamed || !newNamedName.trim()}>
+                {savingNamed ? 'Agregando...' : '+ Agregar'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Invitaciones pendientes */}
