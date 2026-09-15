@@ -1731,6 +1731,14 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
     )
   }
 
+  // Vinculaciones (entidades + participantes) van en su propia tarjeta,
+  // separadas de los datos "de identidad" del proyecto — mismo criterio
+  // que la tarjeta Financiero del detalle, no una lista plana de campos.
+  const isVinculacionDef = d => d.field_type === 'entities_link' || d.storage_column === 'participants'
+  const orderedGridKeys = fieldOrder === null ? gridDefs.map(d => d.key) : computeFieldOrder('negotiation', fieldOrder, gridDefs)
+  const datosKeys = orderedGridKeys.filter(k => { const d = gridDefs.find(x => x.key === k); return d && !isVinculacionDef(d) })
+  const vincKeys = orderedGridKeys.filter(k => { const d = gridDefs.find(x => x.key === k); return d && isVinculacionDef(d) })
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="neg-modal-card" onClick={e => e.stopPropagation()}>
@@ -1752,23 +1760,69 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
         <div className="neg-modal-body">
         {modalTab === 'basicos' && (
           <>
-          <div className="entity-fields-grid">
-            {(fieldOrder === null ? gridDefs.map(d => d.key) : computeFieldOrder('negotiation', fieldOrder, gridDefs)).map(key => {
-              const def = gridDefs.find(d => d.key === key)
-              if (!def) return null
-              return renderField(def)
-            })}
+          <div className="neg-fin-section">
+            <div className="neg-fin-section-head">
+              <span className="neg-fin-icon-badge neg-fin-icon-badge--config">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path><path d="M9 13h6"></path><path d="M9 17h6"></path></svg>
+              </span>
+              <div>
+                <div className="neg-fin-section-title">Datos del proyecto</div>
+                <div className="neg-fin-section-sub">Lo esencial para identificarlo</div>
+              </div>
+            </div>
+            <div className="neg-fin-section-body">
+              <div className="entity-fields-grid">
+                {datosKeys.map(key => {
+                  const def = gridDefs.find(d => d.key === key)
+                  if (!def) return null
+                  return renderField(def)
+                })}
+              </div>
+              <div className="form-group" style={{ marginTop: 18 }}>
+                <label>OBSERVACIONES INTERNAS</label>
+                <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={3} placeholder="Notas internas del equipo..." />
+              </div>
+            </div>
           </div>
-          <div className="form-group">
-            <label>OBSERVACIONES INTERNAS</label>
-            <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={3} placeholder="Notas internas del equipo..." />
-          </div>
+
+          {vincKeys.length > 0 && (
+            <div className="neg-fin-section">
+              <div className="neg-fin-section-head">
+                <span className="neg-fin-icon-badge neg-fin-icon-badge--vinc">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                </span>
+                <div>
+                  <div className="neg-fin-section-title">Vinculaciones</div>
+                  <div className="neg-fin-section-sub">Entidades y personas del equipo</div>
+                </div>
+              </div>
+              <div className="neg-fin-section-body">
+                <div className="entity-fields-grid">
+                  {vincKeys.map(key => {
+                    const def = gridDefs.find(d => d.key === key)
+                    if (!def) return null
+                    return renderField(def)
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
           </>
         )}
         {modalTab === 'financiero' && (
           <>
-          <div className="form-group form-group--wide">
-            <label>FINANCIERO</label>
+          <div className="neg-fin-section">
+            <div className="neg-fin-section-head">
+              <span className="neg-fin-icon-badge neg-fin-icon-badge--quotes">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="3"></circle><path d="M6 12h.01M18 12h.01"></path></svg>
+              </span>
+              <div>
+                <div className="neg-fin-section-title">Financiero</div>
+                <div className="neg-fin-section-sub">Moneda, condiciones y proyección del deal</div>
+              </div>
+              <span className="neg-fin-optional-tag">Opcional</span>
+            </div>
+            <div className="neg-fin-section-body">
             <div className="entity-fields-grid">
               <div className="form-group">
                 <label>MONEDA</label>
@@ -1862,8 +1916,21 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
                 <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 14 }}>El esquema de pagos se gestiona desde la vista de detalle del proyecto.</p>
               )
             )}
+            </div>
           </div>
 
+          <div className="neg-fin-section">
+            <div className="neg-fin-section-head">
+              <span className="neg-fin-icon-badge neg-fin-icon-badge--hitos">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>
+              </span>
+              <div>
+                <div className="neg-fin-section-title">Arranque</div>
+                <div className="neg-fin-section-sub">Playbook y primeras tareas</div>
+              </div>
+              <span className="neg-fin-optional-tag">Opcional</span>
+            </div>
+            <div className="neg-fin-section-body">
           {!initial && playbooks.length > 0 && (
             <div className="form-group">
               <label>PLAYBOOK (opcional)</label>
@@ -1874,7 +1941,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
             </div>
           )}
 
-          <div className="form-group">
+          <div className="form-group" style={{ marginTop: !initial && playbooks.length > 0 ? 14 : 0 }}>
             <label>TAREAS INICIALES</label>
             {!initial ? (
               <>
@@ -1902,6 +1969,8 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
             ) : (
               <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>Las tareas se gestionan desde la pestaña Tareas del proyecto.</p>
             )}
+          </div>
+            </div>
           </div>
           </>
         )}
