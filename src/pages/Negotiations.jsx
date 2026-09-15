@@ -1734,7 +1734,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
   // Vinculaciones (entidades + participantes) van en su propia tarjeta,
   // separadas de los datos "de identidad" del proyecto — mismo criterio
   // que la tarjeta Financiero del detalle, no una lista plana de campos.
-  const isVinculacionDef = d => d.field_type === 'entities_link' || d.storage_column === 'participants'
+  const isVinculacionDef = d => d.field_type === 'entities_link' || d.field_type === 'products_link' || d.storage_column === 'participants'
   const orderedGridKeys = fieldOrder === null ? gridDefs.map(d => d.key) : computeFieldOrder('negotiation', fieldOrder, gridDefs)
   const datosKeys = orderedGridKeys.filter(k => { const d = gridDefs.find(x => x.key === k); return d && !isVinculacionDef(d) })
   const vincKeys = orderedGridKeys.filter(k => { const d = gridDefs.find(x => x.key === k); return d && isVinculacionDef(d) })
@@ -1814,7 +1814,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
           <div className="neg-fin-section">
             <div className="neg-fin-section-head">
               <span className="neg-fin-icon-badge neg-fin-icon-badge--quotes">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="3"></circle><path d="M6 12h.01M18 12h.01"></path></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v12M15.5 9.5c0-1.4-1.6-2.5-3.5-2.5s-3.5 1-3.5 2.5 1.6 2 3.5 2.5 3.5 1.1 3.5 2.5-1.6 2.5-3.5 2.5-3.5-1-3.5-2.5"></path></svg>
               </span>
               <div>
                 <div className="neg-fin-section-title">Financiero</div>

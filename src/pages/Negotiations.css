@@ -1032,7 +1032,13 @@
 
 /* Financiero reorganizado en tarjetas diferenciadas (ícono + título + subtítulo
    propios) en vez de todo apilado sin separación visual. */
-.neg-fin-section { border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+/* flex-shrink: 0 es necesario, no cosmético — sin esto, cuando estas
+   tarjetas viven dentro de un contenedor flex en columna más chico que
+   la suma de su contenido (el modal), flexbox las achica en vez de dejar
+   que el contenedor haga scroll (el overflow:hidden de acá hace que su
+   tamaño mínimo automático sea 0, así que son "achicables" de más) — el
+   síntoma es contenido recortado a la mitad en vez de una barra de scroll. */
+.neg-fin-section { border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; margin-bottom: 16px; flex-shrink: 0; }
 .neg-fin-section-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #f0f2f5; background: #fff; }
 .neg-fin-icon-badge { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .neg-fin-icon-badge--config { background: #EFF6FF; color: #0B1F3A; }
