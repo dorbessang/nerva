@@ -674,7 +674,7 @@ export default function Negotiations() {
           <div className="neg-stat-label">Valor de pipeline ({filtered.length})</div>
           <div className="neg-pipeline-row">
             {totalPipeline.length === 0 ? (
-              <span className="neg-pipeline-empty">Sin hitos cargados</span>
+              <span className="neg-pipeline-empty">Sin pagos cargados</span>
             ) : totalPipeline.map(p => (
               <span key={p.currency} className={`neg-pipeline-chip ${p.total < 0 ? 'neg-pipeline-chip--negative' : ''}`}>
                 {formatAmount(p.total)} <span className="neg-pipeline-currency">{p.currency}</span>
@@ -690,7 +690,7 @@ export default function Negotiations() {
             </div>
             <div className="neg-pipeline-row">
               {selectedPipeline.length === 0 ? (
-                <span className="neg-pipeline-empty">Sin hitos cargados</span>
+                <span className="neg-pipeline-empty">Sin pagos cargados</span>
               ) : selectedPipeline.map(p => (
                 <span key={p.currency} className={`neg-pipeline-chip ${p.total < 0 ? 'neg-pipeline-chip--negative' : ''}`}>
                   {formatAmount(p.total)} <span className="neg-pipeline-currency">{p.currency}</span>
@@ -1574,7 +1574,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
         for (const m of insertedMilestones || []) {
           await logActivity(supabase, {
             workspaceId, negotiationId: negId, type: 'milestone_added',
-            title: `Hito agregado: "${m.name}" (${Number(m.amount).toLocaleString('es-AR')}${form.currency ? ' ' + form.currency : ''})`,
+            title: `Pago agregado: "${m.name}" (${Number(m.amount).toLocaleString('es-AR')}${form.currency ? ' ' + form.currency : ''})`,
             actorId: userId,
           })
         }
@@ -1806,9 +1806,9 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
             {financialConfig.hitos && (
               !initial ? (
                 <>
-                  <label style={{ marginTop: 14, display: 'block' }}>HITOS INICIALES</label>
+                  <label style={{ marginTop: 14, display: 'block' }}>ESQUEMA DE PAGOS INICIAL</label>
                   <div className="neg-milestone-add" style={{ marginTop: 0 }}>
-                    <Field label="Nombre del hito" style={{ flex: 1.5, minWidth: 160 }}>
+                    <Field label="Nombre del pago" style={{ flex: 1.5, minWidth: 160 }}>
                       <input type="text" className="neg-note-input neg-milestone-name-input" value={newMilestoneName} onChange={e => setNewMilestoneName(e.target.value)}
                         placeholder="Ej: Upfront, Milestone Fase 2..." />
                     </Field>
@@ -1848,7 +1848,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
                   ))}
                 </>
               ) : (
-                <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 14 }}>Los hitos se gestionan desde la vista de detalle del proyecto.</p>
+                <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 14 }}>El esquema de pagos se gestiona desde la vista de detalle del proyecto.</p>
               )
             )}
           </div>
@@ -2358,7 +2358,7 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                       {financialConfig.hitos && milestonesTotal !== null && (
                         <div className="neg-resumen-fin-card">
                           <div className="neg-resumen-num">{formatAmount(milestonesTotal)}{inlineCurrency ? ` ${inlineCurrency}` : ''}</div>
-                          <div className="neg-resumen-label">real a la fecha (hitos)</div>
+                          <div className="neg-resumen-label">real a la fecha (pagos)</div>
                         </div>
                       )}
                       {financialConfig.historial_precio && latestPrice?.length > 0 && (
@@ -2532,9 +2532,9 @@ export function NegotiationDetail({ neg, entities, entityTypes = [], customState
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
                     </span>
                     <div>
-                      <div className="neg-fin-section-title">{financialConfig.valor_estimado ? 'Proyección y Hitos' : 'Hitos'}</div>
+                      <div className="neg-fin-section-title">{financialConfig.valor_estimado ? 'Proyección y esquema de pagos' : 'Esquema de pagos'}</div>
                       <div className="neg-fin-section-sub">
-                        {financialConfig.valor_estimado ? 'Valor esperado por año del deal, comparado contra los hitos reales' : 'Pagos parciales del deal, con monto y fecha'}
+                        {financialConfig.valor_estimado ? 'Valor esperado por año del deal, comparado contra los pagos reales' : 'Pagos parciales del deal, con monto y fecha'}
                       </div>
                     </div>
                   </div>

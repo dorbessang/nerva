@@ -174,7 +174,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
     if (error) { console.error('addMilestone error:', error.message); setSaving(false); return }
     await logActivity(supabase, {
       workspaceId, negotiationId, type: 'milestone_added',
-      title: `Hito agregado: "${newName.trim()}" (${formatAmount(amount)}${currency ? ' ' + currency : ''})`,
+      title: `Pago agregado: "${newName.trim()}" (${formatAmount(amount)}${currency ? ' ' + currency : ''})`,
       actorId: user?.id,
     })
     setNewName('')
@@ -190,7 +190,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
   async function handleDelete(id) {
     setActionError('')
     const { error } = await supabase.from('deal_milestones').delete().eq('id', id)
-    if (error) { console.error('deleteMilestone error:', error.message); setActionError('No se pudo eliminar el hito. Intentá de nuevo.'); return }
+    if (error) { console.error('deleteMilestone error:', error.message); setActionError('No se pudo eliminar el pago. Intentá de nuevo.'); return }
     setMilestones(prev => prev.filter(m => m.id !== id))
     onChanged?.()
   }
@@ -243,7 +243,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
       period_index: editForm.period_index ? parseInt(editForm.period_index, 10) : null,
     }
     const { error } = await supabase.from('deal_milestones').update(patch).eq('id', id)
-    if (error) { console.error('saveMilestone error:', error.message); setActionError('No se pudo guardar el hito. Intentá de nuevo.'); return }
+    if (error) { console.error('saveMilestone error:', error.message); setActionError('No se pudo guardar el pago. Intentá de nuevo.'); return }
     setEditingId(null)
     setEditForm(null)
     fetchMilestones() // re-fetch en vez de patchear en memoria: puede haber cambiado la fecha, y con eso el orden
@@ -278,7 +278,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
     if (isEditing) {
       return (
         <div key={m.id} className="neg-task-row neg-milestone-edit-row">
-          <Field label="Nombre del hito" style={{ flex: 1.5, minWidth: 160 }}>
+          <Field label="Nombre del pago" style={{ flex: 1.5, minWidth: 160 }}>
             <input
               type="text"
               className="neg-note-input neg-milestone-name-input"
@@ -335,8 +335,8 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
         </span>
         {canEdit && (
           <>
-            <button className="neg-milestone-edit" onClick={() => startEdit(m)} title="Editar hito">✏️</button>
-            <button className="neg-milestone-delete" onClick={() => handleDelete(m.id)} title="Eliminar hito">✕</button>
+            <button className="neg-milestone-edit" onClick={() => startEdit(m)} title="Editar pago">✏️</button>
+            <button className="neg-milestone-delete" onClick={() => handleDelete(m.id)} title="Eliminar pago">✕</button>
           </>
         )}
       </div>
@@ -423,7 +423,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
       {actionError && <p className="form-error">{actionError}</p>}
       {canEdit && (
         <div className="neg-milestone-add">
-          <Field label="Nombre del hito" style={{ flex: 1.5, minWidth: 160 }}>
+          <Field label="Nombre del pago" style={{ flex: 1.5, minWidth: 160 }}>
             <input
               type="text"
               className="neg-note-input neg-milestone-name-input"
@@ -471,7 +471,7 @@ export default function DealMilestones({ negotiationId, workspaceId, currency, c
       )}
 
       {milestones.length === 0 ? (
-        <p className="detail-empty">Sin hitos de pago todavía.</p>
+        <p className="detail-empty">Sin pagos cargados todavía.</p>
       ) : grouped ? (
         <div className="neg-milestone-groups">
           {periodRange.map(p => {

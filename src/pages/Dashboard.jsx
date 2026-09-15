@@ -381,7 +381,7 @@ function TeamDashboard() {
       <div className="db-section-card" style={{ marginBottom: 16 }}>
         <p className="db-section-title">Valor de pipeline (proyectos en curso)</p>
         {pipelineValue.length === 0 ? (
-          <p className="db-empty">Sin hitos de pago cargados todavía.</p>
+          <p className="db-empty">Sin pagos cargados todavía.</p>
         ) : (
           <div className="db-pipeline-row">
             {pipelineValue.map((p) => (
