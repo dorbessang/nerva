@@ -3,6 +3,16 @@
 import { isNotificationEnabled } from './notifications'
 import { logActivity } from './activity'
 
+// A dónde navegar al clickear una tarea que no es editable inline desde
+// donde se está mostrando (agenda personal con tareas de otro workspace,
+// calendario grupal con una tarea de un proyecto/entidad) — siempre a su
+// origen real, nunca se edita "desde afuera".
+export function taskDeepLink(task) {
+  if (task.negotiation_id) return `/negotiations?openNeg=${task.negotiation_id}&openTask=${task.id}`
+  if (task.entity_id) return `/entities/${task.entity?.entity_type_id}?openEntity=${task.entity_id}`
+  return `/tasks?openTask=${task.id}`
+}
+
 export function isTaskBlocked(task) {
   if (task.approval_status === 'pending') return true
   return !!task.predecessor && task.predecessor.status !== 'done'

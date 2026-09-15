@@ -204,6 +204,11 @@ export default function Layout({ children }) {
         icon: <LucideIcons.ListTodo size={18} />,
       },
       {
+        path: "/calendario",
+        label: "Calendario",
+        icon: <LucideIcons.Calendar size={18} />,
+      },
+      {
         path: "/negotiations",
         label: "Proyectos",
         icon: <LucideIcons.Handshake size={18} />,

@@ -19,6 +19,7 @@ import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Agenda from "./pages/Agenda";
+import TeamCalendar from "./pages/TeamCalendar";
 
 function ProtectedRoute({ children }) {
   const { user, loading, needsOnboarding } = useAuth();
@@ -100,6 +101,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Agenda />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/calendario"
+            element={
+              <ProtectedRoute>
+                <TeamCalendar />
               </ProtectedRoute>
             }
           />
