@@ -1389,6 +1389,7 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
   const [financialConfig, setFinancialConfig] = useState(resolveFinancialConfig(null))
   const [playbooks, setPlaybooks] = useState([])
   const [playbookId, setPlaybookId] = useState('')
+  const [modalTab, setModalTab] = useState('basicos')
 
   useEffect(() => {
     supabase.from('workspaces').select('field_order, financial_config').eq('id', workspaceId).single()
@@ -1744,7 +1745,13 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
             <button className="modal-close" onClick={onClose}>✕</button>
           </div>
         </div>
+        <div className="neg-tabs">
+          <button type="button" className={`neg-tab ${modalTab === 'basicos' ? 'active' : ''}`} onClick={() => setModalTab('basicos')}>Datos básicos</button>
+          <button type="button" className={`neg-tab ${modalTab === 'financiero' ? 'active' : ''}`} onClick={() => setModalTab('financiero')}>Financiero y arranque</button>
+        </div>
         <div className="neg-modal-body">
+        {modalTab === 'basicos' && (
+          <>
           <div className="entity-fields-grid">
             {(fieldOrder === null ? gridDefs.map(d => d.key) : computeFieldOrder('negotiation', fieldOrder, gridDefs)).map(key => {
               const def = gridDefs.find(d => d.key === key)
@@ -1756,6 +1763,10 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
             <label>OBSERVACIONES INTERNAS</label>
             <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={3} placeholder="Notas internas del equipo..." />
           </div>
+          </>
+        )}
+        {modalTab === 'financiero' && (
+          <>
           <div className="form-group form-group--wide">
             <label>FINANCIERO</label>
             <div className="entity-fields-grid">
@@ -1892,6 +1903,8 @@ export function NegotiationModal({ initial, presetEntity, entities, entityTypes 
               <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>Las tareas se gestionan desde la pestaña Tareas del proyecto.</p>
             )}
           </div>
+          </>
+        )}
         </div>
       </div>
     </div>
