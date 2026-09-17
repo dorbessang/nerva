@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import * as LucideIcons from "lucide-react";
 import RoleImpersonator from "./RoleImpersonator";
 import NotificationBell from "./NotificationBell";
+import NextEventBadge from "./NextEventBadge";
 import Avatar from "./Avatar";
 import GlobalSearch from "./GlobalSearch";
 import WelcomeSetup from "../pages/WelcomeSetup";
@@ -278,6 +279,7 @@ export default function Layout({ children }) {
         <GlobalSearch />
 
         <div className="nerva-header-right">
+          <NextEventBadge />
           <div className="nerva-status-dot" />
           <span className="nerva-status-text">en línea</span>
           <span className="nerva-header-divider">·</span>
