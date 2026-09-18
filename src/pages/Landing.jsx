@@ -24,16 +24,16 @@ const TABS = [
 ];
 
 const ENTITIES_DEMO = [
-  { name: "EuroPharma Distribución", type: "Proveedor", badgeBg: "#dbeafe", badgeColor: "#1d4ed8", flag: "🇪🇸", active: true },
-  { name: "Distribuidora Andina", type: "Distribuidor", badgeBg: "#ede9fe", badgeColor: "#6d28d9", flag: "🇨🇴", active: false },
-  { name: "Retail Norte S.A.", type: "Cliente", badgeBg: "#fef3c7", badgeColor: "#92400e", flag: "🇦🇷", active: true },
-  { name: "Conderco Insumos", type: "Proveedor", badgeBg: "#dbeafe", badgeColor: "#1d4ed8", flag: "🇧🇷", active: false },
+  { name: "Nortex Manufacturas", type: "Proveedor", badgeBg: "#dbeafe", badgeColor: "#1d4ed8", flag: "🇪🇸", active: true },
+  { name: "Distribuidora Meridiano", type: "Distribuidor", badgeBg: "#ede9fe", badgeColor: "#6d28d9", flag: "🇨🇴", active: false },
+  { name: "Cadena Boreal S.A.", type: "Cliente", badgeBg: "#fef3c7", badgeColor: "#92400e", flag: "🇦🇷", active: true },
+  { name: "Insumos Praxel", type: "Proveedor", badgeBg: "#dbeafe", badgeColor: "#1d4ed8", flag: "🇧🇷", active: false },
 ];
 
 const PRICE_HISTORY = [
-  { date: "12/03/2026", presentation: "Caja x 30 comp.", price: "USD 18,40" },
-  { date: "02/06/2026", presentation: "Caja x 30 comp.", price: "USD 19,10" },
-  { date: "30/08/2026", presentation: "Caja x 60 comp.", price: "USD 34,90" },
+  { date: "12/03/2026", presentation: "Caja x 30 uds.", price: "USD 18,40" },
+  { date: "02/06/2026", presentation: "Caja x 30 uds.", price: "USD 19,10" },
+  { date: "30/08/2026", presentation: "Caja x 60 uds.", price: "USD 34,90" },
 ];
 
 const STEPS = [
@@ -64,11 +64,11 @@ const FAQS = [
 
 const INITIAL_KANBAN = {
   col0: [
-    { id: "a", label: "Distribuidora Andina — Línea X" },
-    { id: "b", label: "Retail Norte S.A." },
+    { id: "a", label: "Distribuidora Meridiano — Línea X" },
+    { id: "b", label: "Cadena Boreal S.A." },
   ],
-  col1: [{ id: "c", label: "EuroPharma Distribución" }],
-  col2: [{ id: "d", label: "Conderco Insumos" }],
+  col1: [{ id: "c", label: "Nortex Manufacturas" }],
+  col2: [{ id: "d", label: "Insumos Praxel" }],
 };
 
 const KANBAN_COLUMNS = [
@@ -387,8 +387,8 @@ function EntitiesDemo() {
 function PricingDemo() {
   return (
     <div>
-      <span className="nv-showcase-title nv-showcase-title--tight">Historial de precios — Línea Respiratoria 20mg</span>
-      <p className="nv-showcase-note nv-showcase-note--top">Cotizado a Retail Norte S.A.</p>
+      <span className="nv-showcase-title nv-showcase-title--tight">Historial de precios — Serie Vantage 20</span>
+      <p className="nv-showcase-note nv-showcase-note--top">Cotizado a Cadena Boreal S.A.</p>
       <div className="nv-price-grid nv-price-grid--head">
         <span>Fecha</span>
         <span>Presentación</span>
@@ -413,14 +413,14 @@ function TasksDemo() {
       <span className="nv-showcase-title">Tareas de hoy</span>
       <div className="nv-task-row">
         <input type="checkbox" checked disabled aria-label="Tarea completada" />
-        <span className="nv-task-done">Enviar propuesta a Retail Norte</span>
+        <span className="nv-task-done">Enviar propuesta a Cadena Boreal</span>
       </div>
 
       <div className="nv-task-approval-row">
         <div className="nv-task-approval-head">
           <input type="checkbox" disabled aria-label="Tarea pendiente" />
           <div>
-            <div className="nv-task-approval-title">Aprobar comisión 8% — Distribuidora Andina</div>
+            <div className="nv-task-approval-title">Aprobar comisión 8% — Distribuidora Meridiano</div>
             <div className="nv-task-approval-meta">Requiere aprobación · asignado a Gerva</div>
           </div>
         </div>
@@ -438,7 +438,7 @@ function TasksDemo() {
 
       <div className="nv-task-row nv-task-row--last">
         <input type="checkbox" disabled aria-label="Tarea pendiente" />
-        <span className="nv-task-title">Registrar llamada con EuroPharma</span>
+        <span className="nv-task-title">Registrar llamada con Nortex Manufacturas</span>
         <span className="nv-task-due">vence hoy</span>
       </div>
     </div>
