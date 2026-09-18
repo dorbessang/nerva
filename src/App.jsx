@@ -8,6 +8,7 @@ import {
 import { AuthProvider, useAuth } from "./lib/AuthContext";
 import { useState, useEffect } from "react";
 import { supabase } from "./lib/supabase";
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import SetPassword from "./pages/SetPassword";
 import Layout from "./components/Layout";
@@ -26,6 +27,17 @@ function ProtectedRoute({ children }) {
   if (!user) return <Navigate to="/login" replace />;
   if (needsOnboarding) return <Navigate to="/set-password" replace />;
   return <Layout>{children}</Layout>;
+}
+
+// Landing pública ("/"): si ya hay sesión activa no tiene sentido mostrarle
+// la landing de venta a quien ya es usuario — se lo manda directo al
+// dashboard, mismo criterio que SetPasswordRoute usa más abajo.
+function LandingRoute() {
+  const { user, loading, needsOnboarding } = useAuth();
+  if (loading) return <div style={styles.loading}>Cargando...</div>;
+  if (user && !needsOnboarding) return <Navigate to="/dashboard" replace />;
+  if (user && needsOnboarding) return <Navigate to="/set-password" replace />;
+  return <Landing />;
 }
 
 // Evita el caso inverso: alguien que ya completó el alta (full_name
@@ -77,6 +89,7 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<LandingRoute />} />
           <Route path="/login" element={<Login />} />
           <Route path="/set-password" element={<SetPasswordRoute />} />
           <Route

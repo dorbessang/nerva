@@ -4,6 +4,16 @@ Registro detallado de cambios por sesión de trabajo.
 
 ---
 
+## 2026-09-18
+
+### Feature: Landing pública de la vertical CRM (`/`)
+- Reconstruido en React el mockup HTML validado (`Landing.jsx` + `Landing.css`, mismo patrón JS/CSS que el resto de las páginas): nav con menú mobile, hero con contador animado + barras de estado que crecen al montar, franja "pensado para", sección de producto con 4 pestañas interactivas (Pipeline con mini-kanban click-to-advance + reiniciar demo, Entidades, Productos y precios, Tareas con aprobar/rechazar) y sus 2 feature cards, "Cómo funciona", FAQ con acordeón, CTA final y footer — toda la interactividad reimplementada con `useState`/`useEffect`, sin manipulación directa del DOM del mockup original
+- Ruta nueva `/` en `App.jsx`, servida sin `ProtectedRoute`. Decisión: si ya hay sesión activa, `/` redirige a `/dashboard` (o a `/set-password` si falta el alta) — mismo criterio que ya usa `SetPasswordRoute`, no tiene sentido mostrarle la landing de venta a alguien que ya es usuario
+- "Ingresar" del nav apunta a `/login` (antes placeholder `#` en el mockup)
+- Formulario "Pedí acceso": todavía no hay self-registration (Etapa 2), así que el submit inserta el mail en la tabla nueva `landing_leads` vía `supabase-js` (cliente anon, sin sesión) en lugar de simular éxito solo en el estado de React
+- Migración `landing_leads`: tabla (`id`, `email` con check de formato básico, `created_at`) + RLS con una sola policy — INSERT anónimo permitido, SELECT/UPDATE/DELETE bloqueados por default al no tener policy que los habilite. **Pendiente**: correr esta migración contra el proyecto de Supabase antes de que el formulario funcione en producción
+- Sin tocar ninguna ruta ni página autenticada existente, ni tabla de precios, ni self-registration real — eso sigue en "ETAPA 2" de `PENDIENTES.md`
+
 ## 2026-08-11 (26) — Cierre de sesión, resumen
 
 Sesión larga (entradas `(9)` a `(25)` más abajo, todas del mismo día). Resumen para retomar rápido en una sesión nueva — el detalle completo de cada punto está en su propia entrada:
