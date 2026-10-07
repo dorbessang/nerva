@@ -41,6 +41,9 @@ import '../styles/forms.css'
 import '../styles/buttons.css'
 import '../styles/detail-panel.css'
 import '../styles/filters.css'
+import '../components/StatCards.css'
+import '../components/CardGrid.css'
+import '../components/CustomFieldInput.css'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']

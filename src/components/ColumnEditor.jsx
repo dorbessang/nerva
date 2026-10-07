@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import './ColumnEditor.css'
 
 // Preferencias de columnas visibles/orden por usuario — compartido entre
 // Proyectos y Entidades. `staticColumns` son las que no son un campo custom

@@ -16,6 +16,7 @@ import { APPROVAL_RULE_TYPES } from '../lib/approvals'
 import { withOwnerApproval } from '../lib/staffActions'
 import '../styles/forms.css'
 import '../styles/detail-panel.css'
+import '../components/CustomFieldInput.css'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 

@@ -1,5 +1,6 @@
 import ColumnHeaderCell from './ColumnHeaderCell'
 import ColumnFilterMenu from './ColumnFilterMenu'
+import './TableGrid.css'
 
 // Vista Tabla compartida por Proyectos/Entidades/Productos — encabezado con
 // click-para-ordenar, ancho de columna ajustable a mano (ColumnHeaderCell)

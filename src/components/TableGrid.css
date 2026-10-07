@@ -1,0 +1,60 @@
+.neg-table-wrapper {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.neg-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.neg-table thead th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.neg-table-row {
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.neg-table-row:last-child { border-bottom: none; }
+.neg-table-row:hover { background: #f8fafc; }
+
+.neg-table td {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #374151;
+  vertical-align: middle;
+}
+
+.neg-th-check, .neg-td-check { width: 32px; text-align: center; }
+
+.neg-th-number, .neg-td-number {
+  width: 36px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 860px) {
+  .neg-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .neg-table {
+    min-width: 640px;
+  }
+}

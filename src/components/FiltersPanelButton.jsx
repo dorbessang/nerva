@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { ListFilter } from 'lucide-react'
 import { useCloseOnOutsideOrEscape } from '../lib/useCloseOnOutsideOrEscape'
 import ColumnFilterMenu from './ColumnFilterMenu'
+import './FiltersPanelButton.css'
 
 // Botón único "Filtros" — un panel con un ColumnFilterMenu por campo
 // filtrable, visible en cualquier vista (Tabla/Mosaico/Kanban). En Tabla

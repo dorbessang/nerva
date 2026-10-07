@@ -7,8 +7,8 @@ import { getApprovalRule, isApprover as isApproverFor } from '../lib/approvals'
 import SearchableSelect from './SearchableSelect'
 import Field from './FieldLabel'
 import '../styles/detail-panel.css'
-// Mismo patrón que DealMilestones.jsx — reusa .neg-note-input/.neg-milestone-*
-// ya definidas en Negotiations.css.
+import '../styles/detail-tabs.css'
+import './PriceHistory.css'
 
 function formatAmount(n) {
   return Number(n).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })

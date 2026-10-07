@@ -37,6 +37,8 @@ import '../styles/modal.css'
 import '../styles/buttons.css'
 import '../styles/detail-panel.css'
 import '../styles/filters.css'
+import '../components/StatCards.css'
+import '../components/CustomFieldInput.css'
 import './Entities.css'
 
 // Columnas que no son un campo custom configurable — calculadas a partir de

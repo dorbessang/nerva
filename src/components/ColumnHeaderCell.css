@@ -1,0 +1,86 @@
+/* Encabezado tipo Excel — click en el label para ordenar, ▾ para filtrar
+   por esa columna (popover), borde derecho arrastrable para el ancho.
+   Compartido entre Proyectos, Entidades y Productos. Ojo: NADA entre acá y
+   el popover del filtro puede tener overflow:hidden, porque lo recortaría
+   (el popover cuelga por fuera del <th> con position:absolute). */
+.sortable-th { padding: 0 !important; position: relative; }
+
+.sortable-th-inner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+  min-width: 0;
+}
+
+.sortable-th-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+}
+
+.col-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 5;
+}
+.col-resize-handle:hover, .col-resize-handle:active { background: #93b4fb; }
+
+.sortable-th-arrow {
+  font-size: 9px;
+  opacity: 0;
+  color: #0B1F3A;
+}
+.sortable-th-arrow.visible { opacity: 1; }
+
+.sortable-th-filter {
+  position: relative;
+  margin-left: auto;
+}
+
+.sortable-th-filter-btn {
+  background: #eef0f3;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.sortable-th-filter-btn:hover { background: #e2e5ea; color: #374151; }
+.sortable-th-filter-btn.open { background: #0B1F3A; color: #ffffff; }
+.sortable-th-filter-btn.active { background: #dbe7ff; color: #1D4ED8; }
+.sortable-th-filter-btn.active.open { background: #0B1F3A; color: #ffffff; }
+
+.sortable-th-filter-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  margin-top: 4px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  padding: 10px;
+  min-width: 220px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+.sortable-th-filter-popover select { width: 100%; }

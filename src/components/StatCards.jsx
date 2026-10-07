@@ -1,3 +1,5 @@
+import './StatCards.css'
+
 // Tarjeta de total — siempre la primera de la fila de tarjetas en
 // Proyectos/Entidades/Productos (y en cada página por tipo de entidad).
 // Cuando hay algún filtro activo (búsqueda, checklist de columna, tarjetas

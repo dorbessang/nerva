@@ -4,8 +4,7 @@ import { useAuth } from '../lib/AuthContext'
 import { logActivity } from '../lib/activity'
 import Field from './FieldLabel'
 import '../styles/detail-panel.css'
-// Reusa clases .neg-note-input/.neg-add-task-btn/.neg-tasks-list/.neg-task-row
-// ya definidas en Negotiations.css.
+import '../styles/detail-tabs.css'
 
 export function formatAmount(n) {
   return Number(n).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })

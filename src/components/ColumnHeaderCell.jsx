@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { ListFilter } from 'lucide-react'
 import { useCloseOnOutsideOrEscape } from '../lib/useCloseOnOutsideOrEscape'
+import './ColumnHeaderCell.css'
 
 export const DEFAULT_COL_WIDTH = 170
 const MIN_COL_WIDTH = 70

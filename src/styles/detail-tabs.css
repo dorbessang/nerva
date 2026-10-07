@@ -1,0 +1,247 @@
+/* Primitivas compartidas entre los componentes que arman las pestañas del
+   detalle (DealMilestones, Documents, NotesPostIts, PriceHistory) — todas
+   representan el mismo tipo de UI (lista de ítems con agregar/editar/
+   borrar: tareas, hitos de pago, cotizaciones) y comparten estos nombres
+   de clase, por eso van en un archivo aparte en vez de "pertenecer" a
+   ninguno de los cuatro. */
+
+.neg-add-task-btn {
+  background: transparent;
+  border: 1.5px solid #e5e7eb;
+  color: #374151;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.neg-add-task-btn:hover { border-color: #0B1F3A; color: #0B1F3A; }
+
+.neg-tasks-list { display: flex; flex-direction: column; }
+
+.neg-task-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f3f4f6;
+  background: #ffffff;
+  transition: background 0.1s;
+}
+
+.neg-task-row:first-child { border-radius: 8px 8px 0 0; border: 1px solid #e5e7eb; border-bottom: 1px solid #f3f4f6; }
+.neg-task-row:last-child { border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none; }
+.neg-task-row:only-child { border-radius: 8px; border: 1px solid #e5e7eb; }
+.neg-task-row.done { opacity: 0.5; }
+.neg-task-row.done .neg-task-title { text-decoration: line-through; color: #9ca3af; }
+.neg-task-row--other { background: #fafafa; opacity: 0.75; }
+.neg-task-row--hidden-hint { background: transparent; border: none !important; padding: 6px 12px; }
+.neg-task-row--highlight { background: #EFF6FF; box-shadow: inset 3px 0 0 #1D4ED8; }
+
+.neg-task-check {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid #d1d5db;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: transparent;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.neg-task-check:hover { border-color: #059669; color: #059669; }
+.neg-task-check.checked { background: #059669; border-color: #059669; color: #ffffff; }
+
+.neg-task-body { flex: 1; min-width: 0; }
+.neg-task-title { display: block; font-size: 13px; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.neg-task-blocked-note { display: block; font-size: 11px; color: #B45309; margin-top: 2px; }
+
+.neg-task-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.neg-task-date { font-size: 11px; color: #9ca3af; flex-shrink: 0; }
+
+.neg-note-input {
+  flex: 1;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  padding: 7px 12px;
+  font-size: 13px;
+  outline: none;
+}
+
+.neg-note-input:focus { border-color: #0B1F3A; }
+
+.neg-note-date-input {
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: #374151;
+  outline: none;
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.neg-note-date-input:focus { border-color: #0B1F3A; }
+
+.neg-financiero-meta { font-size: 12px; color: #6b7280; margin: 4px 0 0; }
+
+.neg-milestone-amount { font-size: 13px; font-weight: 600; color: #059669; flex-shrink: 0; text-align: right; min-width: 90px; }
+.neg-milestone-amount--negative { color: #DC2626; }
+.neg-milestone-timing-inline { font-size: 11px; color: #9ca3af; margin-left: 8px; font-weight: 400; }
+
+.neg-milestone-delete {
+  background: none;
+  border: none;
+  color: #d1d5db;
+  cursor: pointer;
+  font-size: 13px;
+  flex-shrink: 0;
+  padding: 0 0 0 4px;
+  transition: color 0.15s;
+}
+
+.neg-milestone-delete:hover { color: #dc2626; }
+
+.neg-milestone-edit {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 12px;
+  flex-shrink: 0;
+  padding: 0 0 0 8px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.neg-milestone-edit:hover { opacity: 1; }
+
+.neg-milestone-edit-row { flex-wrap: wrap; gap: 8px; padding: 10px 14px; align-items: flex-end; }
+
+.neg-milestone-total {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+  padding: 8px 14px;
+}
+
+.neg-milestone-total--negative { color: #DC2626; }
+
+.neg-milestone-add {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.neg-milestone-name-input { flex: 2; min-width: 180px; }
+.neg-milestone-amount-input { width: 110px; flex-shrink: 0; }
+.neg-milestone-date-input { width: 130px; flex-shrink: 0; }
+.neg-milestone-timing-input { flex: 1.5; min-width: 160px; }
+
+.neg-milestone-groups { display: flex; flex-direction: column; gap: 14px; }
+
+.neg-milestone-group {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.neg-milestone-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 8px 14px;
+  background: #F3F4F6;
+}
+
+.neg-milestone-group-title { font-size: 13px; font-weight: 700; color: #111827; }
+
+.neg-milestone-group-stats {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.neg-milestone-group-diff { font-weight: 700; color: #111827; }
+.neg-milestone-group-diff--positive { color: #059669; }
+.neg-milestone-group-diff--negative { color: #DC2626; }
+
+.neg-milestone-group-total {
+  text-align: right;
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
+  padding: 7px 14px;
+  border-top: 1px solid #f0f2f5;
+}
+
+.neg-projection-section {
+  background: #F9FAFB;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.neg-projection-meta,
+.neg-projection-split,
+.neg-projection-years {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.neg-projection-total {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.neg-projection-mismatch {
+  font-size: 12px;
+  font-weight: 600;
+  color: #B45309;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin: 0;
+}
+
+@media (max-width: 860px) {
+  .neg-note-date-input {
+    width: 100%;
+  }
+
+  .neg-milestone-name-input,
+  .neg-milestone-amount-input,
+  .neg-milestone-date-input,
+  .neg-milestone-timing-input {
+    width: 100%;
+  }
+}

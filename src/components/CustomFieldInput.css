@@ -1,0 +1,97 @@
+.cf-multiselect {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.cf-multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: #374151;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+
+.cf-country-multi {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cf-country-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cf-chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font-size: 10px;
+  margin-left: 4px;
+  padding: 0;
+}
+
+.cf-country-combobox {
+  position: relative;
+}
+
+.cf-country-combobox input {
+  width: 100%;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 7px;
+  background: #f9fafb;
+  padding: 11px 12px;
+  font-size: 14px;
+  color: #111827;
+}
+
+.cf-country-combobox input:focus {
+  outline: none;
+  border-color: #0B1F3A;
+  background: #ffffff;
+}
+
+/* Chips genéricos — reusados también directo por Negotiations/Entities/
+   Products/Settings (no solo por este componente) */
+.neg-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.neg-chip {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.neg-chip-green  { background: #ECFDF5; color: #059669; }
+.neg-chip-purple { background: #F5F3FF; color: #6D28D9; }
+.neg-chip-blue   { background: #EFF6FF; color: #1D4ED8; }
+.neg-chip-gray   { background: #F3F4F6; color: #6b7280; }
+.neg-chip-dashed { border: 1px dashed #d1d5db; }
+
+/* Select genérico de una línea — reusado también directo por
+   Negotiations/Settings */
+.neg-select {
+  padding: 9px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+@media (max-width: 860px) {
+  .neg-select {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}

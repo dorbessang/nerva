@@ -1,4 +1,5 @@
 import { getInitials, getAvatarColor } from '../lib/avatarColors'
+import './CardGrid.css'
 
 // Vista Mosaico compartida por Proyectos/Entidades/Productos — un tile con
 // avatar (iniciales + color por nombre), título truncado + insignia

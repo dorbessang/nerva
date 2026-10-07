@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import './ColumnFilterMenu.css'
 
 // Filtro de columna estilo Excel: buscador + checklist de todos los valores
 // posibles, en vez de un <select> de una sola opción — se puede tildar

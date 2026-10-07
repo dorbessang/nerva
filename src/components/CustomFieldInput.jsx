@@ -6,6 +6,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { isPrivileged } from '../lib/roles'
+import './CustomFieldInput.css'
+import './CountrySelector.css'
 import CountrySelector, { getAllCountries, getCountryName } from './CountrySelector'
 import { renderCustomFieldDisplay } from '../lib/customFields'
 

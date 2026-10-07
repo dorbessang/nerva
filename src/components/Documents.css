@@ -1,0 +1,32 @@
+.doc-icon { font-size: 18px; flex-shrink: 0; }
+.doc-meta { display: block; font-size: 11px; color: #9ca3af; margin-top: 2px; }
+
+.doc-download {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 14px;
+  flex-shrink: 0;
+  padding: 0 0 0 4px;
+  transition: color 0.15s;
+}
+
+.doc-download:hover { color: #1D4ED8; }
+
+.doc-dropzone { position: relative; border-radius: 10px; transition: background 0.15s; }
+.doc-dropzone--over { background: #eff6ff; outline: 2px dashed #3B82F6; outline-offset: -2px; }
+.doc-dropzone-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1D4ED8;
+  background: rgba(239, 246, 255, 0.85);
+  border-radius: 10px;
+  pointer-events: none;
+  z-index: 5;
+}

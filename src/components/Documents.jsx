@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { logActivity } from '../lib/activity'
 import '../styles/detail-panel.css'
-// Reusa la clase .neg-add-task-btn ya definida en Negotiations.css.
+import '../styles/detail-tabs.css'
+import './Documents.css'
 
 const MAX_SIZE_BYTES = 20 * 1024 * 1024 // 20MB
 
