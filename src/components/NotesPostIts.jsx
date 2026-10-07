@@ -3,10 +3,11 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { logActivity } from '../lib/activity'
 import { notifyMentioned } from '../lib/notifications'
-// Reusa las clases .neg-note-*/.neg-add-task-btn/.detail-empty/.mention-*
-// ya definidas en Negotiations.css — ese archivo queda cargado
-// globalmente en cualquier página que importe algo de Negotiations.jsx
-// (incluida Entities.jsx).
+import '../styles/detail-panel.css'
+// Reusa las clases .neg-note-*/.neg-add-task-btn/.mention-* ya definidas
+// en Negotiations.css — ese archivo queda cargado globalmente en
+// cualquier página que importe algo de Negotiations.jsx (incluida
+// Entities.jsx).
 
 const NOTE_COLORS = [
   { bg: '#fef08a', border: '#fde047', date: '#854d0e' },

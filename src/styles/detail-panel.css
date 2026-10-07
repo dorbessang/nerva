@@ -1,0 +1,42 @@
+/* Primitivas del panel de detalle, compartidas entre Negotiations,
+   Entities, Products, Settings (playbooks) y varios de los componentes de
+   pestaña (PriceHistory, NotesPostIts, ActivityTimeline, Documents,
+   DealMilestones) — antes vivían duplicadas entre Entities.css y
+   Negotiations.css (o, en el caso de .detail-empty, solo en Entities.css,
+   usada por 7 archivos que no la importaban). */
+
+.detail-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.detail-empty { font-size: 14px; color: #9ca3af; margin: 0; }
+
+/* .detail-footer tenía dos variantes con valores distintos (Entities.css
+   sin "gap", Negotiations.css con "gap: 12px") — se preserva la que
+   efectivamente gana el cascade hoy (la de Entities.css, verificado
+   contra el build), ya que es el único valor que Negotiations.jsx (su
+   único consumidor real de esta clase puntual) viene mostrando. */
+.detail-footer {
+  padding: 20px 28px;
+  border-top: 1px solid #f0f2f5;
+  display: flex;
+  align-items: center;
+}
+
+.btn-edit {
+  background: #f9fafb;
+  border: 1.5px solid #e5e7eb;
+  color: #374151;
+  padding: 6px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-edit:hover { border-color: #0B1F3A; color: #0B1F3A; }

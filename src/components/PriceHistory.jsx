@@ -6,6 +6,7 @@ import { notifyTaskAssigned } from '../lib/tasks'
 import { getApprovalRule, isApprover as isApproverFor } from '../lib/approvals'
 import SearchableSelect from './SearchableSelect'
 import Field from './FieldLabel'
+import '../styles/detail-panel.css'
 // Mismo patrón que DealMilestones.jsx — reusa .neg-note-input/.neg-milestone-*
 // ya definidas en Negotiations.css.
 

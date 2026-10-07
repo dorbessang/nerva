@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { timeAgo as sharedTimeAgo } from '../lib/timeAgo'
+import '../styles/detail-panel.css'
 import './ActivityTimeline.css'
 
 const TYPE_ICONS = {

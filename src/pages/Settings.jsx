@@ -15,6 +15,7 @@ import { isOwner as isOwnerRole, isPrivileged } from '../lib/roles'
 import { APPROVAL_RULE_TYPES } from '../lib/approvals'
 import { withOwnerApproval } from '../lib/staffActions'
 import '../styles/forms.css'
+import '../styles/detail-panel.css'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 

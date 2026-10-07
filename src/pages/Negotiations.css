@@ -2037,21 +2037,8 @@
 .price-history-add-line-btn:hover { background: #F3F4F6; }
 .price-history-add-line-btn:disabled { opacity: 0.5; cursor: default; }
 
-.detail-section-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-}
-
-.detail-footer {
-  padding: 20px 28px;
-  border-top: 1px solid #f0f2f5;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
+/* .detail-section-title / .detail-footer ahora viven en
+   src/styles/detail-panel.css */
 
 .btn-activity {
   border: 1.5px solid;
@@ -2101,21 +2088,8 @@
   color: #6b7280;
 }
 
-.btn-edit {
-  background: #f9fafb;
-  border: 1.5px solid #e5e7eb;
-  color: #374151;
-  padding: 6px 14px;
-  border-radius: 7px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-edit:hover { border-color: #0B1F3A; color: #0B1F3A; }
-
-/* .btn-delete / .delete-confirm / .btn-delete-confirm ahora viven en
+/* .btn-edit ahora vive en src/styles/detail-panel.css
+   .btn-delete / .delete-confirm / .btn-delete-confirm ahora viven en
    src/styles/buttons.css */
 
 /* Selector de entidades — combobox */

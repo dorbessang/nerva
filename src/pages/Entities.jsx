@@ -35,6 +35,7 @@ import { withOwnerApproval } from '../lib/staffActions'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import '../styles/modal.css'
 import '../styles/buttons.css'
+import '../styles/detail-panel.css'
 import './Entities.css'
 
 // Columnas que no son un campo custom configurable — calculadas a partir de

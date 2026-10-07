@@ -39,6 +39,7 @@ import LogMeetingModal from '../components/LogMeetingModal'
 import '../styles/modal.css'
 import '../styles/forms.css'
 import '../styles/buttons.css'
+import '../styles/detail-panel.css'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']

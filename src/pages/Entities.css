@@ -197,19 +197,7 @@
   max-height: 85vh;
 }
 
-.btn-edit {
-  background: #f9fafb;
-  border: 1.5px solid #e5e7eb;
-  color: #374151;
-  padding: 6px 14px;
-  border-radius: 7px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-edit:hover { border-color: #0B1F3A; color: #0B1F3A; }
+/* .btn-edit ahora vive en src/styles/detail-panel.css */
 
 .entity-detail-body {
   padding: 24px 28px 40px;
@@ -483,13 +471,7 @@
 
 .detail-section { display: flex; flex-direction: column; gap: 10px; }
 
-.detail-section-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-}
+/* .detail-section-title ahora vive en src/styles/detail-panel.css */
 
 .contacts-list { display: flex; flex-direction: column; gap: 10px; }
 
@@ -529,14 +511,8 @@
   border-top: 1px solid #f0f2f5;
 }
 
-.detail-empty { font-size: 14px; color: #9ca3af; margin: 0; }
-
-.detail-footer {
-  padding: 20px 28px;
-  border-top: 1px solid #f0f2f5;
-  display: flex;
-  align-items: center;
-}
+/* .detail-empty / .detail-footer ahora viven en
+   src/styles/detail-panel.css */
 
 /* .btn-delete / .delete-confirm / .btn-delete-confirm / .btn-secondary
    ahora viven en src/styles/buttons.css (compartidas con TaskDrawer,

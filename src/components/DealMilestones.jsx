@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { logActivity } from '../lib/activity'
 import Field from './FieldLabel'
-// Reusa clases .neg-note-input/.neg-add-task-btn/.neg-tasks-list/.neg-task-row/.detail-empty
+import '../styles/detail-panel.css'
+// Reusa clases .neg-note-input/.neg-add-task-btn/.neg-tasks-list/.neg-task-row
 // ya definidas en Negotiations.css.
 
 export function formatAmount(n) {

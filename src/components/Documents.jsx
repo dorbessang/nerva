@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { logActivity } from '../lib/activity'
-// Reusa clases .neg-add-task-btn/.detail-empty ya definidas en Negotiations.css.
+import '../styles/detail-panel.css'
+// Reusa la clase .neg-add-task-btn ya definida en Negotiations.css.
 
 const MAX_SIZE_BYTES = 20 * 1024 * 1024 // 20MB
 
