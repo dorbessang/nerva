@@ -538,57 +538,9 @@
   align-items: center;
 }
 
-.btn-delete {
-  background: transparent;
-  border: none;
-  color: #DC2626;
-  font-size: 13px;
-  cursor: pointer;
-  padding: 0;
-  font-weight: 500;
-}
-
-.btn-delete:hover { text-decoration: underline; }
-
-.delete-confirm {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #DC2626;
-  font-weight: 600;
-}
-
-.btn-delete-confirm {
-  background-color: #DC2626;
-  color: #ffffff;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-delete-confirm:hover { background-color: #b91c1c; }
-
-.btn-secondary {
-  background-color: transparent;
-  color: #6b7280;
-  border: 1.5px solid #e5e7eb;
-  padding: 10px 20px;
-  border-radius: 7px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-secondary:hover {
-  background-color: #f9fafb;
-  border-color: #d1d5db;
-  color: #374151;
-}
+/* .btn-delete / .delete-confirm / .btn-delete-confirm / .btn-secondary
+   ahora viven en src/styles/buttons.css (compartidas con TaskDrawer,
+   Negotiations, etc.) */
 
 /* ==================== Mobile (<=860px) ==================== */
 @media (max-width: 860px) {

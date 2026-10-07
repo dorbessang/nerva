@@ -5,6 +5,9 @@ import { logActivity } from '../lib/activity'
 import { mergeCustomFieldValues, computeFieldOrder, getMissingRequiredFields, isWideCustomField } from '../lib/customFields'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import { CustomFieldInput } from './CustomFieldInput'
+import '../styles/modal.css'
+import '../styles/forms.css'
+import '../styles/buttons.css'
 import './EntityModal.css'
 
 const emptyContact = () => ({

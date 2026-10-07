@@ -5,6 +5,7 @@ import { getCountryCode } from './CountrySelector'
 import { renderCustomFieldDisplay } from '../lib/customFields'
 import { matchEntity, normalizeName } from '../lib/entityMatching'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
+import '../styles/modal.css'
 import './ImportModal.css'
 
 function parseDate(v) {

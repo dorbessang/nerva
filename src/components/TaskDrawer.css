@@ -65,46 +65,6 @@
   gap: 16px;
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-group label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-}
-
-.form-group input,
-.form-group textarea,
-.form-group select {
-  padding: 11px 14px;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 7px;
-  font-size: 14px;
-  color: #111827;
-  outline: none;
-  background-color: #f9fafb;
-  transition: all 0.15s;
-}
-
-.form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
-  border-color: #0B1F3A;
-  background-color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(11, 31, 58, 0.08);
-}
-
-.form-row {
-  display: flex;
-  gap: 16px;
-}
-
 .form-row .form-group {
   flex: 1;
 }
@@ -133,86 +93,6 @@
   gap: 12px;
 }
 
-.btn-delete {
-  background: transparent;
-  border: none;
-  color: #DC2626;
-  font-size: 13px;
-  cursor: pointer;
-  padding: 0;
-  font-weight: 500;
-}
-
-.btn-delete:hover {
-  text-decoration: underline;
-}
-
-.delete-confirm {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #DC2626;
-  font-weight: 600;
-}
-
-.btn-delete-confirm {
-  background-color: #DC2626;
-  color: #ffffff;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-delete-confirm:hover {
-  background-color: #b91c1c;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #0B1F3A 0%, #1a3a6b 100%);
-  color: #ffffff;
-  border: none;
-  padding: 10px 24px;
-  border-radius: 7px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  box-shadow: 0 4px 12px rgba(11, 31, 58, 0.25);
-}
-
-.btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(11, 31, 58, 0.3);
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.btn-secondary {
-  background-color: transparent;
-  color: #6b7280;
-  border: 1.5px solid #e5e7eb;
-  padding: 10px 20px;
-  border-radius: 7px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-secondary:hover {
-  background-color: #f9fafb;
-  border-color: #d1d5db;
-  color: #374151;
-}
-
 /* ==================== Mobile (<=860px) ==================== */
 @media (max-width: 860px) {
   .drawer {
@@ -225,11 +105,6 @@
 
   .drawer-body {
     padding: 18px;
-  }
-
-  .form-row {
-    flex-direction: column;
-    gap: 14px;
   }
 
   .drawer-footer {

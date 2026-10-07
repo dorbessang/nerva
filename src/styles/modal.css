@@ -1,0 +1,162 @@
+/* Primitivas de modal compartidas entre EntityModal, ProductModal,
+   TaskModal, TaskDrawer, los 3 Import*Modal, LogMeetingModal y los
+   modales de Negotiations. Antes vivían duplicadas (o, en el caso de
+   .modal-header-actions, solo parcialmente) entre esos archivos y
+   Negotiations.css, y solo "andaban" porque Vite bundlea todo el CSS
+   global sin scoping. Los valores acá son los que efectivamente se
+   venían renderizando (verificado contra el build de producción), no
+   necesariamente los que tenía cada archivo por separado — ver
+   CHANGELOG para el detalle de qué variante ganaba el cascade en cada
+   caso con dos valores distintos. */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(11, 31, 58, 0.55);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+
+.modal-card {
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 10px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow:
+    0 32px 80px rgba(11, 31, 58, 0.2),
+    0 0 0 1px rgba(11, 31, 58, 0.06);
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 28px;
+  background: linear-gradient(135deg, #0B1F3A 0%, #1a3a6b 100%);
+  border-radius: 10px 10px 0 0;
+  flex-shrink: 0;
+}
+
+/* Header sticky para modales con body largo (ej. detalle/edición de
+   proyecto) */
+.modal-header--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Body de un modal simple de una sola columna (TaskModal, LogMeetingModal) */
+.modal-form {
+  padding: 24px 28px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: 0.3px;
+}
+
+.modal-close {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  line-height: 1;
+  transition: all 0.15s;
+}
+
+.modal-close:hover { background: rgba(255, 255, 255, 0.2); color: #ffffff; }
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #f0f2f5;
+}
+
+/* Botones de Guardar/Cancelar cuando viven en el header navy (sticky) —
+   los estilos base de .btn-primary/.btn-secondary están pensados para
+   fondo claro y quedan casi invisibles sobre el gradiente navy, así que
+   se sobreescriben acá. */
+.modal-header-actions .btn-secondary {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 8px 18px;
+}
+.modal-header-actions .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+.modal-header-actions .btn-primary {
+  background: #ffffff;
+  color: #0B1F3A;
+  padding: 8px 20px;
+  box-shadow: none;
+}
+.modal-header-actions .btn-primary:hover {
+  background: #e8edf5;
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.modal-header-actions .btn-primary:disabled { opacity: 0.55; }
+.modal-header-actions .form-error {
+  color: #FCA5A5;
+  font-size: 12px;
+  max-width: 320px;
+}
+
+/* ==================== Mobile (<=860px) ==================== */
+@media (max-width: 860px) {
+  .modal-overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .modal-card {
+    width: 100%;
+    max-width: 100%;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .modal-header {
+    padding: 16px 18px;
+    border-radius: 0;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .modal-form {
+    padding: 16px 18px 18px;
+  }
+
+  .modal-header-actions {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

@@ -1,0 +1,124 @@
+/* Primitivas de formulario compartidas entre los modales/drawers de la
+   app. .form-group y ".form-group label" eran idénticas en TODOS los
+   archivos que las definían (EntityModal.css, TaskModal.css,
+   TaskDrawer.css y también Settings.css) — acá quedan unificadas sin
+   ningún cambio de valor.
+
+   OJO con .form-group input/select y .form-row: EntityModal/TaskModal/
+   TaskDrawer definían una versión más "pesada" (padding 11px 14px, borde
+   1.5px, con box-shadow en foco / gap 16px), pero Settings.css define una
+   más compacta (padding 9px 12px, borde 1px, sin box-shadow / gap 12px +
+   align-items:flex-end) — y por el orden en que Vite bundlea el CSS
+   global, la versión de Settings es la que efectivamente gana el cascade
+   HOY en TODA la app, incluidos los modales (verificado contra el build).
+   Se preserva ese comportamiento actual acá a propósito, con la versión
+   de Settings como fuente de la verdad — Settings.jsx pasa a importar
+   este archivo en vez de tener su propia copia. .form-group textarea NO
+   está tocado por la regla de Settings, así que mantiene la versión
+   "pesada" tal cual se viene viendo hoy. */
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.form-group label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.form-group input,
+.form-group select {
+  padding: 9px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  font-size: 14px;
+  color: #111827;
+  outline: none;
+  background: #ffffff;
+  transition: border-color 0.15s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: #0B1F3A;
+}
+
+.form-group textarea {
+  padding: 11px 14px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 7px;
+  font-size: 14px;
+  color: #111827;
+  outline: none;
+  background-color: #f9fafb;
+  transition: all 0.15s;
+}
+
+.form-group textarea:focus {
+  border-color: #0B1F3A;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(11, 31, 58, 0.08);
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: #c4c9d4;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.form-group--wide {
+  grid-column: 1 / -1;
+}
+
+.entity-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+}
+
+.form-error {
+  color: #DC2626;
+  font-size: 13px;
+  margin: 0;
+  padding: 10px 14px;
+  background-color: #fef2f2;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+}
+
+/* Toggle de "requiere aprobación" — compartido entre Settings
+   (Automatizaciones) y TaskDrawer/TaskModal */
+.approval-rule-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  cursor: pointer;
+}
+.approval-rule-toggle input { width: 16px; height: 16px; cursor: pointer; }
+
+/* ==================== Mobile (<=860px) ==================== */
+@media (max-width: 860px) {
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .entity-fields-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -374,24 +374,6 @@
   background-color: #047857;
 }
 
-.btn-secondary {
-  background-color: transparent;
-  color: #6b7280;
-  border: 1.5px solid #e5e7eb;
-  padding: 10px 20px;
-  border-radius: 7px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-secondary:hover {
-  background-color: #f9fafb;
-  border-color: #d1d5db;
-  color: #374151;
-}
-
 /* ==================== Mobile (<=860px) ==================== */
 @media (max-width: 860px) {
   .tasks-container {

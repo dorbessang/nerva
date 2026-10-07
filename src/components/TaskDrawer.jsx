@@ -6,6 +6,8 @@ import { isNotificationEnabled } from '../lib/notifications'
 import { getApprovalRule, isApprovalRuleEnabled, isApprover as isApproverFor, shouldRequireTaskApproval } from '../lib/approvals'
 import { logActivity } from '../lib/activity'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
+import '../styles/forms.css'
+import '../styles/buttons.css'
 import './TaskDrawer.css'
 
 export default function TaskDrawer({ task, onClose, onUpdated }) {

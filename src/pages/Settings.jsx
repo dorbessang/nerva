@@ -14,6 +14,7 @@ import { FINANCIAL_FEATURES, resolveFinancialConfig } from '../lib/financialConf
 import { isOwner as isOwnerRole, isPrivileged } from '../lib/roles'
 import { APPROVAL_RULE_TYPES } from '../lib/approvals'
 import { withOwnerApproval } from '../lib/staffActions'
+import '../styles/forms.css'
 import './Settings.css'
 import * as LucideIcons from 'lucide-react'
 

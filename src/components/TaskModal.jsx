@@ -5,7 +5,9 @@ import { createTask, fetchPredecessorCandidates } from '../lib/tasks'
 import { getApprovalRule, isApprovalRuleEnabled, shouldRequireTaskApproval } from '../lib/approvals'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import SearchableSelect from './SearchableSelect'
-import './TaskModal.css'
+import '../styles/modal.css'
+import '../styles/forms.css'
+import '../styles/buttons.css'
 
 export default function TaskModal({ onClose, onCreated }) {
   const { user, workspaceId, activeWorkspace } = useAuth()

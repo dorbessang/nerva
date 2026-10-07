@@ -9,6 +9,8 @@ import { isTaskBlocked, notifySuccessors, dismissNotificationsForTask, wouldCrea
 import { logActivity } from '../lib/activity'
 import { naturalSortByName } from '../lib/tableSort'
 import { isPrivileged as isPrivilegedRole, canEditContent } from '../lib/roles'
+import '../styles/forms.css'
+import '../styles/buttons.css'
 import './Tasks.css'
 
 export default function Tasks() {

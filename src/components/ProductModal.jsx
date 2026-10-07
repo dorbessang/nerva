@@ -6,6 +6,9 @@ import { naturalSortByName } from '../lib/tableSort'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
 import { CustomFieldInput } from './CustomFieldInput'
 import SearchableSelect from './SearchableSelect'
+import '../styles/modal.css'
+import '../styles/forms.css'
+import '../styles/buttons.css'
 import './EntityModal.css'
 
 // Modal de alta/edición de Producto — mismo patrón que EntityModal (dispatch

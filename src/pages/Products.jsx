@@ -23,6 +23,8 @@ import { fetchFullNegotiation } from '../lib/negotiations'
 import { resolveStateConfig } from '../lib/customStates'
 import { isOwner, canEditContent } from '../lib/roles'
 import { withOwnerApproval } from '../lib/staffActions'
+import '../styles/modal.css'
+import '../styles/buttons.css'
 import './Entities.css'
 
 // Columnas que no son un campo custom configurable — calculada a partir de

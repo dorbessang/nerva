@@ -5,6 +5,7 @@ import { parseFieldValue } from '../lib/importFields'
 import { renderCustomFieldDisplay } from '../lib/customFields'
 import { matchEntity } from '../lib/entityMatching'
 import { useEscapeToClose } from '../lib/useEscapeToClose'
+import '../styles/modal.css'
 import './ImportModal.css'
 
 // Campos que no tiene sentido pedir por planilla: Tipo ya está implícito en

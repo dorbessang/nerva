@@ -36,6 +36,9 @@ import { isOwner, canEditContent, isPrivileged as isPrivilegedRole } from '../li
 import { withOwnerApproval } from '../lib/staffActions'
 import { applyPlaybook } from '../lib/playbooks'
 import LogMeetingModal from '../components/LogMeetingModal'
+import '../styles/modal.css'
+import '../styles/forms.css'
+import '../styles/buttons.css'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
