@@ -11,6 +11,7 @@ import { naturalSortByName } from '../lib/tableSort'
 import { isPrivileged as isPrivilegedRole, canEditContent } from '../lib/roles'
 import '../styles/forms.css'
 import '../styles/buttons.css'
+import '../styles/filters.css'
 import './Tasks.css'
 
 export default function Tasks() {

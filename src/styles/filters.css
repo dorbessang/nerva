@@ -1,0 +1,33 @@
+/* Barra de filtros compartida entre Negotiations, Entities, Products y
+   Tasks — antes vivían en Negotiations.css, cargadas en las otras 3
+   páginas solo porque Vite bundlea todo el CSS global sin scoping. */
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-field-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+/* Botón "Limpiar filtros" — reusado en Proyectos/Entidades/Productos/Tareas,
+   solo se renderiza cuando hay al menos un filtro activo. */
+.clear-filters-btn {
+  background: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #DC2626;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+}
+.clear-filters-btn:hover { background: #FEF2F2; border-color: #FCA5A5; }

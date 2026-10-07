@@ -40,6 +40,7 @@ import '../styles/modal.css'
 import '../styles/forms.css'
 import '../styles/buttons.css'
 import '../styles/detail-panel.css'
+import '../styles/filters.css'
 import './Negotiations.css'
 
 const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
