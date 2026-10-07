@@ -21,7 +21,7 @@ import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Agenda from "./pages/Agenda";
 
-function ProtectedRoute({ children }) {
+export function ProtectedRoute({ children }) {
   const { user, loading, needsOnboarding } = useAuth();
   if (loading) return <div style={styles.loading}>Cargando...</div>;
   if (!user) return <Navigate to="/login" replace />;
@@ -32,7 +32,7 @@ function ProtectedRoute({ children }) {
 // Landing pública ("/"): si ya hay sesión activa no tiene sentido mostrarle
 // la landing de venta a quien ya es usuario — se lo manda directo al
 // dashboard, mismo criterio que SetPasswordRoute usa más abajo.
-function LandingRoute() {
+export function LandingRoute() {
   const { user, loading, needsOnboarding } = useAuth();
   if (loading) return <div style={styles.loading}>Cargando...</div>;
   if (user && !needsOnboarding) return <Navigate to="/dashboard" replace />;
@@ -44,7 +44,7 @@ function LandingRoute() {
 // seteado) pero reabre un link de invitación viejo, o entra a /set-password
 // a mano — lo manda derecho al dashboard en vez de mostrarle el formulario
 // de nuevo.
-function SetPasswordRoute() {
+export function SetPasswordRoute() {
   const { user, loading, needsOnboarding } = useAuth();
   if (loading) return <div style={styles.loading}>Cargando...</div>;
   if (user && !needsOnboarding) return <Navigate to="/dashboard" replace />;
