@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { entityHasType } from '../../../lib/entityTypes'
 import { matchEntity } from '../../../lib/entityMatching'
+import '../../Negotiations.css'
 
 export default function EntityTypeCombobox({ entityType, allEntities, workspaceId, value, onSelect, onEntityUpserted }) {
   const [search, setSearch] = useState('')

@@ -1,5 +1,7 @@
 import { getCustomFieldValue, renderCustomFieldDisplay, resolveMemberNames } from '../../lib/customFields'
 import { getProductName, getEntitiesOfType } from './helpers'
+import '../../components/CustomFieldInput.css'
+import '../Negotiations.css'
 
 // Usada por CardsView (mosaico) y KanbanView — separada de ambos componentes
 // en su propio módulo para que ninguno de los dos mezcle export de

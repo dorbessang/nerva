@@ -1,3 +1,5 @@
+import '../../Negotiations.css'
+
 function daysInState(neg) {
   if (!neg.status_since) return null
   return Math.floor((Date.now() - new Date(neg.status_since).getTime()) / (1000 * 60 * 60 * 24))

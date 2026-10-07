@@ -3,6 +3,8 @@ import { entityHasType } from '../../../lib/entityTypes'
 import TableGrid from '../../../components/TableGrid'
 import { getProductName, getEntitiesOfType } from '../helpers'
 import StatusDaysBadge from './StatusDaysBadge'
+import '../../../components/CustomFieldInput.css'
+import '../../Negotiations.css'
 
 // Render de una celda según el key de columna
 function renderCell(key, neg, getStateConfig, getEntityName, getEntityFlag, customFieldDefs, members, refLists) {

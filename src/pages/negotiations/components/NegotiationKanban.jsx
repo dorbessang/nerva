@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { renderCardField } from '../renderCardField'
+import '../../../components/CardGrid.css'
+import '../../Negotiations.css'
 
 export default function KanbanView({ negotiations, customStates, getStateConfig, getEntityName, getEntityFlag, onSelect, canEdit, onMove, cols, customFieldDefs, members, entityTypes, refLists }) {
   const [dragOverCol, setDragOverCol] = useState(null)

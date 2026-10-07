@@ -10,7 +10,7 @@ import Avatar from '../components/Avatar'
 import InfoTooltip from '../components/InfoTooltip'
 import { AVATAR_PRESETS } from '../lib/avatarPresets'
 import '../styles/forms.css'
-import './Settings.css'
+import '../styles/settings-shell.css'
 import './Profile.css'
 
 const PROFILE_TAB_KEYS = ['perfil', 'seguridad', 'staff']

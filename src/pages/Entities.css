@@ -1,17 +1,18 @@
-.entities-container {
-  padding: 40px;
-  min-height: 100vh;
-  background-color: #f0f2f5;
-  box-sizing: border-box;
-  width: 100%;
-}
+/* .entities-container/header/title/new-btn/toolbar/search/export-btn/
+   loading/empty/bulk-bar/bulk-count, .entity-avatar/type-chip/td-name/
+   state-badge(s)/no-projects/detail-card(--wide)/detail-body(--cols)/
+   detail-col(--left/--right)/tabs/tab/info-row/info-label/info-val,
+   .detail-footer-inline/detail-section, .entity-negs-list/neg-row/
+   neg-main/neg-product/neg-date/neg-right/neg-badge/neg-arrow/
+   negs-new-btn y .neg-view-toggle ahora viven en src/styles/entity-shell.css
+   (compartidas con Products.jsx, y .neg-view-toggle también con
+   Negotiations.jsx). */
 
-.entities-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-}
+/* Sin uso actual en el código (no se encontró ningún className que las
+   use) — se dejan igual, no es parte de este saneamiento borrar CSS
+   muerto que no se pidió tocar. */
+.entity-neg-row--paused { opacity: 0.55; filter: grayscale(80%); }
+.entity-neg-row--inactive { background: #e0f2fe; border-color: #bae6fd; }
 
 /* Solapas por tipo de entidad — solo en la vista unificada "Todas las
    entidades" (sin entityTypeId). Filtro 100% client-side, no navega. */
@@ -38,106 +39,6 @@
 .entities-type-tab:hover { color: #374151; }
 .entities-type-tab.active { color: #0B1F3A; border-bottom-color: #0B1F3A; }
 
-.entities-title {
-  font-size: 24px;
-  font-weight: 700;
-  color: #0B1F3A;
-  margin: 0;
-}
-
-.entities-new-btn {
-  background-color: #0B1F3A;
-  color: #ffffff;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.entities-new-btn:hover { background-color: #162d52; }
-
-.entities-toolbar {
-  margin-bottom: 24px;
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.entities-search {
-  padding: 10px 16px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #111827;
-  outline: none;
-  background-color: #ffffff;
-  width: 280px;
-  transition: border-color 0.15s;
-}
-
-.entities-search:focus { border-color: #0B1F3A; }
-
-.entities-export-btn {
-  height: 36px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 0 13px;
-  font-size: 13px;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-
-.entities-export-btn:hover { border-color: #0B1F3A; color: #0B1F3A; }
-.entities-export-btn:disabled { opacity: 0.6; cursor: default; }
-
-.entities-loading,
-.entities-empty {
-  text-align: center;
-  color: #9ca3af;
-  padding: 64px 0;
-  font-size: 14px;
-}
-
-.entities-bulk-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: #F9FAFB;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 10px 14px;
-  margin-bottom: 14px;
-  font-size: 13px;
-  color: #374151;
-}
-
-.entities-bulk-count { display: flex; align-items: center; }
-
-.entity-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 99px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.entity-type-chip { flex-shrink: 0; }
-
 .entity-flag {
   width: 18px;
   height: auto;
@@ -145,140 +46,7 @@
   flex-shrink: 0;
 }
 
-/* Celda "Nombre" en Tabla — bandera + nombre quedaban pegados sin ningún
-   espaciado propio (heredaban el <td> genérico, sin display:flex). */
-.entities-td-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.entity-state-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.entity-state-badge {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 2px 9px;
-  border-radius: 99px;
-  display: inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: middle;
-}
-
-.entity-no-projects {
-  font-size: 13px;
-  color: #9ca3af;
-}
-
-/* --- Modal de detalle de entidad rediseñado --- */
-.entity-detail-card {
-  background-color: #ffffff;
-  border-radius: 10px;
-  width: 100%;
-  max-width: 680px;
-  max-height: 90vh;
-  overflow: hidden;
-  box-shadow: 0 32px 80px rgba(11, 31, 58, 0.2);
-  display: flex;
-  flex-direction: column;
-}
-
-.entity-detail-card--wide {
-  width: 90vw;
-  max-width: 1100px;
-  height: 85vh;
-  max-height: 85vh;
-}
-
 /* .btn-edit ahora vive en src/styles/detail-panel.css */
-
-.entity-detail-body {
-  padding: 24px 28px 40px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.entity-detail-body--cols {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 0;
-  padding: 0;
-  overflow: hidden;
-}
-
-.entity-detail-col {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  overflow-y: auto;
-}
-
-.entity-detail-col--left {
-  border-right: 1px solid #f0f2f5;
-  background: #fafafa;
-}
-
-.entity-detail-col--right {
-  background: #fff;
-}
-
-.entity-tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 18px;
-  border-bottom: 2px solid #e5e7eb;
-}
-
-.entity-tab {
-  background: transparent;
-  border: none;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #6b7280;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-
-.entity-tab:hover { color: #0B1F3A; }
-.entity-tab.active { color: #0B1F3A; border-bottom-color: #0B1F3A; font-weight: 700; }
-
-.entity-info-row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 10px;
-}
-
-.entity-info-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: #9ca3af;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-}
-
-.entity-info-val { font-size: 13px; color: #374151; }
-
-.detail-footer-inline {
-  margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid #f0f2f5;
-}
 
 /* Stats de proyectos */
 .entity-proj-stats {
@@ -359,96 +127,6 @@
   flex-shrink: 0;
 }
 
-/* Lista de proyectos */
-.entity-negs-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.entity-neg-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.12s;
-  gap: 12px;
-}
-
-.entity-neg-row:hover {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-}
-
-.entity-neg-row--paused { opacity: 0.55; filter: grayscale(80%); }
-.entity-neg-row--inactive { background: #e0f2fe; border-color: #bae6fd; }
-
-.entity-neg-main {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.entity-neg-product {
-  font-size: 13px;
-  font-weight: 600;
-  color: #0B1F3A;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.entity-neg-date {
-  font-size: 11px;
-  color: #9ca3af;
-}
-
-.entity-neg-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.entity-neg-badge {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 2px 9px;
-  border-radius: 99px;
-  white-space: nowrap;
-  display: inline-block;
-  max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: middle;
-}
-
-.entity-neg-arrow {
-  font-size: 16px;
-  color: #d1d5db;
-  line-height: 1;
-}
-
-.entity-negs-new-btn {
-  background: #0B1F3A;
-  color: #ffffff;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background-color 0.15s;
-}
-
-.entity-negs-new-btn:hover { background-color: #162d52; }
-
 .entity-negs-toggle {
   width: 100%;
   margin-top: 6px;
@@ -468,8 +146,6 @@
   color: #0B1F3A;
   background: #f9fafb;
 }
-
-.detail-section { display: flex; flex-direction: column; gap: 10px; }
 
 /* .detail-section-title ahora vive en src/styles/detail-panel.css */
 
@@ -520,42 +196,8 @@
 
 /* ==================== Mobile (<=860px) ==================== */
 @media (max-width: 860px) {
-  .entities-container {
-    padding: 16px;
-  }
-
-  .entity-tabs {
-    overflow-x: auto;
-    white-space: nowrap;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .entity-tab {
-    flex-shrink: 0;
-  }
-
-  .entities-header {
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
   .entity-projects-header {
     flex-wrap: wrap;
-  }
-
-  .entities-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-  }
-
-  .entities-search {
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  .neg-view-toggle {
-    align-self: flex-end;
   }
 
   .entities-list {
@@ -566,124 +208,7 @@
     min-width: 560px;
   }
 
-  .entity-detail-card {
-    width: 100vw;
-    max-width: 100vw;
-    max-height: 100vh;
-    height: 100vh;
-    border-radius: 0;
-  }
-
-  .entity-detail-body,
-  .entity-detail-body--cols {
-    padding: 16px;
-  }
-
-  /* Mismo bug real encontrado (y confirmado con captura) en el detalle
-     de Proyecto, ver la nota larga en Negotiations.css @ .neg-detail-body--split:
-     Grid de 1 columna con 2 filas "auto" dentro de un contenedor de
-     altura fija termina repartiendo esa altura entre las dos en vez de
-     dejar que cada una crezca con su contenido -- overflow-y:auto en
-     cada columna entonces las corta o (peor, con overflow:visible) las
-     desborda una encima de la otra. Fix: flex-column acá también, cada
-     columna mide su propio contenido y el contenedor entero scrollea. */
-  .entity-detail-body--cols {
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-  }
-
-  .entity-detail-col {
-    padding: 0 0 16px;
-    overflow-y: visible;
-    flex-shrink: 0;
-  }
-
-  .entity-detail-col--left {
-    border-right: none;
-    border-bottom: 1px solid #f0f2f5;
-    padding-bottom: 16px;
-    margin-bottom: 4px;
-  }
-
   .contact-card-header {
     flex-wrap: wrap;
   }
-}
-
-/* Panorama comercial (detalle de Producto) — una tarjeta por presentación
-   (o una sola, "sin presentación", para el caso normal de producto único). */
-.prod-panorama-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.prod-panorama-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 12px 14px;
-  background: #fff;
-}
-
-.prod-panorama-name {
-  font-size: 13px;
-  font-weight: 700;
-  color: #0B1F3A;
-  margin-bottom: 6px;
-}
-
-.prod-panorama-range {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.prod-panorama-last {
-  font-size: 15px;
-  font-weight: 700;
-  color: #111827;
-  white-space: nowrap;
-  min-width: 90px;
-}
-
-.prod-panorama-track {
-  position: relative;
-  flex: 1;
-  height: 5px;
-  border-radius: 3px;
-  background: #f0f2f5;
-}
-
-.prod-panorama-fill {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  border-radius: 3px;
-  background: #1D4ED8;
-  opacity: 0.3;
-}
-
-.prod-panorama-dot {
-  position: absolute;
-  top: 50%;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #1D4ED8;
-  transform: translate(-50%, -50%);
-  border: 2px solid #fff;
-  box-shadow: 0 0 0 1px #1D4ED8;
-}
-
-.prod-panorama-minmax {
-  font-size: 11.5px;
-  color: #6b7280;
-  white-space: nowrap;
-}
-
-.prod-panorama-date {
-  font-size: 11px;
-  color: #9ca3af;
-  margin-top: 6px;
 }

@@ -1,6 +1,7 @@
 import { CardGrid, CardTile } from '../../../components/CardGrid'
 import { renderCardField } from '../renderCardField'
 import StatusDaysBadge from './StatusDaysBadge'
+import '../../Negotiations.css'
 
 export default function CardsView({ negotiations, getStateConfig, getEntityName, getEntityFlag, onSelect, cols, customFieldDefs, members, selectedIds, onToggleSelect, entityTypes, refLists }) {
   // Columnas visibles excluyendo product y status (que van hardcodeados en el header)

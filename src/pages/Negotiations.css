@@ -158,16 +158,8 @@
 
 .neg-search:focus { border-color: #0B1F3A; }
 
-.neg-view-toggle {
-  display: flex;
-  align-items: stretch;
-  height: 36px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  overflow: hidden;
-  margin-left: auto;
-  box-sizing: border-box;
-}
+/* .neg-view-toggle ahora vive en src/styles/entity-shell.css (también
+   usada por Entities.jsx/Products.jsx) */
 
 .neg-sort-select {
   display: flex;
@@ -1248,11 +1240,6 @@
   .neg-search {
     width: 100%;
     box-sizing: border-box;
-  }
-
-  .neg-view-toggle {
-    margin-left: 0;
-    align-self: flex-end;
   }
 
   /* Financiero/Bitácora/Actividad/Tareas/Documentos no entran en una

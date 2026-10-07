@@ -1,0 +1,432 @@
+/* Shell de página + panel de detalle compartido entre Entities.jsx y
+   Products.jsx (ambos construidos con la misma estructura visual:
+   contenedor/encabezado/toolbar/búsqueda + modal de detalle con tabs,
+   columna izquierda de info y lista de proyectos vinculados). También
+   .neg-view-toggle, que usan además Negotiations.jsx — antes vivía la
+   base en Negotiations.css y el override mobile (distinto) en
+   Entities.css, cada página dependiendo implícitamente de que la otra
+   estuviera en el bundle. */
+.entities-container {
+  padding: 40px;
+  min-height: 100vh;
+  background-color: #f0f2f5;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.entities-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.entities-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0B1F3A;
+  margin: 0;
+}
+
+.entities-new-btn {
+  background-color: #0B1F3A;
+  color: #ffffff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.entities-new-btn:hover { background-color: #162d52; }
+
+.entities-toolbar {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.entities-search {
+  padding: 10px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #111827;
+  outline: none;
+  background-color: #ffffff;
+  width: 280px;
+  transition: border-color 0.15s;
+}
+
+.entities-search:focus { border-color: #0B1F3A; }
+
+.entities-export-btn {
+  height: 36px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0 13px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.entities-export-btn:hover { border-color: #0B1F3A; color: #0B1F3A; }
+.entities-export-btn:disabled { opacity: 0.6; cursor: default; }
+
+.entities-loading,
+.entities-empty {
+  text-align: center;
+  color: #9ca3af;
+  padding: 64px 0;
+  font-size: 14px;
+}
+
+.entities-bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F9FAFB;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.entities-bulk-count { display: flex; align-items: center; }
+
+.entity-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.entity-type-chip { flex-shrink: 0; }
+
+/* Celda "Nombre" en Tabla — bandera + nombre quedaban pegados sin ningún
+   espaciado propio (heredaban el <td> genérico, sin display:flex). */
+.entities-td-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.entity-state-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.entity-state-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 9px;
+  border-radius: 99px;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.entity-no-projects {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+/* --- Modal de detalle (Entidad/Producto) --- */
+.entity-detail-card {
+  background-color: #ffffff;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 32px 80px rgba(11, 31, 58, 0.2);
+  display: flex;
+  flex-direction: column;
+}
+
+.entity-detail-card--wide {
+  width: 90vw;
+  max-width: 1100px;
+  height: 85vh;
+  max-height: 85vh;
+}
+
+.entity-detail-body {
+  padding: 24px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.entity-detail-body--cols {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.entity-detail-col {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.entity-detail-col--left {
+  border-right: 1px solid #f0f2f5;
+  background: #fafafa;
+}
+
+.entity-detail-col--right {
+  background: #fff;
+}
+
+.entity-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 18px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.entity-tab {
+  background: transparent;
+  border: none;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.entity-tab:hover { color: #0B1F3A; }
+.entity-tab.active { color: #0B1F3A; border-bottom-color: #0B1F3A; font-weight: 700; }
+
+.entity-info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.entity-info-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.entity-info-val { font-size: 13px; color: #374151; }
+
+.detail-footer-inline {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #f0f2f5;
+}
+
+/* Lista de proyectos vinculados */
+.entity-negs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.entity-neg-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.12s;
+  gap: 12px;
+}
+
+.entity-neg-row:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.entity-neg-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.entity-neg-product {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0B1F3A;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entity-neg-date {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.entity-neg-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.entity-neg-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 9px;
+  border-radius: 99px;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.entity-neg-arrow {
+  font-size: 16px;
+  color: #d1d5db;
+  line-height: 1;
+}
+
+.entity-negs-new-btn {
+  background: #0B1F3A;
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s;
+}
+
+.entity-negs-new-btn:hover { background-color: #162d52; }
+
+.detail-section { display: flex; flex-direction: column; gap: 10px; }
+
+.neg-view-toggle {
+  display: flex;
+  align-items: stretch;
+  height: 36px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-left: auto;
+  box-sizing: border-box;
+}
+
+@media (max-width: 860px) {
+  .entities-container {
+    padding: 16px;
+  }
+
+  .entity-tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .entity-tab {
+    flex-shrink: 0;
+  }
+
+  .entities-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .entities-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .entities-search {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .neg-view-toggle {
+    margin-left: 0;
+    align-self: flex-end;
+  }
+
+  .entity-detail-card {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .entity-detail-body,
+  .entity-detail-body--cols {
+    padding: 16px;
+  }
+
+  /* Mismo bug real encontrado (y confirmado con captura) en el detalle
+     de Proyecto, ver la nota larga en Negotiations.css @ .neg-detail-body--split:
+     Grid de 1 columna con 2 filas "auto" dentro de un contenedor de
+     altura fija termina repartiendo esa altura entre las dos en vez de
+     dejar que cada una crezca con su contenido -- overflow-y:auto en
+     cada columna entonces las corta o (peor, con overflow:visible) las
+     desborda una encima de la otra. Fix: flex-column acá también, cada
+     columna mide su propio contenido y el contenedor entero scrollea. */
+  .entity-detail-body--cols {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .entity-detail-col {
+    padding: 0 0 16px;
+    overflow-y: visible;
+    flex-shrink: 0;
+  }
+
+  .entity-detail-col--left {
+    border-right: none;
+    border-bottom: 1px solid #f0f2f5;
+    padding-bottom: 16px;
+    margin-bottom: 4px;
+  }
+}
