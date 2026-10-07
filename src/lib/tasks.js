@@ -8,6 +8,14 @@ export function isTaskBlocked(task) {
   return !!task.predecessor && task.predecessor.status !== 'done'
 }
 
+// Filtro de proveedor en Tareas: matchea tareas vinculadas directo a esa
+// entidad, o cuyo proyecto está vinculado a esa entidad (negotiation_entities).
+export function matchesEntityFilter(task, entityId, linkedNegotiationIds) {
+  if (!entityId) return true
+  if (task.entity_id === entityId) return true
+  return !!(task.negotiation_id && linkedNegotiationIds.has(task.negotiation_id))
+}
+
 // Recorre la cadena de predecesoras de `candidatePredecessorId` para
 // asegurarse de que no se termine llegando de vuelta a `taskId`.
 export function wouldCreateCycle(allTasks, taskId, candidatePredecessorId) {

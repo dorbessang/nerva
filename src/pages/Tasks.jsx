@@ -5,7 +5,7 @@ import { useAuth } from '../lib/AuthContext'
 import TaskModal from '../components/TaskModal'
 import TaskDrawer from '../components/TaskDrawer'
 import SearchableSelect from '../components/SearchableSelect'
-import { isTaskBlocked, notifySuccessors, dismissNotificationsForTask, wouldCreateCycle } from '../lib/tasks'
+import { isTaskBlocked, notifySuccessors, dismissNotificationsForTask, wouldCreateCycle, matchesEntityFilter } from '../lib/tasks'
 import { logActivity } from '../lib/activity'
 import { naturalSortByName } from '../lib/tableSort'
 import { isPrivileged as isPrivilegedRole, canEditContent } from '../lib/roles'
@@ -116,11 +116,12 @@ export default function Tasks() {
     let result = data || []
 
     if (filterEntity) {
-      const neg = negotiations.filter(n => result.some(t => t.negotiation_id === n.id))
-      result = result.filter(t => {
-        if (!t.negotiation_id) return false
-        return neg.some(n => n.id === t.negotiation_id)
-      })
+      const { data: linkedNegs } = await supabase
+        .from('negotiation_entities')
+        .select('negotiation_id')
+        .eq('entity_id', filterEntity)
+      const linkedIds = new Set((linkedNegs || []).map(r => r.negotiation_id))
+      result = result.filter(t => matchesEntityFilter(t, filterEntity, linkedIds))
     }
 
     // Traemos las entidades de cada negociación
