@@ -7,6 +7,7 @@ import { useEscapeToClose } from '../lib/useEscapeToClose'
 import '../styles/modal.css'
 import '../styles/forms.css'
 import '../styles/buttons.css'
+import '../styles/toggle.css'
 
 // Trigger manual para registrar una llamada/reunión que ya pasó (queda en
 // la Bitácora de actividad) o programar una a futuro (crea una tarea con

@@ -5,6 +5,8 @@ import { logActivity } from '../lib/activity'
 import Field from './FieldLabel'
 import '../styles/detail-panel.css'
 import '../styles/detail-tabs.css'
+import '../styles/forms.css'
+import '../styles/buttons.css'
 
 export function formatAmount(n) {
   return Number(n).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })

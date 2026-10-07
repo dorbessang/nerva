@@ -489,36 +489,8 @@
   color: #065f46;
 }
 
-/* Toggle de tipo de objeto */
-.settings-type-toggle {
-  display: flex;
-  border: 1px solid #e5e7eb;
-  border-radius: 7px;
-  overflow: hidden;
-}
-
-.log-meeting-toggles {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-.log-meeting-toggles .settings-type-toggle { flex: 1; }
-.log-meeting-toggles .settings-toggle-btn { flex: 1; text-align: center; }
-
-.settings-toggle-btn {
-  background: #ffffff;
-  border: none;
-  padding: 7px 14px;
-  font-size: 13px;
-  cursor: pointer;
-  color: #6b7280;
-  transition: all 0.15s;
-}
-
-.settings-toggle-btn.active {
-  background: #0B1F3A;
-  color: #ffffff;
-}
+/* .settings-type-toggle / .settings-toggle-btn / .log-meeting-toggles
+   ahora viven en src/styles/toggle.css */
 
 /* Campos personalizados */
 .cf-choices-editor {
@@ -857,10 +829,6 @@
   .settings-block-header {
     flex-wrap: wrap;
     gap: 10px;
-  }
-
-  .settings-type-toggle {
-    flex-wrap: wrap;
   }
 
   .invite-form .form-row {

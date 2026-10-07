@@ -4,6 +4,7 @@ import { useAuth } from '../lib/AuthContext'
 import { logActivity } from '../lib/activity'
 import '../styles/detail-panel.css'
 import '../styles/detail-tabs.css'
+import '../styles/forms.css'
 import './Documents.css'
 
 const MAX_SIZE_BYTES = 20 * 1024 * 1024 // 20MB

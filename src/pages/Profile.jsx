@@ -9,6 +9,7 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import Avatar from '../components/Avatar'
 import InfoTooltip from '../components/InfoTooltip'
 import { AVATAR_PRESETS } from '../lib/avatarPresets'
+import '../styles/forms.css'
 import './Settings.css'
 import './Profile.css'
 
