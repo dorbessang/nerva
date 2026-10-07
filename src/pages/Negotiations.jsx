@@ -24,7 +24,7 @@ import FiltersPanelButton from '../components/FiltersPanelButton'
 import TableGrid from '../components/TableGrid'
 import TotalStatCard from '../components/StatCards'
 import { CardGrid, CardTile } from '../components/CardGrid'
-import { nextSortDir, sortRows, customFieldSortValue, naturalSortByName } from '../lib/tableSort'
+import { nextSortDir, sortRows, naturalSortByName } from '../lib/tableSort'
 import { entityHasType } from '../lib/entityTypes'
 import { resolveFinancialConfig } from '../lib/financialConfig'
 import { matchEntity } from '../lib/entityMatching'
@@ -36,6 +36,8 @@ import { isOwner, canEditContent, isPrivileged as isPrivilegedRole } from '../li
 import { withOwnerApproval } from '../lib/staffActions'
 import { applyPlaybook } from '../lib/playbooks'
 import LogMeetingModal from '../components/LogMeetingModal'
+import { CURRENCIES, ALL_COLUMNS, formatQuoteDate, getProductName, getEntitiesOfType, statusFilterIncludes, getNegSortValue, exportNegotiationsXlsx } from './negotiations/helpers'
+import EntityTypeCombobox from './negotiations/components/EntityTypeCombobox'
 import '../styles/modal.css'
 import '../styles/forms.css'
 import '../styles/buttons.css'
@@ -46,135 +48,6 @@ import '../components/StatCards.css'
 import '../components/CardGrid.css'
 import '../components/CustomFieldInput.css'
 import './Negotiations.css'
-
-const CURRENCIES = ['USD','EUR','GBP','ARS','BRL','MXN','CHF']
-
-// "1 de sept. 2026" -- mismo helper que PriceHistory.jsx, a mano porque
-// toLocaleDateString varía el formato (cero adelante, punto en el mes)
-// según el motor.
-const QUOTE_MONTHS_ABBR = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sept.', 'oct.', 'nov.', 'dic.']
-function formatQuoteDate(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00')
-  return `${d.getDate()} de ${QUOTE_MONTHS_ABBR[d.getMonth()]} ${d.getFullYear()}`
-}
-
-// Columnas que NO son un campo custom configurable (calculadas o legacy) —
-// product/entities/status/description/participants viven en
-// custom_field_definitions y su label sale de ahí, nunca de acá, para no
-// duplicar la columna con un label viejo que ignore lo que se configuró en
-// Settings (bug real: esta lista tenía esos 6 keys hardcodeados y `.find()`
-// devolvía siempre esta entrada primero, tapando el label real).
-const ALL_COLUMNS = [
-  { key: 'target_date',      label: 'Fecha'                                  },
-  { key: 'notes',            label: 'Notas'                                  },
-  { key: 'observations',     label: 'Aclaraciones'                           },
-  { key: 'activity_status',  label: 'Actividad'                              },
-  { key: 'last_activity_at', label: 'Últ. actividad'                         },
-]
-
-const ACTIVITY_LABELS = { active: 'En curso', paused: 'Pausado', inactive: 'Inactivo' }
-
-// Solo depende de `neg` (a diferencia de getEntityName/getEntityFlag, que
-// necesitan la lista completa de entidades como fallback) — no hace falta
-// pasarla como parámetro en ningún lado.
-function getProductName(neg) {
-  const primary = neg.primary_product || neg.negotiation_products?.map(np => np.product).filter(Boolean)[0] || null
-  return primary?.name || '—'
-}
-
-// Entidades vinculadas a un proyecto de un tipo (rol) dado — una columna por
-// tipo, máx. una entidad por tipo (confirmado con el usuario). El rol de cada
-// vínculo se guarda en negotiation_entities.role (el dropdown en el que se
-// eligió la entidad al armar el proyecto) — no se infiere del entity_type_id
-// propio de la entidad, porque una entidad puede tener tipo primario Y
-// secundario (ver EntityModal.jsx) y esa ambigüedad no diría en qué rol
-// quedó para ESTE proyecto puntual. El fallback a entity_type_id es solo
-// por si algún vínculo viejo quedó sin `role` (backfill de la migración).
-function getEntitiesOfType(neg, typeId) {
-  return (neg.negotiation_entities || [])
-    .filter(ne => (ne.role || ne.entity?.entity_type_id) === typeId)
-    .map(ne => ne.entity)
-}
-
-// El filtro de Estado puede venir de la tarjeta de stats (valor único) o del
-// checklist tipo Excel del encabezado de columna (array) — normaliza ambos.
-function statusFilterIncludes(filterValue, name) {
-  return Array.isArray(filterValue) ? filterValue.includes(name) : filterValue === name
-}
-
-// Valor de texto plano por columna para el export CSV — separado de
-// renderCell/renderCardField porque esos devuelven JSX con badges/chips.
-function getExportValue(key, neg, getEntityName, customFieldDefs, members, refLists) {
-  if (key.startsWith('entity_type:')) return getEntitiesOfType(neg, key.slice('entity_type:'.length)).map(e => e.name).join(', ')
-  switch (key) {
-    case 'product': return neg.product || neg.title || ''
-    case 'products': { const name = getProductName(neg); return name === '—' ? '' : name }
-    case 'status': return neg.status || ''
-    case 'description': return neg.description || ''
-    case 'target_date': return neg.target_date || ''
-    case 'participants': return resolveMemberNames(members, neg.participants).join(', ')
-    case 'notes': return (neg.notes_list || []).map(n => `${n.note_date}: ${n.content}`).join(' | ')
-    case 'observations': return neg.observations || ''
-    case 'activity_status': return ACTIVITY_LABELS[neg.activity_status] || ''
-    case 'last_activity_at': return neg.last_activity_at ? neg.last_activity_at.slice(0, 10) : ''
-    default: {
-      const def = customFieldDefs?.find(d => d.key === key)
-      if (!def) return ''
-      const val = renderCustomFieldDisplay(def, getCustomFieldValue(neg.custom_fields, key), members, refLists)
-      return val === '—' ? '' : val
-    }
-  }
-}
-
-// Valor comparable por columna para el click-para-ordenar del encabezado —
-// null siempre ordena al final, ver sortRows en lib/tableSort.js.
-function getNegSortValue(key, neg, getEntityName, customFieldDefs, members, refLists) {
-  if (key.startsWith('entity_type:')) {
-    const names = getEntitiesOfType(neg, key.slice('entity_type:'.length)).map(e => e.name)
-    return names.length ? names.join(', ').toLowerCase() : null
-  }
-  switch (key) {
-    case 'product': return (neg.product || neg.title || '').toLowerCase() || null
-    case 'products': { const name = getProductName(neg); return name !== '—' ? name.toLowerCase() : null }
-    case 'status': return neg.status?.toLowerCase() || null
-    case 'description': return neg.description?.toLowerCase() || null
-    case 'target_date': { const t = neg.target_date ? new Date(neg.target_date).getTime() : NaN; return Number.isNaN(t) ? null : t }
-    case 'participants': { const names = resolveMemberNames(members, neg.participants); return names.length ? names.join(', ').toLowerCase() : null }
-    case 'notes': return neg.notes_list?.length || null
-    case 'observations': return neg.observations?.toLowerCase() || null
-    case 'activity_status': return neg.activity_status || null
-    case 'last_activity_at': { const t = neg.last_activity_at ? new Date(neg.last_activity_at).getTime() : NaN; return Number.isNaN(t) ? null : t }
-    default: return customFieldSortValue(customFieldDefs?.find(d => d.key === key), neg, members, getCustomFieldValue, renderCustomFieldDisplay, refLists)
-  }
-}
-
-// Excel real (.xlsx) en vez de CSV: evita de raíz los problemas de
-// delimitador (coma vs ";" según configuración regional) y de codificación
-// de acentos que sí aparecen con texto plano tipo CSV.
-// xlsx/jspdf se cargan bajo demanda (import dinámico) para no sumarlos al
-// bundle inicial de /negotiations — son acciones ocasionales, no parte del
-// flujo principal de la página.
-async function exportNegotiationsXlsx(negotiations, cols, getEntityName, customFieldDefs, members, entityTypes = [], refLists) {
-  const XLSX = await import('xlsx')
-  const visibleCols = cols.filter(c => c.visible)
-  const headers = visibleCols.map(c => {
-    if (c.key.startsWith('entity_type:')) {
-      const et = entityTypes.find(t => t.id === c.key.slice('entity_type:'.length))
-      return et?.plural || et?.name || c.key
-    }
-    return customFieldDefs.find(d => d.key === c.key)?.label || ALL_COLUMNS.find(x => x.key === c.key)?.label || c.key
-  })
-  const rows = [
-    headers,
-    ...negotiations.map(neg => visibleCols.map(c => getExportValue(c.key, neg, getEntityName, customFieldDefs, members, refLists))),
-  ]
-  const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = visibleCols.map(() => ({ wch: 22 }))
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Proyectos')
-  XLSX.writeFile(wb, `nerva-proyectos-${new Date().toISOString().slice(0, 10)}.xlsx`)
-}
-
 
 export default function Negotiations() {
   const { user, workspaceId, effectiveRole, activeWorkspace, isStaff, role } = useAuth()
@@ -1233,105 +1106,6 @@ function KanbanView({ negotiations, customStates, getStateConfig, getEntityName,
 // "FQM" ya existe como Distribuidor y ahora hace falta como Proveedor), deja
 // elegir entre usar la existente sumándole este tipo como secundario, usarla
 // tal cual, o crear una entidad nueva de todos modos.
-function EntityTypeCombobox({ entityType, allEntities, workspaceId, value, onSelect, onEntityUpserted }) {
-  const [search, setSearch] = useState('')
-  const [open, setOpen] = useState(false)
-  const [resolving, setResolving] = useState(null) // { name, exact, fuzzy }
-  const [saving, setSaving] = useState(false)
-
-  const selected = allEntities.find(e => e.id === value)
-  const optionsOfType = allEntities.filter(e => entityHasType(e, entityType.id) && e.id !== value)
-  const matching = optionsOfType.filter(e => e.name.toLowerCase().includes(search.toLowerCase()))
-  const hasExactMatch = optionsOfType.some(e => e.name.toLowerCase() === search.trim().toLowerCase())
-
-  async function createNew(name) {
-    setSaving(true)
-    const { data, error } = await supabase.from('entities')
-      .insert({ workspace_id: workspaceId, name: name.trim(), entity_type_id: entityType.id, status: 'active', needs_review: true })
-      .select('*').single()
-    setSaving(false)
-    if (error) { console.error('createEntityQuick error:', error.message); return }
-    onEntityUpserted(data)
-    onSelect(data.id)
-    setSearch('')
-    setOpen(false)
-    setResolving(null)
-  }
-
-  async function selectExistingEntity(entity, addAsSecondary) {
-    if (addAsSecondary && !entity.secondary_entity_type_id && entity.entity_type_id !== entityType.id) {
-      const { error } = await supabase.from('entities').update({ secondary_entity_type_id: entityType.id }).eq('id', entity.id)
-      if (!error) onEntityUpserted({ ...entity, secondary_entity_type_id: entityType.id })
-    }
-    onSelect(entity.id)
-    setSearch('')
-    setOpen(false)
-    setResolving(null)
-  }
-
-  function startCreate(name) {
-    const { exact, fuzzy } = matchEntity(name, allEntities, e => e.name)
-    if (exact || fuzzy.length > 0) { setResolving({ name, exact, fuzzy }); return }
-    createNew(name)
-  }
-
-  return (
-    <div className="entity-combobox">
-      {selected && (
-        <div className="entity-combobox-selected">
-          <span className="entity-combobox-selected-name">✓ {selected.name}</span>
-          <button type="button" className="entity-combobox-clear" onMouseDown={() => onSelect('')} title="Quitar">✕</button>
-        </div>
-      )}
-      <input
-        type="text"
-        className="entity-search-input"
-        placeholder={selected ? 'Cambiar...' : 'Buscar o crear...'}
-        value={search}
-        autoComplete="off"
-        onChange={e => setSearch(e.target.value)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-      />
-      {open && (
-        <div className="entity-dropdown">
-          <div className="entity-dropdown-option" onMouseDown={() => { onSelect(''); setSearch(''); setOpen(false) }}>Sin asignar</div>
-          {matching.slice(0, 6).map(e => (
-            <div key={e.id} className="entity-dropdown-option" onMouseDown={() => { onSelect(e.id); setSearch(''); setOpen(false) }}>
-              {e.name}
-            </div>
-          ))}
-          {matching.length === 0 && !search && (
-            <div className="entity-dropdown-empty">Sin más opciones de este tipo</div>
-          )}
-          {search.trim() && !hasExactMatch && (
-            <div className="entity-dropdown-option entity-dropdown-option--create" onMouseDown={() => startCreate(search.trim())}>
-              + Crear "{search.trim()}"
-            </div>
-          )}
-        </div>
-      )}
-      {resolving && (
-        <div className="quick-create-resolver">
-          <p className="quick-create-resolver-title">
-            {resolving.exact ? `Ya existe "${resolving.exact.name}"` : 'Encontramos algo parecido:'}
-          </p>
-          {[...(resolving.exact ? [resolving.exact] : []), ...resolving.fuzzy.map(f => f.candidate)].map(candidate => (
-            <button key={candidate.id} type="button" className="quick-create-resolver-option" onClick={() => selectExistingEntity(candidate, candidate.entity_type_id !== entityType.id)}>
-              {candidate.entity_type_id === entityType.id
-                ? `Usar "${candidate.name}"`
-                : `Usar "${candidate.name}" + agregarle ${entityType.name} como tipo secundario`}
-            </button>
-          ))}
-          <button type="button" className="quick-create-resolver-option" onClick={() => createNew(resolving.name)} disabled={saving}>
-            Crear "{resolving.name}" de todos modos
-          </button>
-          <button type="button" className="quick-create-resolver-cancel" onClick={() => setResolving(null)}>Cancelar</button>
-        </div>
-      )}
-    </div>
-  )
-}
 
 export function NegotiationModal({ initial, presetEntity, entities, entityTypes = [], products = [], members, customStates, customFieldDefs = [], onClose, onCancel, onSaved, workspaceId, userId }) {
   const { activeWorkspace } = useAuth()
