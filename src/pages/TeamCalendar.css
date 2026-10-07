@@ -1,0 +1,74 @@
+.team-calendar-container {
+  padding: 40px;
+  min-height: 100vh;
+  background-color: #f0f2f5;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.team-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.team-calendar-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0B1F3A;
+  margin: 0;
+}
+
+.team-calendar-loading { color: #6b7280; font-size: 14px; padding: 24px 0; }
+
+.team-calendar-viewer-note {
+  font-size: 12.5px;
+  color: #6b7280;
+  margin: -8px 0 16px;
+}
+
+/* Leyenda "quién" — click para ocultar/mostrar las tareas de esa persona,
+   mismo patrón que "otros calendarios" de Google Calendar. */
+.team-calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.team-calendar-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--member-bg);
+  color: var(--member-fg);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.team-calendar-member-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--member-fg);
+  flex-shrink: 0;
+}
+
+.team-calendar-member.is-hidden {
+  opacity: 0.4;
+}
+.team-calendar-member.is-hidden .team-calendar-member-dot {
+  background: transparent;
+  border: 1px solid var(--member-fg);
+}
+
+@media (max-width: 640px) {
+  .team-calendar-container { padding: 16px; }
+}
