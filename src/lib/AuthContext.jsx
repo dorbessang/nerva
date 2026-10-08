@@ -19,6 +19,17 @@ function touchLastActive() {
   localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()))
 }
 
+// Marca que la sesión activa viene de un link de "olvidé mi contraseña"
+// (propio o mandado a mano desde el dashboard de Supabase -- el evento es
+// el mismo en los dos casos). Sin esto, una sesión de recuperación es
+// indistinguible de un login normal para el resto de la app: ProtectedRoute/
+// LandingRoute la dejarían pasar derecho al dashboard sin pasar nunca por
+// elegir una contraseña nueva, convirtiendo el link de "reseteo" en un
+// login mágico. sessionStorage (no localStorage) porque es un estado
+// transitorio de esta pestaña/sesión del navegador, no algo que deba
+// sobrevivir más allá de eso.
+const PASSWORD_RECOVERY_KEY = 'nerva_password_recovery'
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [session, setSession] = useState(null)
@@ -29,6 +40,9 @@ export function AuthProvider({ children }) {
   const [workspaceId, setWorkspaceId] = useState(null)
   const [workspaces, setWorkspaces] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(
+    () => sessionStorage.getItem(PASSWORD_RECOVERY_KEY) === '1'
+  )
   const lastUserIdRef = useRef(null)
 
   useEffect(() => {
@@ -55,6 +69,15 @@ export function AuthProvider({ children }) {
     document.addEventListener('visibilitychange', onVisible)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Se chequea antes que nada, incluso antes del early-return de
+      // sameUser de más abajo: getSession() en init() y este evento pueden
+      // llegar a resolver con el mismo user id (la persona ya tenía sesión
+      // en esta pestaña antes de pedir el reseteo), lo que dispararía ese
+      // early-return y se perdería la marca de recuperación.
+      if (event === 'PASSWORD_RECOVERY') {
+        sessionStorage.setItem(PASSWORD_RECOVERY_KEY, '1')
+        setIsPasswordRecovery(true)
+      }
       setSession(session)
       setUser(session?.user ?? null)
       // Supabase reemite eventos (TOKEN_REFRESHED, y en ciertas versiones
@@ -90,6 +113,8 @@ export function AuthProvider({ children }) {
         setWorkspaceId(null)
         setWorkspaces([])
         setLoading(false)
+        sessionStorage.removeItem(PASSWORD_RECOVERY_KEY)
+        setIsPasswordRecovery(false)
       }
     })
 
@@ -175,6 +200,14 @@ export function AuthProvider({ children }) {
     if (user) await fetchWorkspaces(user.id)
   }
 
+  // Llamado por ResetPassword.jsx después de guardar la contraseña nueva
+  // con éxito -- a partir de acá la sesión vuelve a comportarse como una
+  // sesión normal para el resto de la app.
+  function clearPasswordRecovery() {
+    sessionStorage.removeItem(PASSWORD_RECOVERY_KEY)
+    setIsPasswordRecovery(false)
+  }
+
   async function refreshProfile() {
     if (!user) return
     const { data } = await supabase
@@ -197,7 +230,7 @@ export function AuthProvider({ children }) {
   const needsOnboarding = !loading && !!user && profile !== null && !profile?.full_name
 
   return (
-    <AuthContext.Provider value={{ user, session, role, effectiveRole, isStaff, impersonateRole, profile, refreshProfile, workspaceId, workspaces, activeWorkspace, setActiveWorkspace, refreshWorkspaces, loading, needsOnboarding }}>
+    <AuthContext.Provider value={{ user, session, role, effectiveRole, isStaff, impersonateRole, profile, refreshProfile, workspaceId, workspaces, activeWorkspace, setActiveWorkspace, refreshWorkspaces, loading, needsOnboarding, isPasswordRecovery, clearPasswordRecovery }}>
       {children}
     </AuthContext.Provider>
   )

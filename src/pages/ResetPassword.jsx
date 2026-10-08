@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/AuthContext'
 
 export default function ResetPassword() {
   const [password, setPassword] = useState('')
@@ -8,6 +9,7 @@ export default function ResetPassword() {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const { clearPasswordRecovery } = useAuth()
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -24,6 +26,7 @@ export default function ResetPassword() {
     try {
       const { error } = await supabase.auth.updateUser({ password })
       if (error) throw error
+      clearPasswordRecovery()
       navigate('/dashboard')
     } catch {
       setError('Hubo un error al actualizar la contraseña. Pedí un nuevo link e intentá de nuevo.')

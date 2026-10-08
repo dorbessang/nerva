@@ -70,6 +70,12 @@ describe('ProtectedRoute', () => {
     expect(screen.getByTestId('layout')).toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
   })
+
+  it('redirige a /reset-password si la sesión es de recuperación, aunque el alta esté completa', () => {
+    useAuth.mockReturnValue({ loading: false, user: { id: '1' }, needsOnboarding: false, isPasswordRecovery: true })
+    renderGuard(<ProtectedRoute><div>contenido</div></ProtectedRoute>)
+    expect(screen.getByTestId('reset-password-page')).toBeInTheDocument()
+  })
 })
 
 describe('LandingRoute', () => {
@@ -96,6 +102,12 @@ describe('LandingRoute', () => {
     renderGuard(<LandingRoute />)
     expect(screen.getByTestId('set-password-page')).toBeInTheDocument()
   })
+
+  it('redirige a /reset-password si la sesión es de recuperación (en vez de mandar al dashboard)', () => {
+    useAuth.mockReturnValue({ loading: false, user: { id: '1' }, needsOnboarding: false, isPasswordRecovery: true })
+    renderGuard(<LandingRoute />)
+    expect(screen.getByTestId('reset-password-page')).toBeInTheDocument()
+  })
 })
 
 describe('SetPasswordRoute', () => {
@@ -120,19 +132,25 @@ describe('SetPasswordRoute', () => {
 
 describe('ResetPasswordRoute', () => {
   it('muestra "Cargando..." mientras loading es true', () => {
-    useAuth.mockReturnValue({ loading: true, user: null, needsOnboarding: false })
+    useAuth.mockReturnValue({ loading: true, user: null, needsOnboarding: false, isPasswordRecovery: false })
     renderGuard(<ResetPasswordRoute />)
     expect(screen.getByText('Cargando...')).toBeInTheDocument()
   })
 
-  it('redirige a /login si no hay sesión (link vencido o acceso directo)', () => {
-    useAuth.mockReturnValue({ loading: false, user: null, needsOnboarding: false })
+  it('redirige a /login si no hay sesión ni sesión de recuperación (link vencido o acceso directo)', () => {
+    useAuth.mockReturnValue({ loading: false, user: null, needsOnboarding: false, isPasswordRecovery: false })
     renderGuard(<ResetPasswordRoute />)
     expect(screen.getByTestId('login-page')).toBeInTheDocument()
   })
 
+  it('redirige a /dashboard si hay sesión normal pero no es de recuperación (entró a mano a la URL)', () => {
+    useAuth.mockReturnValue({ loading: false, user: { id: '1' }, needsOnboarding: false, isPasswordRecovery: false })
+    renderGuard(<ResetPasswordRoute />)
+    expect(screen.getByTestId('dashboard-page')).toBeInTheDocument()
+  })
+
   it('muestra el formulario de reset con sesión de recuperación, sin importar needsOnboarding (a diferencia de SetPasswordRoute)', () => {
-    useAuth.mockReturnValue({ loading: false, user: { id: '1' }, needsOnboarding: false })
+    useAuth.mockReturnValue({ loading: false, user: { id: '1' }, needsOnboarding: false, isPasswordRecovery: true })
     renderGuard(<ResetPasswordRoute />)
     expect(screen.getByTestId('reset-password-page')).toBeInTheDocument()
   })

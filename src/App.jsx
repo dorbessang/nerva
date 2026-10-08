@@ -25,9 +25,13 @@ import Agenda from "./pages/Agenda";
 import TeamCalendar from "./pages/TeamCalendar";
 
 export function ProtectedRoute({ children }) {
-  const { user, loading, needsOnboarding } = useAuth();
+  const { user, loading, needsOnboarding, isPasswordRecovery } = useAuth();
   if (loading) return <div style={styles.loading}>Cargando...</div>;
   if (!user) return <Navigate to="/login" replace />;
+  // Chequeo antes que needsOnboarding e incondicional a cualquier otra
+  // cosa: una sesión de recuperación no debe dejar pasar a ningún lado de
+  // la app hasta que se elija una contraseña nueva (ver ResetPasswordRoute).
+  if (isPasswordRecovery) return <Navigate to="/reset-password" replace />;
   if (needsOnboarding) return <Navigate to="/set-password" replace />;
   return <Layout>{children}</Layout>;
 }
@@ -36,8 +40,9 @@ export function ProtectedRoute({ children }) {
 // la landing de venta a quien ya es usuario — se lo manda directo al
 // dashboard, mismo criterio que SetPasswordRoute usa más abajo.
 export function LandingRoute() {
-  const { user, loading, needsOnboarding } = useAuth();
+  const { user, loading, needsOnboarding, isPasswordRecovery } = useAuth();
   if (loading) return <div style={styles.loading}>Cargando...</div>;
+  if (user && isPasswordRecovery) return <Navigate to="/reset-password" replace />;
   if (user && !needsOnboarding) return <Navigate to="/dashboard" replace />;
   if (user && needsOnboarding) return <Navigate to="/set-password" replace />;
   return <Landing />;
@@ -54,16 +59,16 @@ export function SetPasswordRoute() {
   return <SetPassword />;
 }
 
-// Al llegar desde el link de "olvidé mi contraseña", Supabase ya estableció
-// una sesión temporal de recuperación. A diferencia de SetPasswordRoute,
-// acá no importa needsOnboarding: quien resetea su contraseña ya tiene el
-// alta completa, así que no hay que redirigirla a ningún lado por eso. Si
-// no hay sesión (link vencido, o alguien entró a mano sin pasar por el
-// mail) no hay nada que actualizar, así que se manda a /login.
+// Al llegar desde el link de "olvidé mi contraseña" (propio o mandado a
+// mano desde el dashboard de Supabase), isPasswordRecovery es lo único que
+// importa -- a diferencia de SetPasswordRoute, acá no se mira needsOnboarding
+// (quien resetea ya tiene el alta completa). Sin sesión de recuperación no
+// hay nada que hacer acá: si hay una sesión normal se manda al dashboard,
+// si no hay ninguna sesión se manda a /login.
 export function ResetPasswordRoute() {
-  const { user, loading } = useAuth();
+  const { user, loading, isPasswordRecovery } = useAuth();
   if (loading) return <div style={styles.loading}>Cargando...</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!isPasswordRecovery) return <Navigate to={user ? "/dashboard" : "/login"} replace />;
   return <ResetPassword />;
 }
 
