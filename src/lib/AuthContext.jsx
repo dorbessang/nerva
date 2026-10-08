@@ -53,6 +53,16 @@ export function AuthProvider({ children }) {
       }
       touchLastActive()
       const { data: { session } } = await supabase.auth.getSession()
+      // Re-chequeo acá, no solo en el useState inicial de arriba: getSession()
+      // espera a que termine el procesamiento interno del hash de la URL
+      // (initializePromise, en supabase-js) antes de resolver, así que para
+      // acá el listener de supabase.js ya escribió la marca si corresponde.
+      // El useState inicial, en cambio, corre en el primer render de React
+      // -- que pasa ANTES de que termine ese procesamiento -- y como su
+      // función inicializadora no se vuelve a ejecutar, sin este re-chequeo
+      // se queda pegado en `false` para siempre en esta misma carga de
+      // página, aunque sessionStorage ya tenga el valor correcto.
+      setIsPasswordRecovery(sessionStorage.getItem(PASSWORD_RECOVERY_KEY) === '1')
       lastUserIdRef.current = session?.user?.id ?? null
       setSession(session)
       setUser(session?.user ?? null)
