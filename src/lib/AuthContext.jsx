@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { supabase } from './supabase'
+import { supabase, PASSWORD_RECOVERY_KEY } from './supabase'
 
 const AuthContext = createContext(null)
 
@@ -19,16 +19,16 @@ function touchLastActive() {
   localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()))
 }
 
-// Marca que la sesión activa viene de un link de "olvidé mi contraseña"
-// (propio o mandado a mano desde el dashboard de Supabase -- el evento es
-// el mismo en los dos casos). Sin esto, una sesión de recuperación es
-// indistinguible de un login normal para el resto de la app: ProtectedRoute/
-// LandingRoute la dejarían pasar derecho al dashboard sin pasar nunca por
-// elegir una contraseña nueva, convirtiendo el link de "reseteo" en un
-// login mágico. sessionStorage (no localStorage) porque es un estado
-// transitorio de esta pestaña/sesión del navegador, no algo que deba
-// sobrevivir más allá de eso.
-const PASSWORD_RECOVERY_KEY = 'nerva_password_recovery'
+// PASSWORD_RECOVERY_KEY: marca que la sesión activa viene de un link de
+// "olvidé mi contraseña" (propio o mandado a mano desde el dashboard de
+// Supabase -- el evento es el mismo en los dos casos). Sin esto, una sesión
+// de recuperación es indistinguible de un login normal para el resto de la
+// app: ProtectedRoute/LandingRoute la dejarían pasar derecho al dashboard
+// sin pasar nunca por elegir una contraseña nueva, convirtiendo el link de
+// "reseteo" en un login mágico. sessionStorage (no localStorage) porque es
+// un estado transitorio de esta pestaña/sesión del navegador, no algo que
+// deba sobrevivir más allá de eso. La escritura real pasa en supabase.js
+// (ver ese archivo para el porqué), acá solo se lee.
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
