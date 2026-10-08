@@ -56,4 +56,30 @@ describe('ResetPassword', () => {
     expect(supabase.auth.updateUser).not.toHaveBeenCalled()
     expect(clearPasswordRecovery).not.toHaveBeenCalled()
   })
+
+  it('muestra un mensaje específico si la nueva contraseña es igual a la anterior', async () => {
+    supabase.auth.updateUser.mockResolvedValue({ error: { code: 'same_password', message: 'New password should be different from the old password.' } })
+    renderResetPassword()
+
+    fireEvent.change(screen.getByPlaceholderText('Nueva contraseña'), { target: { value: 'nuevaClave123' } })
+    fireEvent.change(screen.getByPlaceholderText('Confirmar contraseña'), { target: { value: 'nuevaClave123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar contraseña' }))
+
+    expect(await screen.findByText('La nueva contraseña tiene que ser distinta de la anterior.')).toBeInTheDocument()
+    expect(clearPasswordRecovery).not.toHaveBeenCalled()
+  })
+
+  it('alterna entre ocultar y mostrar la contraseña tipeada', () => {
+    renderResetPassword()
+
+    const passwordInput = screen.getByPlaceholderText('Nueva contraseña')
+    expect(passwordInput).toHaveAttribute('type', 'password')
+
+    const [toggleBtn] = screen.getAllByRole('button', { name: 'Mostrar contraseña' })
+    fireEvent.click(toggleBtn)
+    expect(passwordInput).toHaveAttribute('type', 'text')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ocultar contraseña' }))
+    expect(passwordInput).toHaveAttribute('type', 'password')
+  })
 })

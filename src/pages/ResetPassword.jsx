@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 
 export default function ResetPassword() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -28,8 +31,15 @@ export default function ResetPassword() {
       if (error) throw error
       clearPasswordRecovery()
       navigate('/dashboard')
-    } catch {
-      setError('Hubo un error al actualizar la contraseña. Pedí un nuevo link e intentá de nuevo.')
+    } catch (err) {
+      // Supabase rechaza explícitamente reusar la contraseña actual con el
+      // código 'same_password' -- sin este chequeo, ese caso (no un error
+      // real) mostraba el mismo mensaje genérico que un link vencido.
+      setError(
+        err.code === 'same_password'
+          ? 'La nueva contraseña tiene que ser distinta de la anterior.'
+          : 'Hubo un error al actualizar la contraseña. Pedí un nuevo link e intentá de nuevo.'
+      )
     } finally {
       setLoading(false)
     }
@@ -41,23 +51,45 @@ export default function ResetPassword() {
         <h1 style={styles.logo}>NERVA</h1>
         <p style={styles.subtitle}>Elegí tu nueva contraseña</p>
         <form onSubmit={handleSubmit} style={styles.form}>
-          <input
-            style={styles.input}
-            type="password"
-            placeholder="Nueva contraseña"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            autoFocus
-            required
-          />
-          <input
-            style={styles.input}
-            type="password"
-            placeholder="Confirmar contraseña"
-            value={confirm}
-            onChange={e => setConfirm(e.target.value)}
-            required
-          />
+          <div style={styles.inputWrapper}>
+            <input
+              style={styles.input}
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Nueva contraseña"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              autoFocus
+              required
+            />
+            <button
+              type="button"
+              style={styles.toggleBtn}
+              onClick={() => setShowPassword(v => !v)}
+              aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+          <div style={styles.inputWrapper}>
+            <input
+              style={styles.input}
+              type={showConfirm ? 'text' : 'password'}
+              placeholder="Confirmar contraseña"
+              value={confirm}
+              onChange={e => setConfirm(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              style={styles.toggleBtn}
+              onClick={() => setShowConfirm(v => !v)}
+              aria-label={showConfirm ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              tabIndex={-1}
+            >
+              {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
           {error && <p style={styles.error}>{error}</p>}
           <button style={styles.button} type="submit" disabled={loading}>
             {loading ? 'Guardando...' : 'Guardar contraseña'}
@@ -102,11 +134,31 @@ const styles = {
     gap: '16px',
   },
   input: {
-    padding: '12px 16px',
+    padding: '12px 44px 12px 16px',
     borderRadius: '8px',
     border: '1px solid #e5e7eb',
     fontSize: '14px',
     outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
+  },
+  inputWrapper: {
+    position: 'relative',
+  },
+  toggleBtn: {
+    position: 'absolute',
+    right: '12px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'none',
+    border: 'none',
+    padding: '4px',
+    margin: 0,
+    cursor: 'pointer',
+    color: '#6b7280',
+    display: 'flex',
+    alignItems: 'center',
+    lineHeight: 0,
   },
   button: {
     padding: '12px',
