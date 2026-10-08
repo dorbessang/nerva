@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import { ProtectedRoute, LandingRoute, SetPasswordRoute } from './App'
+import { ProtectedRoute, LandingRoute, SetPasswordRoute, ResetPasswordRoute } from './App'
 import { useAuth } from './lib/AuthContext'
 
 vi.mock('./lib/AuthContext', () => ({
@@ -20,8 +20,13 @@ vi.mock('./pages/SetPassword', () => ({
   default: () => <div data-testid="set-password-page" />,
 }))
 
-// Monta el guard en "/" con rutas hermanas para /dashboard, /login y
-// /set-password, así un <Navigate> real termina en una pantalla detectable.
+vi.mock('./pages/ResetPassword', () => ({
+  default: () => <div data-testid="reset-password-page" />,
+}))
+
+// Monta el guard en "/" con rutas hermanas para /dashboard, /login,
+// /set-password y /reset-password, así un <Navigate> real termina en una
+// pantalla detectable.
 function renderGuard(element) {
   return render(
     <MemoryRouter initialEntries={['/']}>
@@ -30,6 +35,7 @@ function renderGuard(element) {
         <Route path="/dashboard" element={<div data-testid="dashboard-page" />} />
         <Route path="/login" element={<div data-testid="login-page" />} />
         <Route path="/set-password" element={<div data-testid="set-password-page" />} />
+        <Route path="/reset-password" element={<div data-testid="reset-password-page" />} />
       </Routes>
     </MemoryRouter>
   )
@@ -109,5 +115,25 @@ describe('SetPasswordRoute', () => {
     useAuth.mockReturnValue({ loading: false, user: { id: '1' }, needsOnboarding: true })
     renderGuard(<SetPasswordRoute />)
     expect(screen.getByTestId('set-password-page')).toBeInTheDocument()
+  })
+})
+
+describe('ResetPasswordRoute', () => {
+  it('muestra "Cargando..." mientras loading es true', () => {
+    useAuth.mockReturnValue({ loading: true, user: null, needsOnboarding: false })
+    renderGuard(<ResetPasswordRoute />)
+    expect(screen.getByText('Cargando...')).toBeInTheDocument()
+  })
+
+  it('redirige a /login si no hay sesión (link vencido o acceso directo)', () => {
+    useAuth.mockReturnValue({ loading: false, user: null, needsOnboarding: false })
+    renderGuard(<ResetPasswordRoute />)
+    expect(screen.getByTestId('login-page')).toBeInTheDocument()
+  })
+
+  it('muestra el formulario de reset con sesión de recuperación, sin importar needsOnboarding (a diferencia de SetPasswordRoute)', () => {
+    useAuth.mockReturnValue({ loading: false, user: { id: '1' }, needsOnboarding: false })
+    renderGuard(<ResetPasswordRoute />)
+    expect(screen.getByTestId('reset-password-page')).toBeInTheDocument()
   })
 })

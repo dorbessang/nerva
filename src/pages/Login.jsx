@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { signIn } from '../lib/auth'
 
 export default function Login() {
@@ -66,6 +66,7 @@ export default function Login() {
             {loading ? 'Ingresando...' : 'Ingresar'}
           </button>
         </form>
+        <Link to="/forgot-password" style={styles.link}>¿Olvidaste tu contraseña?</Link>
       </div>
     </div>
   )
@@ -141,5 +142,12 @@ const styles = {
     color: '#DC2626',
     fontSize: '13px',
     margin: '0',
+  },
+  link: {
+    display: 'block',
+    marginTop: '24px',
+    fontSize: '13px',
+    color: '#0B1F3A',
+    textAlign: 'center',
   },
 }

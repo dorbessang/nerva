@@ -10,6 +10,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "./lib/supabase";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import SetPassword from "./pages/SetPassword";
 import Layout from "./components/Layout";
 import Tasks from "./pages/Tasks";
@@ -52,6 +54,19 @@ export function SetPasswordRoute() {
   return <SetPassword />;
 }
 
+// Al llegar desde el link de "olvidé mi contraseña", Supabase ya estableció
+// una sesión temporal de recuperación. A diferencia de SetPasswordRoute,
+// acá no importa needsOnboarding: quien resetea su contraseña ya tiene el
+// alta completa, así que no hay que redirigirla a ningún lado por eso. Si
+// no hay sesión (link vencido, o alguien entró a mano sin pasar por el
+// mail) no hay nada que actualizar, así que se manda a /login.
+export function ResetPasswordRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return <div style={styles.loading}>Cargando...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  return <ResetPassword />;
+}
+
 function EntityRoute() {
   const { id } = useParams();
   const [entityType, setEntityType] = useState(null);
@@ -92,6 +107,8 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingRoute />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPasswordRoute />} />
           <Route path="/set-password" element={<SetPasswordRoute />} />
           <Route
             path="/dashboard"
